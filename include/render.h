@@ -1,0 +1,35 @@
+#pragma once
+#include "common.h"
+#include "level.h"
+#include "camera.h"
+#include "assets.h"
+#include <SDL2/SDL.h>
+
+/* ── RenderCtx ───────────────────────────────────────── */
+typedef struct {
+    SDL_Renderer *renderer;
+
+    /* Tile sheets — one per theme, indexed by DungeonTheme */
+    SDL_Texture  *tilesets[TILESET_COUNT];
+
+    /* Water surface sheets — separate from tile sheets.
+       tiles*.png rows 48-63 = shore/transition edges only.
+       water*.png = the actual tiling water fill drawn under them. */
+    SDL_Texture  *water[TILESET_COUNT];
+
+    DungeonTheme  active_theme;
+    int           png_available;   /* 0 = colour fallback active */
+} RenderCtx;
+
+/* assets_dir: folder containing tiles0-4.png and water0-4.png.
+   Returns 0 on SDL init success (missing PNGs → fallback, not fatal). */
+int  render_init  (RenderCtx *ctx, const char *assets_dir);
+void render_free  (RenderCtx *ctx);
+void render_frame (RenderCtx *ctx, const Level *lvl, const Camera *cam);
+
+/* Draw one tile sprite (0-63) from the active tileset at screen px (px,py) */
+void render_tile  (RenderCtx *ctx, int sprite_idx, int px, int py);
+
+/* Draw a water fill tile at screen px (px,py).
+   water*.png is a tiling texture; src_x/src_y select the region. */
+void render_water (RenderCtx *ctx, int src_x, int src_y, int px, int py);
