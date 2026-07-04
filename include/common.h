@@ -9,8 +9,8 @@
 
 /* ── Tile / view constants ───────────────────────────── */
 #define TILE_SIZE  16
-#define LEVEL_W    32         
-#define LEVEL_H    32         
+#define LEVEL_W    32       
+#define LEVEL_H    32      
 #define LEVEL_SIZE (LEVEL_W * LEVEL_H)
 #define VIEW_COLS  (SCREEN_W / TILE_SIZE)   /* 30 */
 #define VIEW_ROWS  (SCREEN_H / TILE_SIZE)   /* 17 */

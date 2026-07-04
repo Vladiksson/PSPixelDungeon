@@ -3,6 +3,7 @@
 #include "level.h"
 #include "camera.h"
 #include "assets.h"
+#include "player.h"
 #include <SDL2/SDL.h>
 
 /* ── RenderCtx ───────────────────────────────────────── */
@@ -26,6 +27,8 @@ typedef struct {
 int  render_init  (RenderCtx *ctx, const char *assets_dir);
 void render_free  (RenderCtx *ctx);
 void render_frame (RenderCtx *ctx, const Level *lvl, const Camera *cam);
+void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
+void render_present (RenderCtx *ctx);
 
 /* Draw one tile sprite (0-63) from the active tileset at screen px (px,py) */
 void render_tile  (RenderCtx *ctx, int sprite_idx, int px, int py);

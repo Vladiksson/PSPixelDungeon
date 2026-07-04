@@ -10,6 +10,7 @@ typedef struct {
 } Camera;
 
 void camera_init   (Camera *cam, int center_tile_x, int center_tile_y);
+void camera_center_on (Camera *cam, int tile_x, int tile_y);
 void camera_move   (Camera *cam, int dx, int dy);   /* dx/dy in tiles */
 void camera_clamp  (Camera *cam);                   /* stay in bounds  */
 

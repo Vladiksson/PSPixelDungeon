@@ -8,6 +8,13 @@ void camera_init(Camera *cam, int center_tile_x, int center_tile_y) {
     camera_clamp(cam);
 }
 
+/* Re-centre the camera on a tile (call every time the player moves) */
+void camera_center_on(Camera *cam, int tile_x, int tile_y) {
+    cam->tile_x = tile_x - VIEW_COLS / 2;
+    cam->tile_y = tile_y - VIEW_ROWS / 2;
+    camera_clamp(cam);
+}
+
 void camera_move(Camera *cam, int dx, int dy) {
     cam->tile_x += dx;
     cam->tile_y += dy;

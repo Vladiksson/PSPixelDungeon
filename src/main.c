@@ -8,6 +8,7 @@
 #include "camera.h"
 #include "render.h"
 #include "input.h"
+#include "player.h"
 
 /* ── PSP kernel module metadata (required for EBOOT.PBP) ──────── */
 /*PSP_MODULE_INFO("PixelDungeonPSP", 0, 1, 0);*/
@@ -22,25 +23,37 @@
    The CMakeLists custom command below copies it there.    */
 #define ASSETS_DIR "assets"
  
-/* ── Scroll repeat ────────────────────────────────────── */
-#define SCROLL_SPEED      1
-#define REPEAT_DELAY_MS 300
-#define REPEAT_RATE_MS   80
+/* ── Movement repeat (hold-to-walk) ──────────────────
+   First press moves immediately.
+   After REPEAT_DELAY_MS, moves every REPEAT_RATE_MS.   */
+#define REPEAT_DELAY_MS  220
+#define REPEAT_RATE_MS    80
+
  
-typedef struct { uint32_t next_ms; int active; } RepeatState;
+typedef struct { uint32_t next_ms; int held; } MoveRepeat;
  
-static void repeat_update(RepeatState *rs, const InputState *inp,
-                          Button btn, uint32_t now,
-                          Camera *cam, int dx, int dy) {
+ 
+static void move_repeat_update(
+        MoveRepeat *mr, InputState *inp, uint32_t now,
+        Player *p, Level *lvl, Camera *cam,
+        Button btn, int dx, int dy) {
+ 
     if (btn_pressed(inp, btn)) {
-        camera_move(cam, dx * SCROLL_SPEED, dy * SCROLL_SPEED);
-        rs->next_ms = now + REPEAT_DELAY_MS;
-        rs->active  = 1;
-    } else if (rs->active && btn_held(inp, btn) && now >= rs->next_ms) {
-        camera_move(cam, dx * SCROLL_SPEED, dy * SCROLL_SPEED);
-        rs->next_ms = now + REPEAT_RATE_MS;
-    } else if (!btn_held(inp, btn)) {
-        rs->active = 0;
+        /* Immediate first step */
+        if (player_move(p, lvl, dx, dy))
+            camera_center_on(cam, p->x, p->y);
+        mr->held    = btn;
+        mr->next_ms = now + REPEAT_DELAY_MS;
+ 
+    } else if (mr->held == (int)btn && btn_held(inp, btn)
+               && now >= mr->next_ms) {
+        /* Repeat while held */
+        if (player_move(p, lvl, dx, dy))
+            camera_center_on(cam, p->x, p->y);
+        mr->next_ms = now + REPEAT_RATE_MS;
+ 
+    } else if (!btn_held(inp, btn) && mr->held == (int)btn) {
+        mr->held = 0;
     }
 }
  
@@ -48,6 +61,7 @@ static void repeat_update(RepeatState *rs, const InputState *inp,
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
  
+    /* Generate dungeon */
     static Level lvl;
     if (level_generate(&lvl, 0, THEME_SEWERS) != 0) {
         fprintf(stderr, "level_generate failed\n");
@@ -55,9 +69,14 @@ int main(int argc, char *argv[]) {
     }
     level_print(&lvl);
  
-    Point entry = idx_to_xy(lvl.entrance);
+    /* Place player at entrance */
+    Player player;
+    player_init(&player, &lvl);
+ 
+    /* Camera centred on player */
     Camera cam;
-    camera_init(&cam, entry.x, entry.y);
+    camera_init(&cam, player.x, player.y);
+
  
     /* render_init always returns 0; check stderr output for load status */
     RenderCtx rctx;
@@ -68,20 +87,31 @@ int main(int argc, char *argv[]) {
  
     InputState inp;
     input_init(&inp);
-    RepeatState reps[4] = {0};
+    
+    MoveRepeat mr = {0, 0};
  
+    /* ── Game loop ──────────────────────────────────── */
     while (!inp.quit) {
         uint32_t now = SDL_GetTicks();
         input_update(&inp);
+ 
         if (btn_pressed(&inp, BTN_START)) break;
-        repeat_update(&reps[0], &inp, BTN_UP,    now, &cam,  0, -1);
-        repeat_update(&reps[1], &inp, BTN_DOWN,  now, &cam,  0, +1);
-        repeat_update(&reps[2], &inp, BTN_LEFT,  now, &cam, -1,  0);
-        repeat_update(&reps[3], &inp, BTN_RIGHT, now, &cam, +1,  0);
+ 
+        /* Player movement — d-pad / WASD
+           Camera follows automatically on every successful move */
+        move_repeat_update(&mr, &inp, now, &player, &lvl, &cam, BTN_UP,    0, -1);
+        move_repeat_update(&mr, &inp, now, &player, &lvl, &cam, BTN_DOWN,  0, +1);
+        move_repeat_update(&mr, &inp, now, &player, &lvl, &cam, BTN_LEFT, -1,  0);
+        move_repeat_update(&mr, &inp, now, &player, &lvl, &cam, BTN_RIGHT,+1,  0);
+ 
+        /* Draw: tiles → player → present */
         render_frame(&rctx, &lvl, &cam);
+        render_player(&rctx, &player, &cam);
+        render_present(&rctx);
+ 
         SDL_Delay(1);
     }
- 
+
     render_free(&rctx);
     SDL_Quit();
     return 0;
