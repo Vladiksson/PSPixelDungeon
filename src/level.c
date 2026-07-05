@@ -428,8 +428,7 @@ static void paint_grass(Level *lvl, const uint8_t *grass) {
    DECORATION  —  SewerLevel.decorate() etc.
    ══════════════════════════════════════════════════════════ */
 static void decorate_sewers(Level *lvl) {
-    for (int x=0; x<LEVEL_W; x++) {
-        int i=x;
+    for (int i=0; i<LEVEL_W; i++) {
         if (lvl->map[i]==TILE_WALL && lvl->map[i+LEVEL_W]==TILE_WATER && (rng_next()%4)==0)
             lvl->map[i]=TILE_WALL_DECO;
     }
@@ -459,17 +458,53 @@ static void decorate_sewers(Level *lvl) {
     }
 }
 static void decorate_prison(Level *lvl) {
-    for (int i=LEVEL_W; i<LEVEL_SIZE-LEVEL_W; i++)
-        if (lvl->map[i]==TILE_WALL && lvl->map[i-LEVEL_W]==TILE_WALL
-            && lvl->map[i+LEVEL_W]==TILE_WATER && (rng_next()%2)==0)
-            lvl->map[i]=TILE_WALL_DECO;
     for (int i=LEVEL_W+1; i<LEVEL_SIZE-LEVEL_W-1; i++)
-        if (lvl->map[i]==TILE_EMPTY) {
-            int cnt=(lvl->map[i+1]==TILE_WALL)+(lvl->map[i-1]==TILE_WALL)
-                   +(lvl->map[i+LEVEL_W]==TILE_WALL)+(lvl->map[i-LEVEL_W]==TILE_WALL);
-            if ((int)(rng_next()%16)<cnt*cnt) lvl->map[i]=TILE_EMPTY_DECO;
+        if (lvl->map[i]==TILE_EMPTY){
+            float chance = 0.05f;
+            if (lvl->map[i+1]==TILE_WALL && lvl->map[i+LEVEL_W]==TILE_WALL){
+                chance += 0.2f;
+            }
+            if (lvl->map[i-1]==TILE_WALL && lvl->map[i+LEVEL_W]==TILE_WALL){
+                chance += 0.2f;
+            }
+            if (lvl->map[i+1]==TILE_WALL && lvl->map[i-LEVEL_W]==TILE_WALL){
+                chance += 0.2f;
+            }
+            if (lvl->map[i-1]==TILE_WALL && lvl->map[i-LEVEL_W]==TILE_WALL){
+                chance += 0.2f;
+            }
+            if (rng_float() < chance) {
+                lvl->map[i] = TILE_EMPTY_DECO;
+            }
         }
+    for (int i=0; i<LEVEL_W; i++)
+        if (lvl->map[i]==TILE_WALL &&
+            (lvl->map[i+LEVEL_W]==TILE_EMPTY || lvl->map[i+LEVEL_W]==TILE_EMPTY_SP) && (rng_next()%6)==0)
+            lvl->map[i]=TILE_WALL_DECO;
+    for (int i=LEVEL_W; i<LEVEL_SIZE-LEVEL_W; i++)
+        if (lvl->map[i]==TILE_WALL &&
+            (lvl->map[i+LEVEL_W]==TILE_EMPTY || lvl->map[i+LEVEL_W]==TILE_EMPTY_SP) && (rng_next()%3)==0)
+            lvl->map[i]=TILE_WALL_DECO;   
+    Point ep=idx_to_xy(lvl->entrance);
+    for (int i=0; i<lvl->num_rooms; i++) {
+        if (!room_inside(&lvl->rooms[i], ep.x, ep.y)) continue;
+        for (int t=0; t<40; t++) {
+            Room *r=&lvl->rooms[i];
+            int rx=rng_range(r->left+1, r->right-1);
+            int ry=rng_range(r->top +1, r->bottom-1);
+            int idx=xy_to_idx(rx,ry);
+            if (idx!=lvl->entrance && lvl->map[idx]==TILE_EMPTY) { lvl->map[idx]=TILE_SIGN; break; }
+        }
+        break;
+    }
 }
+//static void decorate_caves(Level *lvl) {}    
+
+
+
+
+
+
 static void decorate_generic(Level *lvl) {
     for (int i=0; i<LEVEL_SIZE; i++)
         if (lvl->map[i]==TILE_WALL && (rng_next()%20)==0) lvl->map[i]=TILE_WALL_DECO;
@@ -575,10 +610,11 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme) {
     float wseed,gseed; int wgen,ggen;
     switch (theme) {
         case THEME_SEWERS: wseed=0.45f;wgen=5;gseed=0.40f;ggen=4; break;
-        case THEME_PRISON: wseed=0.30f;wgen=4;gseed=0.00f;ggen=0; break;
-        case THEME_CAVES:  wseed=0.50f;wgen=5;gseed=0.30f;ggen=3; break;
-        case THEME_CITY:   wseed=0.20f;wgen=3;gseed=0.00f;ggen=0; break;
-        default:           wseed=0.30f;wgen=4;gseed=0.00f;ggen=0; break;
+        case THEME_PRISON: wseed=0.45f;wgen=4;gseed=0.40f;ggen=3; break;
+        case THEME_CAVES:  wseed=0.45f;wgen=6;gseed=0.35f;ggen=3; break;
+        case THEME_CITY:   wseed=0.45f;wgen=4;gseed=0.40f;ggen=3; break;
+        case THEME_HALLS:  wseed=0.40f;wgen=6;gseed=0.30f;ggen=3; break;
+        default:           wseed=0.00f;wgen=0;gseed=0.00f;ggen=0; break; /*TODO MB REMOVE*/
     }
     if (wgen>0) { patch_generate(wseed,wgen,wp); paint_water(lvl,wp); }
     if (ggen>0) { patch_generate(gseed,ggen,gp); paint_grass(lvl,gp); }

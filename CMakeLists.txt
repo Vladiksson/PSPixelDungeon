@@ -8,6 +8,7 @@ add_executable(${PROJECT_NAME}
     src/input.c
     src/camera.c
     src/player.c
+    src/fov.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O2 -G0 -Wall)

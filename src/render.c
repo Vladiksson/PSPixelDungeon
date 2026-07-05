@@ -56,7 +56,7 @@ static SDL_Color fallback_color(uint8_t idx) {
    NEIGHBOURS4 = {-WIDTH,+1,+WIDTH,-1} = {top,right,bottom,left}
    Bit fires when neighbour is UNSTITCHABLE (wall/solid).         */
 static int tile_unstitchable(uint8_t t) {
-    return t == TILE_WALL || t == TILE_WALL_DECO || t == TILE_SECRET_DOOR;
+    return t == TILE_WALL || t == TILE_WALL_DECO || t == TILE_DOOR || t == TILE_WATER; //TODO REWRITE AS FLAG TO COMMON.H
 }
 static int water_sprite(const Level *lvl, int tx, int ty) {
     int top   = tile_unstitchable(get_tile_safe(lvl, tx,   ty-1));
@@ -80,7 +80,7 @@ int render_init(RenderCtx *ctx, const char *assets_dir) {
         SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!ctx->renderer) { fprintf(stderr,"[render] Renderer: %s\n",SDL_GetError()); return -1; }
 
-    ctx->active_theme  = THEME_SEWERS;
+    //ctx->active_theme  = THEME_SEWERS;
     ctx->png_available = 0;
     if (!assets_dir) return 0;
     if (!ensure_png()) return 0;
@@ -166,6 +166,42 @@ void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
         }
     }
     /* NOTE: does NOT call SDL_RenderPresent — caller does that */
+}
+
+/* ── render_fog ────────────────────────────────── */
+void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
+    SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
+
+    for (int ty = cam->tile_y; ty <= cam->tile_y + VIEW_ROWS; ty++) {
+        for (int tx = cam->tile_x; tx <= cam->tile_x + VIEW_COLS; tx++) {
+            if (!in_bounds(tx, ty)) continue;
+
+            int idx = xy_to_idx(tx, ty);
+
+            /* Fully visible — no overlay needed */
+            if (fog->visible[idx]) continue;
+
+            Point    scr  = camera_tile_to_screen(cam, tx, ty);
+            SDL_Rect rect = { scr.x, scr.y, TILE_SIZE, TILE_SIZE };
+
+            if (fog->visited[idx]) {
+                /* VISITED = 0xCC111111 (ARGB)
+                   SDL2 colour order is RGBA:
+                   R=0x11 G=0x11 B=0x11 A=0xCC                    */
+                SDL_SetRenderDrawColor(ctx->renderer,
+                                       0x11, 0x11, 0x11, 0xCC);
+            } else {
+                /* INVISIBLE = 0xFF000000 — solid black             */
+                SDL_SetRenderDrawColor(ctx->renderer,
+                                       0x00, 0x00, 0x00, 0xFF);
+            }
+
+            SDL_RenderFillRect(ctx->renderer, &rect);
+        }
+    }
+
+    /* Restore opaque drawing for everything that follows */
+    SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
 }
 
 /* ── render_player ────────────────────────────────── */

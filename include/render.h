@@ -4,6 +4,7 @@
 #include "camera.h"
 #include "assets.h"
 #include "player.h"
+#include "fov.h"
 #include <SDL2/SDL.h>
 
 /* ── RenderCtx ───────────────────────────────────────── */
@@ -27,6 +28,7 @@ typedef struct {
 int  render_init  (RenderCtx *ctx, const char *assets_dir);
 void render_free  (RenderCtx *ctx);
 void render_frame (RenderCtx *ctx, const Level *lvl, const Camera *cam);
+void render_fog    (RenderCtx *ctx, const Fog    *fog, const Camera *cam);
 void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
 void render_present (RenderCtx *ctx);
 

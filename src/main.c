@@ -1,5 +1,6 @@
 #include <pspkernel.h>
 #include <pspdebug.h>
+#include <pspsysmem.h>
 #include <SDL2/SDL.h>
 #include <stdio.h>
 
@@ -9,11 +10,12 @@
 #include "render.h"
 #include "input.h"
 #include "player.h"
+#include "fov.h"
 
 /* ── PSP kernel module metadata (required for EBOOT.PBP) ──────── */
-/*PSP_MODULE_INFO("PixelDungeonPSP", 0, 1, 0);*/
+/*PSP_MODULE_INFO("PixelDungeonPSP", PSP_MODULE_USER, 1, 0);*/
 /*PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);*/
-/*PSP_HEAP_SIZE_KB(20480);*/   /* 20 MB — be generous for SDL2 */
+PSP_HEAP_SIZE_KB(16384); // 16 MB safe
 
 
 /* ── Asset path ───────────────────────────────────────── */
@@ -60,7 +62,6 @@ static void move_repeat_update(
 /* ── Main ─────────────────────────────────────────────── */
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
- 
     /* Generate dungeon */
     static Level lvl;
     if (level_generate(&lvl, 0, THEME_SEWERS) != 0) {
@@ -73,6 +74,11 @@ int main(int argc, char *argv[]) {
     Player player;
     player_init(&player, &lvl);
  
+    /* ── Fog of war ─────────────────────────────────────────── */
+    static Fog fog;          /* static: LEVEL_SIZE bytes, not on stack */
+    fog_init(&fog);
+
+
     /* Camera centred on player */
     Camera cam;
     camera_init(&cam, player.x, player.y);
@@ -104,11 +110,14 @@ int main(int argc, char *argv[]) {
         move_repeat_update(&mr, &inp, now, &player, &lvl, &cam, BTN_LEFT, -1,  0);
         move_repeat_update(&mr, &inp, now, &player, &lvl, &cam, BTN_RIGHT,+1,  0);
  
+        fog_update(&fog, &lvl, player.x, player.y);
+
         /* Draw: tiles → player → present */
         render_frame(&rctx, &lvl, &cam);
+        render_fog(&rctx, &fog, &cam);
         render_player(&rctx, &player, &cam);
         render_present(&rctx);
- 
+        
         SDL_Delay(1);
     }
 
