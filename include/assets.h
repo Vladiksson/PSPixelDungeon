@@ -29,6 +29,9 @@
 #define ASSET_MAGE      "mage.png"
 #define ASSET_ROGUE     "rogue.png"
 #define ASSET_HUNTRESS  "ranger.png"
+
+#define ASSET_HERO_BY_CLASS { ASSET_WARRIOR, ASSET_MAGE, ASSET_ROGUE, ASSET_HUNTRESS }
+
 #define ASSET_AVATARS   "avatars.png"
 #define ASSET_PET       "pet.png"
 #define ASSET_SURFACE   "surface.png"

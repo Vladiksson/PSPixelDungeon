@@ -29,34 +29,23 @@ static SDL_Texture *load_tex(SDL_Renderer *r, const char *dir, const char *f) {
     return t;
 }
 
-/* ── colour fallback ──────────────────────────────── */
-static SDL_Color fallback_color(uint8_t idx) {
-    switch (idx) {
-        case TILE_CHASM:       return (SDL_Color){0x00,0x00,0x00,0xFF};
-        case TILE_EMPTY:       return (SDL_Color){0x66,0x55,0x44,0xFF};
-        case TILE_GRASS:       return (SDL_Color){0x33,0x77,0x22,0xFF};
-        case TILE_WALL:        return (SDL_Color){0x44,0x44,0x44,0xFF};
-        case TILE_WALL_DECO:   return (SDL_Color){0x55,0x55,0x44,0xFF};
-        case TILE_DOOR:        return (SDL_Color){0x88,0x55,0x22,0xFF};
-        case TILE_OPEN_DOOR:   return (SDL_Color){0xBB,0x88,0x44,0xFF};
-        case TILE_LOCKED_DOOR: return (SDL_Color){0xCC,0x33,0x00,0xFF};
-        case TILE_ENTRANCE:    return (SDL_Color){0xFF,0xFF,0x00,0xFF};
-        case TILE_EXIT:        return (SDL_Color){0x00,0xFF,0xFF,0xFF};
-        case TILE_EMBERS:      return (SDL_Color){0xAA,0x55,0x11,0xFF};
-        case TILE_HIGH_GRASS:  return (SDL_Color){0x22,0x88,0x22,0xFF};
-        case TILE_EMPTY_DECO:  return (SDL_Color){0x77,0x66,0x44,0xFF};
-        case TILE_WATER:       return (SDL_Color){0x22,0x44,0xAA,0xFF};
-        default:
-            if (idx >= TILE_WATER_TILES) return (SDL_Color){0x22,0x44,0xAA,0xFF};
-            return (SDL_Color){0x22,0x22,0x22,0xFF};
-    }
-}
 
 /* ── water shore bitmask — exact Level.java getWaterTile() ─
    NEIGHBOURS4 = {-WIDTH,+1,+WIDTH,-1} = {top,right,bottom,left}
    Bit fires when neighbour is UNSTITCHABLE (wall/solid).         */
 static int tile_unstitchable(uint8_t t) {
-    return t == TILE_WALL || t == TILE_WALL_DECO || t == TILE_DOOR || t == TILE_WATER; //TODO REWRITE AS FLAG TO COMMON.H
+    return t == TILE_CHASM ||
+    t == TILE_WATER || 
+    t == TILE_WALL || 
+    t == TILE_DOOR || 
+    //t == TILE_OPEN_DOOR || 
+    t == TILE_LOCKED_DOOR || 
+    t == TILE_PEDESTAL || 
+    t == TILE_EMPTY_SP || 
+    t == TILE_STATUE_SP || 
+    t == TILE_BOOKSHELF || 
+    t == TILE_SECRET_DOOR ||
+    t == TILE_WALL_DECO; //TODO REWRITE AS FLAG TO COMMON.H
 }
 static int water_sprite(const Level *lvl, int tx, int ty) {
     int top   = tile_unstitchable(get_tile_safe(lvl, tx,   ty-1));
@@ -72,6 +61,7 @@ int render_init(RenderCtx *ctx, const char *assets_dir) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         fprintf(stderr,"[render] SDL_Init: %s\n",SDL_GetError()); return -1;
     }
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0"); // nearest filtering
     SDL_Window *win = SDL_CreateWindow("PSPixel Dungeon",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         SCREEN_W, SCREEN_H, SDL_WINDOW_SHOWN);
@@ -80,7 +70,6 @@ int render_init(RenderCtx *ctx, const char *assets_dir) {
         SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!ctx->renderer) { fprintf(stderr,"[render] Renderer: %s\n",SDL_GetError()); return -1; }
 
-    //ctx->active_theme  = THEME_SEWERS;
     ctx->png_available = 0;
     if (!assets_dir) return 0;
     if (!ensure_png()) return 0;
@@ -102,6 +91,7 @@ int render_init(RenderCtx *ctx, const char *assets_dir) {
         printf("[render] tiles %d/%d  water %d/%d\n",tl,TILESET_COUNT,wl,TILESET_COUNT);
         ctx->png_available = 1;
     }
+    ctx->hero = load_tex(ctx->renderer, assets_dir, "warrior.png");
     return 0;
 }
 
@@ -111,6 +101,8 @@ void render_free(RenderCtx *ctx) {
         if (ctx->tilesets[i]) SDL_DestroyTexture(ctx->tilesets[i]);
         if (ctx->water[i])    SDL_DestroyTexture(ctx->water[i]);
     }
+    if (ctx->hero)
+        SDL_DestroyTexture(ctx->hero);
     IMG_Quit();
 }
 
@@ -126,11 +118,7 @@ void render_tile(RenderCtx *ctx, int sprite_idx, int px, int py) {
             TILESET_TILE_W, TILESET_TILE_H
         };
         SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
-    } else {
-        SDL_Color c = fallback_color((uint8_t)sprite_idx);
-        SDL_SetRenderDrawColor(ctx->renderer, c.r, c.g, c.b, c.a);
-        SDL_RenderFillRect(ctx->renderer, &dst);
-    }
+    } 
 }
 
 static void render_water_fill(RenderCtx *ctx, int tx, int ty, int px, int py) {
@@ -165,7 +153,132 @@ void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
             }
         }
     }
-    /* NOTE: does NOT call SDL_RenderPresent — caller does that */
+}
+
+static int is_wall(uint8_t t) {
+    return t == TILE_WALL || t == TILE_WALL_DECO || t == TILE_SECRET_DOOR;
+}
+
+/* Neighbour helper — returns 1 if tile (nx,ny) is a wall, 0 otherwise */
+static int wall_at(const Level *lvl, int nx, int ny) {
+    return in_bounds(nx, ny) && is_wall(lvl->map[xy_to_idx(nx, ny)]);
+}
+
+/* ── Stepped gradient shadow ──────────────────────────────────
+   Draws STEPS rectangles of decreasing alpha along one edge.
+
+   axis    0 = horizontal strip  (N shadow from top / S from bottom)
+           1 = vertical   strip  (W shadow from left / E from right)
+   flip    0 = start from the near edge  (N/W walls)
+           1 = start from the far  edge  (S/E walls)
+   max_a   alpha at the wall face (fades to 0 over TILE_SIZE*5/8 px)
+   ─────────────────────────────────────────────────────────────── */
+static void edge_shadow(SDL_Renderer *r, int px, int py,
+                        int axis, int flip, int max_a) {
+    const int STEPS = 5;
+    int span  = TILE_SIZE / 4;
+    int chunk = span / STEPS;
+    if (chunk < 1) chunk = 1;
+
+    for (int i = 0; i < STEPS; i++) {
+        int a = max_a * (STEPS - i) / STEPS;
+        if (a <= 0) continue;
+        SDL_SetRenderDrawColor(r, 0, 0, 0, a);
+
+        int off = i * chunk;
+        SDL_Rect rect;
+        if (axis == 0) {
+            int y = flip ? (py + TILE_SIZE - off - chunk) : (py + off);
+            rect = (SDL_Rect){ px, y, TILE_SIZE, chunk };
+        } else {
+            int x = flip ? (px + TILE_SIZE - off - chunk) : (px + off);
+            rect = (SDL_Rect){ x, py, chunk, TILE_SIZE };
+        }
+        SDL_RenderFillRect(r, &rect);
+    }
+}
+
+void render_shadows(RenderCtx *ctx,
+                    const Level *lvl, const Fog *fog, const Camera *cam) {
+    SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
+
+    for (int ty = cam->tile_y; ty <= cam->tile_y + VIEW_ROWS; ty++) {
+        for (int tx = cam->tile_x; tx <= cam->tile_x + VIEW_COLS; tx++) {
+            if (!in_bounds(tx, ty)) continue;
+            int idx = xy_to_idx(tx, ty);
+
+            /* Only shadow tiles the player has at least visited */
+            if (!fog->visited[idx]) continue;
+
+            /* Only passable (floor-like) tiles get the shadow overlay */
+            if (!player_passable(lvl->map[idx])) continue;
+
+            Point scr = camera_tile_to_screen(cam, tx, ty);
+
+            /* ── Cardinal neighbours ──────────────────────────── */
+            int wN = wall_at(lvl, tx,   ty-1);
+            int wS = wall_at(lvl, tx,   ty+1);
+            int wW = wall_at(lvl, tx-1, ty  );
+            int wE = wall_at(lvl, tx+1, ty  );
+
+            /* ── Diagonal neighbours (for corner AO) ─────────── */
+            int wNW = wall_at(lvl, tx-1, ty-1);
+            int wNE = wall_at(lvl, tx+1, ty-1);
+            int wSW = wall_at(lvl, tx-1, ty+1);
+            int wSE = wall_at(lvl, tx+1, ty+1);
+
+            /* ── Directional shadows ──────────────────────────── */
+            /*    axis 0 = horiz strip, axis 1 = vert strip        */
+            /*    flip 0 = from near edge, flip 1 = from far edge  */
+            if (wN) edge_shadow(ctx->renderer, scr.x, scr.y, 0, 0, 200); /* N strongest */
+            if (wW) edge_shadow(ctx->renderer, scr.x, scr.y, 1, 0, 130); /* W medium    */
+            if (wE) edge_shadow(ctx->renderer, scr.x, scr.y, 1, 1,  85); /* E weaker    */
+            if (wS) edge_shadow(ctx->renderer, scr.x, scr.y, 0, 1,  45); /* S subtle    */
+
+            /* ── Diagonal corner AO ───────────────────────────── */
+            /* A diagonal wall with no matching cardinal wall means
+               this tile sits at an "inside corner" — darken that
+               quadrant to simulate AO in the tight corner.         */
+            int half = TILE_SIZE / 2;
+
+            if (wNW && !wN && !wW) {  /* inside NW corner */
+                SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 70);
+                SDL_RenderFillRect(ctx->renderer,
+                    &(SDL_Rect){ scr.x,      scr.y,      half, half });
+            }
+            if (wNE && !wN && !wE) {  /* inside NE corner */
+                SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 70);
+                SDL_RenderFillRect(ctx->renderer,
+                    &(SDL_Rect){ scr.x+half, scr.y,      half, half });
+            }
+            if (wSW && !wS && !wW) {  /* inside SW corner */
+                SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 45);
+                SDL_RenderFillRect(ctx->renderer,
+                    &(SDL_Rect){ scr.x,      scr.y+half, half, half });
+            }
+            if (wSE && !wS && !wE) {  /* inside SE corner */
+                SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 45);
+                SDL_RenderFillRect(ctx->renderer,
+                    &(SDL_Rect){ scr.x+half, scr.y+half, half, half });
+            }
+
+            /* ── Enclosure AO ─────────────────────────────────── */
+            /* Subtle uniform darkening: the more walls surround a
+               tile, the more "enclosed" it feels. Cardinal walls
+               contribute more than diagonals.                      */
+            int enclosure = wN*3 + wW*2 + wE*2 + wS
+                          + wNW + wNE + wSW + wSE;
+            if (enclosure > 0) {
+                int a = enclosure * 6;
+                if (a > 72) a = 72;
+                SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, a);
+                SDL_RenderFillRect(ctx->renderer,
+                    &(SDL_Rect){ scr.x, scr.y, TILE_SIZE, TILE_SIZE });
+            }
+        }
+    }
+
+    SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
 }
 
 /* ── render_fog ────────────────────────────────── */
@@ -205,26 +318,25 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
 }
 
 /* ── render_player ────────────────────────────────── */
-/* Draws a bright marker on the player tile.
-   When hero sprites are added, replace with sprite draw. */
-void render_player(RenderCtx *ctx, const Player *p, const Camera *cam) {
+void render_player(RenderCtx *ctx, const Player *p, const Camera *cam)
+{
     Point scr = camera_tile_to_screen(cam, p->x, p->y);
 
-    /* Outer shadow ring */
-    SDL_Rect shadow = {scr.x + 1, scr.y + 1, TILE_SIZE - 2, TILE_SIZE - 2};
-    SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 180);
-    SDL_RenderFillRect(ctx->renderer, &shadow);
+    SDL_Rect dst = {
+        scr.x,
+        scr.y,
+        HERO_W,
+        HERO_H
+    };
 
-    /* Bright yellow player square */
-    SDL_Rect body = {scr.x + 3, scr.y + 3, TILE_SIZE - 6, TILE_SIZE - 6};
-    SDL_SetRenderDrawColor(ctx->renderer, 0xFF, 0xDD, 0x00, 0xFF);
-    SDL_RenderFillRect(ctx->renderer, &body);
+    SDL_Rect src = {
+        HERO_W,
+        HERO_H,
+        TILESET_HERO_W ,
+        TILESET_HERO_H
+    };
 
-    /* White highlight dot */
-    SDL_Rect dot = {scr.x + 5, scr.y + 5, 3, 3};
-    SDL_SetRenderDrawColor(ctx->renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    SDL_RenderFillRect(ctx->renderer, &dot);
-    /*ONLY FOR TEST SDL_RenderPresent(ctx->renderer);*/
+    SDL_RenderCopy(ctx->renderer, ctx->hero, &src, &dst);
 }
 
 /* ── render_present ───────────────────────────────── */

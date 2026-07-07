@@ -1,7 +1,15 @@
 #pragma once
 #include "common.h"
 #include "level.h"
- 
+
+#define HERO_W 12
+#define HERO_H 15
+//#define HERO_SPACING 1
+#define TILESET_HERO_COLS    21
+#define TILESET_HERO_ROWS     7
+#define TILESET_HERO_W       12
+#define TILESET_HERO_H       15
+
 typedef struct {
     int x, y;   /* current tile position */
 } Player;
@@ -13,5 +21,3 @@ void player_init(Player *p, const Level *lvl);
    Returns 1 if the move succeeded, 0 if blocked. */
 int  player_move(Player *p, Level *lvl, int dx, int dy);
  
-/* Returns 1 if tile is walkable */
-int  player_passable(uint8_t tile);

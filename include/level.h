@@ -1,6 +1,9 @@
 #pragma once
 #include "common.h"
 
+/* Returns 1 if tile is walkable */
+int  player_passable(uint8_t tile);
+
 typedef struct {
     uint8_t  map[LEVEL_SIZE];
     int      entrance;
@@ -25,3 +28,6 @@ static inline int room_h     (const Room *r) { return r->bottom - r->top;  }
 static inline int room_inside(const Room *r, int x, int y) {
     return x > r->left && y > r->top && x < r->right && y < r->bottom;
 }
+
+int level_player_on_exit(const Level *lvl, int x, int y);
+int level_player_on_entrance(const Level *lvl, int x, int y);

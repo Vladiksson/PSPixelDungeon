@@ -9,18 +9,20 @@
 
 /* ── RenderCtx ───────────────────────────────────────── */
 typedef struct {
-    SDL_Renderer *renderer;
+   SDL_Renderer *renderer;
 
-    /* Tile sheets — one per theme, indexed by DungeonTheme */
-    SDL_Texture  *tilesets[TILESET_COUNT];
+   /* Tile sheets — one per theme, indexed by DungeonTheme */
+   SDL_Texture  *tilesets[TILESET_COUNT];
 
-    /* Water surface sheets — separate from tile sheets.
+   /* Water surface sheets — separate from tile sheets.
        tiles*.png rows 48-63 = shore/transition edges only.
        water*.png = the actual tiling water fill drawn under them. */
-    SDL_Texture  *water[TILESET_COUNT];
+   SDL_Texture  *water[TILESET_COUNT];
 
-    DungeonTheme  active_theme;
-    int           png_available;   /* 0 = colour fallback active */
+   SDL_Texture *hero;
+    
+   DungeonTheme  active_theme;
+   int           png_available; 
 } RenderCtx;
 
 /* assets_dir: folder containing tiles0-4.png and water0-4.png.
@@ -28,6 +30,7 @@ typedef struct {
 int  render_init  (RenderCtx *ctx, const char *assets_dir);
 void render_free  (RenderCtx *ctx);
 void render_frame (RenderCtx *ctx, const Level *lvl, const Camera *cam);
+void render_shadows (RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam);
 void render_fog    (RenderCtx *ctx, const Fog    *fog, const Camera *cam);
 void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
 void render_present (RenderCtx *ctx);

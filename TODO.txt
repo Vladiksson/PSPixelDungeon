@@ -1,0 +1,21 @@
+Already done:
+Dungeon/Level generator 
+Rooms: common, tunnel
+renderer on SDL2
+Simple fov
+Camera + player movements by d-pad
+ao (ambient occlusion)
+level decoration
+level transitions (ascending + descending)
+
+
+TODO:
+uncommon room types
+boss level generator + decoration
+player classes + sprites
+items
+mobs + bosses + nps
+battle stuff and etc
+...
+ui
+save/load system

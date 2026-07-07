@@ -1,17 +1,5 @@
 #include "player.h"
  
-int player_passable(uint8_t tile) {
-    switch ((TileType)tile) {
-        case TILE_WALL:
-        case TILE_WALL_DECO:
-        case TILE_SECRET_DOOR:
-        case TILE_BARRICADE:
-            return 0;
-        default:
-            return 1;
-    }
-}
- 
 void player_init(Player *p, const Level *lvl) {
     Point ep = idx_to_xy(lvl->entrance);
     p->x = ep.x;

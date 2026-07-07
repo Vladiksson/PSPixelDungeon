@@ -9,6 +9,7 @@ add_executable(${PROJECT_NAME}
     src/camera.c
     src/player.c
     src/fov.c
+    src/dungeon.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O2 -G0 -Wall)
@@ -47,7 +48,7 @@ if(PSP)
         TARGET          ${PROJECT_NAME}
         TITLE           "PSPixel Dungeon"
         VERSION         01.00
-        ICON_PATH       NULL
+        ICON_PATH       ${CMAKE_CURRENT_SOURCE_DIR}/icon/ICON0.PNG
         BACKGROUND_PATH NULL
         PREVIEW_PATH    NULL
     )
