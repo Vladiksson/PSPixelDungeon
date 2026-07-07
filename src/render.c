@@ -91,7 +91,16 @@ int render_init(RenderCtx *ctx, const char *assets_dir) {
         printf("[render] tiles %d/%d  water %d/%d\n",tl,TILESET_COUNT,wl,TILESET_COUNT);
         ctx->png_available = 1;
     }
-    ctx->hero = load_tex(ctx->renderer, assets_dir, "warrior.png");
+    
+    /* One sheet per hero class — indices line up with the HeroClass enum */
+    const char *hero_files[] = ASSET_HERO_BY_CLASS;
+    int hl = 0;
+    for (int i=0; i<HERO_CLASS_COUNT; i++) {
+        ctx->heroes[i] = load_tex(ctx->renderer, assets_dir, hero_files[i]);
+        if (ctx->heroes[i]) hl++;
+    }
+    printf("[render] heroes %d/%d\n", hl, HERO_CLASS_COUNT);
+
     return 0;
 }
 
@@ -101,8 +110,9 @@ void render_free(RenderCtx *ctx) {
         if (ctx->tilesets[i]) SDL_DestroyTexture(ctx->tilesets[i]);
         if (ctx->water[i])    SDL_DestroyTexture(ctx->water[i]);
     }
-    if (ctx->hero)
-        SDL_DestroyTexture(ctx->hero);
+    for (int i=0; i<HERO_CLASS_COUNT; i++) {
+        if (ctx->heroes[i]) SDL_DestroyTexture(ctx->heroes[i]);
+    }
     IMG_Quit();
 }
 
@@ -317,26 +327,46 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
 }
 
+ 
+/* ── hero source-rect lookup ──────────────────────────
+   Column = which frame of the current animation. Row = armor tier.
+   Tiers aren't tracked on Player yet, so this is pinned to row 0 (the
+   sheet's base/no-armor row) — bump HERO_ARMOR_TIER, or make it a
+   real field on Player, once armor visuals are wired up. */
+ 
+static SDL_Rect hero_frame_rect(const Player *p) {
+    const AnimClip *clip = &HERO_CLIPS[p->anim];
+    uint8_t col = clip->frames[p->frame % clip->count];
+    SDL_Rect src = {
+        col * TILESET_HERO_W,
+        HERO_ARMOR_TIER * TILESET_HERO_H,
+        TILESET_HERO_W,
+        TILESET_HERO_H
+    };
+    return src;
+}
+
 /* ── render_player ────────────────────────────────── */
 void render_player(RenderCtx *ctx, const Player *p, const Camera *cam)
 {
+    SDL_Texture *tex = ctx->heroes[p->cls];
+    if (!tex) return;
+ 
     Point scr = camera_tile_to_screen(cam, p->x, p->y);
 
     SDL_Rect dst = {
-        scr.x,
-        scr.y,
+        scr.x - (HERO_W - TILE_SIZE) / 2,
+        scr.y - (HERO_H - TILE_SIZE),
         HERO_W,
         HERO_H
     };
 
-    SDL_Rect src = {
-        HERO_W,
-        HERO_H,
-        TILESET_HERO_W ,
-        TILESET_HERO_H
-    };
-
-    SDL_RenderCopy(ctx->renderer, ctx->hero, &src, &dst);
+    SDL_Rect src = hero_frame_rect(p);
+ 
+    SDL_RendererFlip flip = (p->facing == FACE_LEFT) ? SDL_FLIP_HORIZONTAL
+                                                      : SDL_FLIP_NONE;
+ 
+    SDL_RenderCopyEx(ctx->renderer, tex, &src, &dst, 0.0, NULL, flip);
 }
 
 /* ── render_present ───────────────────────────────── */

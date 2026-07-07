@@ -35,6 +35,16 @@ typedef enum {
     ROOM_TUNNEL   = 4,
 } RoomType;
 
+typedef enum {
+    DOOR_EMPTY,
+    DOOR_TUNNEL,
+    DOOR_REGULAR,
+    DOOR_LOCKED,
+    DOOR_SECRET,
+    DOOR_HIDDEN,
+    DOOR_BARRICADE,
+    DOOR_UNLOCKED
+} DoorType;
 /*
  * Room — mirrors Room.java / Rect.java
  *   width()  = right - left
@@ -58,6 +68,7 @@ typedef struct {
     int door_y    [MAX_CONN_ROOM];
     int n_connected;
 
+    DoorType door_type[MAX_CONN_ROOM];
     RoomType type;
 } Room;
 

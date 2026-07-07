@@ -19,14 +19,16 @@ typedef struct {
        water*.png = the actual tiling water fill drawn under them. */
    SDL_Texture  *water[TILESET_COUNT];
 
-   SDL_Texture *hero;
-    
+   /* Hero sheets — one per HeroClass, indexed by the enum in player.h.
+   Loaded from ASSET_HERO_BY_CLASS in render_init. */
+   SDL_Texture  *heroes[HERO_CLASS_COUNT];
+
    DungeonTheme  active_theme;
    int           png_available; 
 } RenderCtx;
 
-/* assets_dir: folder containing tiles0-4.png and water0-4.png.
-   Returns 0 on SDL init success (missing PNGs → fallback, not fatal). */
+/* assets_dir: folder containing tiles0-4.png and water0-4.png, and the
+   4 hero sheets referenced by ASSET_HERO_BY_CLASS.*/
 int  render_init  (RenderCtx *ctx, const char *assets_dir);
 void render_free  (RenderCtx *ctx);
 void render_frame (RenderCtx *ctx, const Level *lvl, const Camera *cam);

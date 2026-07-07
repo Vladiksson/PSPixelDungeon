@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
     Fog *fog = dungeon_current_fog(&dungeon);
 
     Player player;
-    player_init(&player, lvl);
+    player_init(&player, lvl, 3);
 
     Camera cam;
     camera_init(&cam, 0, 0);
@@ -101,10 +101,13 @@ int main(int argc, char *argv[]) {
     input_init(&inp);
     
     MoveRepeat mr = {0, 0};
- 
+    
+    uint32_t last = SDL_GetTicks();
     /* ── Game loop ──────────────────────────────────── */
     while (!inp.quit) {
         uint32_t now = SDL_GetTicks();
+        float dt = (now - last) / 1000.0f;
+        last = now;
         input_update(&inp);
  
         if (btn_pressed(&inp, BTN_START)) break;
@@ -119,21 +122,27 @@ int main(int argc, char *argv[]) {
         moved |= move_repeat_update(&mr, &inp, now, &player, lvl, &cam, BTN_RIGHT,+1,  0);
 
         if (moved) {
+            player_step_anim(&player);
+
             if (level_player_on_exit(lvl, player.x, player.y)) {
-            dungeon_go_down(&dungeon, &player, &cam);
-            lvl = dungeon_current_level(&dungeon);
-            fog = dungeon_current_fog(&dungeon);
-            continue;
+                dungeon_go_down(&dungeon, &player, &cam);
+                lvl = dungeon_current_level(&dungeon);
+                fog = dungeon_current_fog(&dungeon);
+                continue;
             }
-        if (level_player_on_entrance(lvl, player.x, player.y)) {
-            dungeon_go_up(&dungeon, &player, &cam);
-            lvl = dungeon_current_level(&dungeon);
-            fog = dungeon_current_fog(&dungeon);
-            continue;
+            if (level_player_on_entrance(lvl, player.x, player.y)) {
+                dungeon_go_up(&dungeon, &player, &cam);
+                lvl = dungeon_current_level(&dungeon);
+                fog = dungeon_current_fog(&dungeon);
+                continue;
             }
+        } else {
+            if (player.anim == ANIM_RUN)
+                player_play_anim(&player, ANIM_IDLE);
         }
         
         fog_update(fog, lvl, player.x, player.y);
+        player_animate(&player, dt);
         /* Draw: tiles → fog → player → present */
         render_frame(&rctx, lvl, &cam);
         render_shadows(&rctx, lvl, fog, &cam);

@@ -94,6 +94,21 @@ static void bsp_split(Level *lvl, int left, int top, int right, int bottom) {
     }
 }
 
+
+/* ══════════════════════════════════════════════════════════
+    Room.center()
+   ══════════════════════════════════════════════════════════ */
+static void room_center(const Room *r, int *x, int *y)
+{
+    *x = (r->left + r->right) / 2;
+    if ((r->right - r->left) & 1)
+        *x += rng_int(2);
+
+    *y = (r->top + r->bottom) / 2;
+    if ((r->bottom - r->top) & 1)
+        *y += rng_int(2);
+}
+
 /* ══════════════════════════════════════════════════════════
    NEIGHBOUR GRAPH  —  Room.addNeigbour()
    ══════════════════════════════════════════════════════════ */
@@ -266,8 +281,9 @@ static void paint_rooms(Level *lvl) {
    ══════════════════════════════════════════════════════════ */
 static void paint_tunnel_room(Level *lvl, Room *r) {
     int floor = TILE_EMPTY;   /* tunnelTile() = EMPTY for sewers/default */
-    int cx = (r->left + r->right)  / 2;
-    int cy = (r->top  + r->bottom) / 2;
+    int cx, cy;
+    room_center(r, &cx, &cy);
+
     int w  = room_w(r);   /* right - left */
     int h  = room_h(r);   /* bottom - top */
 
@@ -435,23 +451,7 @@ static void paint_grass(Level *lvl, const uint8_t *grass) {
 /* ══════════════════════════════════════════════════════════
    DECORATION  —  SewerLevel.decorate() etc.
    ══════════════════════════════════════════════════════════ */
-static void decorate_sewers(Level *lvl) {
-    for (int i=0; i<LEVEL_W; i++) {
-        if (lvl->map[i]==TILE_WALL && lvl->map[i+LEVEL_W]==TILE_WATER && (rng_next()%4)==0)
-            lvl->map[i]=TILE_WALL_DECO;
-    }
-    for (int i=LEVEL_W; i<LEVEL_SIZE-LEVEL_W; i++) {
-        if (lvl->map[i]==TILE_WALL && lvl->map[i-LEVEL_W]==TILE_WALL
-            && lvl->map[i+LEVEL_W]==TILE_WATER && (rng_next()%2)==0)
-            lvl->map[i]=TILE_WALL_DECO;
-    }
-    for (int i=LEVEL_W+1; i<LEVEL_SIZE-LEVEL_W-1; i++) {
-        if (lvl->map[i]==TILE_EMPTY) {
-            int cnt=(lvl->map[i+1]==TILE_WALL)+(lvl->map[i-1]==TILE_WALL)
-                   +(lvl->map[i+LEVEL_W]==TILE_WALL)+(lvl->map[i-LEVEL_W]==TILE_WALL);
-            if ((int)(rng_next()%16)<cnt*cnt) lvl->map[i]=TILE_EMPTY_DECO;
-        }
-    }
+static void place_sign(Level *lvl){
     Point ep=idx_to_xy(lvl->entrance);
     for (int i=0; i<lvl->num_rooms; i++) {
         if (!room_inside(&lvl->rooms[i], ep.x, ep.y)) continue;
@@ -460,10 +460,29 @@ static void decorate_sewers(Level *lvl) {
             int rx=rng_range(r->left+1, r->right-1);
             int ry=rng_range(r->top +1, r->bottom-1);
             int idx=xy_to_idx(rx,ry);
-            if (idx!=lvl->entrance && lvl->map[idx]==TILE_EMPTY) { lvl->map[idx]=TILE_SIGN; break; }
+            if (idx!=lvl->entrance && lvl->map[idx]==TILE_EMPTY) { lvl->map[idx]=TILE_SIGN; return; }
         }
-        break;
+        return;
     }
+}
+static void decorate_sewers(Level *lvl) {
+    for (int i=0; i<LEVEL_W; i++) {
+        if (lvl->map[i]==TILE_WALL && lvl->map[i+LEVEL_W]==TILE_WATER && rng_int(4)==0)
+            lvl->map[i]=TILE_WALL_DECO;
+    }
+    for (int i=LEVEL_W; i<LEVEL_SIZE-LEVEL_W; i++) {
+        if (lvl->map[i]==TILE_WALL && lvl->map[i-LEVEL_W]==TILE_WALL
+            && lvl->map[i+LEVEL_W]==TILE_WATER && rng_int(2)==0)
+            lvl->map[i]=TILE_WALL_DECO;
+    }
+    for (int i=LEVEL_W+1; i<LEVEL_SIZE-LEVEL_W-1; i++) {
+        if (lvl->map[i]==TILE_EMPTY) {
+            int cnt=(lvl->map[i+1]==TILE_WALL)+(lvl->map[i-1]==TILE_WALL)
+                   +(lvl->map[i+LEVEL_W]==TILE_WALL)+(lvl->map[i-LEVEL_W]==TILE_WALL);
+            if (rng_int(16)<cnt*cnt) lvl->map[i]=TILE_EMPTY_DECO;
+        }
+    }
+    place_sign(lvl);   
 }
 static void decorate_prison(Level *lvl) {
     for (int i=LEVEL_W+1; i<LEVEL_SIZE-LEVEL_W-1; i++)
@@ -487,24 +506,13 @@ static void decorate_prison(Level *lvl) {
         }
     for (int i=0; i<LEVEL_W; i++)
         if (lvl->map[i]==TILE_WALL &&
-            (lvl->map[i+LEVEL_W]==TILE_EMPTY || lvl->map[i+LEVEL_W]==TILE_EMPTY_SP) && (rng_next()%6)==0)
+            (lvl->map[i+LEVEL_W]==TILE_EMPTY || lvl->map[i+LEVEL_W]==TILE_EMPTY_SP) && rng_int(6)==0)
             lvl->map[i]=TILE_WALL_DECO;
     for (int i=LEVEL_W; i<LEVEL_SIZE-LEVEL_W; i++)
         if (lvl->map[i]==TILE_WALL &&
-            (lvl->map[i+LEVEL_W]==TILE_EMPTY || lvl->map[i+LEVEL_W]==TILE_EMPTY_SP) && (rng_next()%3)==0)
+            (lvl->map[i+LEVEL_W]==TILE_EMPTY || lvl->map[i+LEVEL_W]==TILE_EMPTY_SP) && rng_int(3)==0)
             lvl->map[i]=TILE_WALL_DECO;   
-    Point ep=idx_to_xy(lvl->entrance);
-    for (int i=0; i<lvl->num_rooms; i++) {
-        if (!room_inside(&lvl->rooms[i], ep.x, ep.y)) continue;
-        for (int t=0; t<40; t++) {
-            Room *r=&lvl->rooms[i];
-            int rx=rng_range(r->left+1, r->right-1);
-            int ry=rng_range(r->top +1, r->bottom-1);
-            int idx=xy_to_idx(rx,ry);
-            if (idx!=lvl->entrance && lvl->map[idx]==TILE_EMPTY) { lvl->map[idx]=TILE_SIGN; break; }
-        }
-        break;
-    }
+    place_sign(lvl);
 }
 static void decorate_caves(Level *lvl) {
     for (int i = 0; i < lvl->num_rooms; i++) {
@@ -575,27 +583,16 @@ static void decorate_caves(Level *lvl) {
             if (lvl->map[i-LEVEL_W]==TILE_WALL){
                 n++;
             }
-            if ((rng_next()%6) <= n) {
+            if (rng_int(6) <= n) {
                 lvl->map[i] = TILE_EMPTY_DECO;
             }
         }
     }    
     for (int i=0; i<LEVEL_SIZE; i++) {
-        if (lvl->map[i]==TILE_WALL && (rng_next()%12)==0)
+        if (lvl->map[i]==TILE_WALL && rng_int(12)==0)
             lvl->map[i]=TILE_WALL_DECO;
     }
-    Point ep=idx_to_xy(lvl->entrance);
-    for (int i=0; i<lvl->num_rooms; i++) {
-        if (!room_inside(&lvl->rooms[i], ep.x, ep.y)) continue;
-        for (int t=0; t<40; t++) {
-            Room *r=&lvl->rooms[i];
-            int rx=rng_range(r->left+1, r->right-1);
-            int ry=rng_range(r->top +1, r->bottom-1);
-            int idx=xy_to_idx(rx,ry);
-            if (idx!=lvl->entrance && lvl->map[idx]==TILE_EMPTY) { lvl->map[idx]=TILE_SIGN; break; }
-        }
-        break;
-    }
+    place_sign(lvl);
     //TODO ADD REST FROM CAVESLEVEL.JAVA 
     /* Chasms between adjacent standard rooms that are not connected */
     for (int i = 0; i < lvl->num_rooms; i++) {
@@ -650,24 +647,13 @@ static void decorate_caves(Level *lvl) {
 }    
 static void decorate_city(Level *lvl) {
     for (int i=0; i<LEVEL_SIZE; i++) {
-        if (lvl->map[i]==TILE_EMPTY && (rng_next()%10)==0){
+        if (lvl->map[i]==TILE_EMPTY && rng_int(10)==0){
             lvl->map[i]=TILE_EMPTY_DECO;
-        } else if (lvl->map[i]==TILE_WALL && (rng_next()%8)==0){
+        } else if (lvl->map[i]==TILE_WALL && rng_int(8)==0){
             lvl->map[i]=TILE_WALL_DECO;
         }
     }
-    Point ep=idx_to_xy(lvl->entrance);
-    for (int i=0; i<lvl->num_rooms; i++) {
-        if (!room_inside(&lvl->rooms[i], ep.x, ep.y)) continue;
-        for (int t=0; t<40; t++) {
-            Room *r=&lvl->rooms[i];
-            int rx=rng_range(r->left+1, r->right-1);
-            int ry=rng_range(r->top +1, r->bottom-1);
-            int idx=xy_to_idx(rx,ry);
-            if (idx!=lvl->entrance && lvl->map[idx]==TILE_EMPTY) { lvl->map[idx]=TILE_SIGN; break; }
-        }
-        break;
-    }
+    place_sign(lvl);
 }
 static void decorate_halls(Level *lvl) {
     for (int i = LEVEL_W + 1; i < LEVEL_SIZE - LEVEL_W - 1; i++) {
@@ -685,44 +671,31 @@ static void decorate_halls(Level *lvl) {
             if (player_passable(lvl->map[i + LEVEL_W    ])) count++;
             if (player_passable(lvl->map[i + LEVEL_W + 1])) count++;
 
-            if ((rng_next()%80) < count) {
+            if (rng_int(80) < count) {
                 lvl->map[i] = TILE_EMPTY_DECO;
             }
 
         } else if (lvl->map[i] == TILE_WALL &&
                    lvl->map[i - 1] != TILE_WALL_DECO &&
                    lvl->map[i - LEVEL_W] != TILE_WALL_DECO &&
-                   (rng_next()%20) == 0) {
+                   rng_int(20) == 0) {
 
             lvl->map[i] = TILE_WALL_DECO;
         }
     }
-    Point ep=idx_to_xy(lvl->entrance);
-    for (int i=0; i<lvl->num_rooms; i++) {
-        if (!room_inside(&lvl->rooms[i], ep.x, ep.y)) continue;
-        for (int t=0; t<40; t++) {
-            Room *r=&lvl->rooms[i];
-            int rx=rng_range(r->left+1, r->right-1);
-            int ry=rng_range(r->top +1, r->bottom-1);
-            int idx=xy_to_idx(rx,ry);
-            if (idx!=lvl->entrance && lvl->map[idx]==TILE_EMPTY) { lvl->map[idx]=TILE_SIGN; break; }
-        }
-        break;
-    }
+    place_sign(lvl);
 }
-
-
 
 static void decorate_generic(Level *lvl) {
     for (int i=0; i<LEVEL_SIZE; i++)
-        if (lvl->map[i]==TILE_WALL && (rng_next()%20)==0) lvl->map[i]=TILE_WALL_DECO;
+        if (lvl->map[i]==TILE_WALL && rng_int(20)==0) lvl->map[i]=TILE_WALL_DECO;
 }
 static void place_embers(Level *lvl) {
     Point ep=idx_to_xy(lvl->exit);
     for (int dy=-1;dy<=1;dy++) for (int dx=-1;dx<=1;dx++) {
         if (!dx&&!dy) continue;
         int nx=ep.x+dx, ny=ep.y+dy;
-        if (in_bounds(nx,ny) && lvl->map[xy_to_idx(nx,ny)]==TILE_EMPTY && (rng_next()%3)==0)
+        if (in_bounds(nx,ny) && lvl->map[xy_to_idx(nx,ny)]==TILE_EMPTY && rng_int(3)==0)
             lvl->map[xy_to_idx(nx,ny)]=TILE_EMBERS;
     }
 }
@@ -808,10 +781,14 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme) {
 
     /* 7 ── Entrance / exit tiles */
     Room *er=&lvl->rooms[entrance_r], *xr=&lvl->rooms[exit_r];
-    int ex=rng_range(er->left+1,er->right-1),  ey=rng_range(er->top+1,er->bottom-1);
+
+    int ex, ey;
+    room_center(er, &ex, &ey);   //ORIGINALY WAS int ex=rng_range(er->left+1,er->right-1),  ey=rng_range(er->top+1,er->bottom-1);
     lvl->entrance=xy_to_idx(ex,ey); set_tile(lvl,ex,ey,TILE_ENTRANCE);
-    int xx=rng_range(xr->left+1,xr->right-1),  xy_=rng_range(xr->top+1,xr->bottom-1);
-    lvl->exit=xy_to_idx(xx,xy_);    set_tile(lvl,xx,xy_,TILE_EXIT);
+
+    int xx, yy;
+    room_center(xr, &xx, &yy);  //ORIGINALY WAS int xx=rng_range(xr->left+1,xr->right-1),  yy=rng_range(xr->top+1,xr->bottom-1);
+    lvl->exit=xy_to_idx(xx,yy);    set_tile(lvl,xx,yy,TILE_EXIT);
 
     /* 8 ── Water + grass via Patch automaton */
     static uint8_t wp[LEVEL_SIZE], gp[LEVEL_SIZE];

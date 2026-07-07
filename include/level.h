@@ -14,7 +14,6 @@ typedef struct {
 } Level;
 
 int  level_generate(Level *lvl, uint32_t seed, DungeonTheme theme);
-void level_print   (const Level *lvl);
 
 /* Safe tile read — returns TILE_WALL for out-of-bounds */
 static inline uint8_t get_tile_safe(const Level *lvl, int x, int y) {
