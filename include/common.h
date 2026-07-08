@@ -28,11 +28,31 @@
 #define MAX_CONN_ROOM    8   /* max door-connections per room     */
 
 typedef enum {
-    ROOM_NULL     = 0,
-    ROOM_STANDARD = 1,
-    ROOM_ENTRANCE = 2,
-    ROOM_EXIT     = 3,
-    ROOM_TUNNEL   = 4,
+    ROOM_NULL       = 0,
+    ROOM_STANDARD   = 1,
+    ROOM_ENTRANCE   = 2,
+    ROOM_EXIT       = 3,
+    ROOM_BOSS_EXIT  = 4,
+    ROOM_TUNNEL     = 5,
+    ROOM_PASSAGE    = 6,
+	ROOM_SHOP	    = 7,
+	ROOM_BLACKSMITH	= 8,
+	ROOM_TREASURY	= 9,
+	ROOM_ARMORY		= 10,
+	ROOM_LIBRARY	= 11,
+	ROOM_LABORATORY	= 12,
+	ROOM_VAULT		= 13,
+	ROOM_TRAPS		= 14,
+	ROOM_STORAGE	= 15,
+	ROOM_MAGIC_WELL	= 16,
+	ROOM_GARDEN		= 17,
+	ROOM_CRYPT		= 18,
+	ROOM_STATUE		= 19,
+	ROOM_POOL		= 20,
+	ROOM_RAT_KING	= 21,
+	ROOM_WEAK_FLOOR	= 22,
+	ROOM_PIT		= 23,
+	ROOM_ALTAR		= 24,
 } RoomType;
 
 typedef enum {

@@ -236,51 +236,355 @@ static void compute_doors(Level *lvl) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   ROOM PAINTING  —  StandardPainter.paint()
-
-   Standard/Entrance/Exit rooms:
-     1. Fill entire room bounds with WALL   (Painter.fill(room, WALL))
-     2. Fill interior (margin 1) with EMPTY (Painter.fill(room, 1, EMPTY))
-
-   Painter.fill(rect, value):
-     fill(left, top, width()+1, height()+1, value)
-     width()+1 = (right-left)+1  = right-left+1  total columns
-
-   Painter.fill(rect, 1, value):
-     fill(left+1, top+1, width()-1, height()-1, value)
-     width()-1  = (right-left)-1               interior columns
+   ROOM PAINTING  —  StandardPainter.paint(), etc.
    ══════════════════════════════════════════════════════════ */
-static void paint_rooms(Level *lvl) {
-    for (int i=0; i<lvl->num_rooms; i++) {
-        Room *r = &lvl->rooms[i];
-        /* TUNNEL rooms are painted separately — only their path is carved */
-        if (r->type == ROOM_NULL || r->type == ROOM_TUNNEL) continue;
+static void paint_entrance(Level *lvl, Room *r){
+    fill_rect(lvl, r->left, r->top, room_w(r) + 1, room_h(r) + 1, TILE_WALL);
+    fill_rect(lvl, r->left + 1, r->top + 1, room_w(r) - 1, room_h(r) - 1, TILE_EMPTY);
 
-        /* Step 1: Painter.fill(room, WALL) — reset whole room to wall
-           width()+1 = room_w(r)+1 cols, height()+1 = room_h(r)+1 rows */
-        fill_rect(lvl, r->left, r->top, room_w(r)+1, room_h(r)+1, TILE_WALL);
+    //ORIGINALY WAS int x = rng_range(r->left + 1, r->right - 1), y = rng_range(r->top + 1, r->bottom - 1);
+    int x,y;
+    room_center(r, &x, &y);
 
-        /* Step 2: Painter.fill(room, 1, EMPTY) — carve interior
-           width()-1 = room_w(r)-1, height()-1 = room_h(r)-1           */
-        fill_rect(lvl, r->left+1, r->top+1, room_w(r)-1, room_h(r)-1, TILE_EMPTY);
+    lvl->entrance = xy_to_idx(x, y);
+    set_tile(lvl, x, y, TILE_ENTRANCE);
+}
+
+static void paint_exit(Level *lvl, Room *r){
+    fill_rect(lvl, r->left, r->top, room_w(r) + 1, room_h(r) + 1, TILE_WALL);
+    fill_rect(lvl, r->left + 1, r->top + 1, room_w(r) - 1, room_h(r) - 1, TILE_EMPTY);
+
+    //ORIGINALY WAS int x = rng_range(r->left + 1, r->right - 1), y = rng_range(r->top + 1, r->bottom - 1);
+    int x,y;
+    room_center(r, &x, &y);
+
+    lvl->exit = xy_to_idx(x, y);
+    set_tile(lvl, x, y, TILE_EXIT);
+}
+
+static void draw_inside(Level *lvl, Room *r, int dx, int dy, int len, uint8_t tile){
+    int sx = 0;
+    int sy = 0;
+
+    if (dx == r->left)
+        sx = 1;
+    else if (dx == r->right)
+        sx = -1;
+    else if (dy == r->top)
+        sy = 1;
+    else if (dy == r->bottom)
+        sy = -1;
+
+    int x = dx;
+    int y = dy;
+
+    for (int i = 0; i < len; i++) {
+        x += sx;
+        y += sy;
+
+        if (!in_bounds(x,y))
+            break;
+        set_tile(lvl,x,y,tile);
     }
 }
 
-/* ══════════════════════════════════════════════════════════
-   TUNNEL PAINTING  —  TunnelPainter.paint()
+static void paint_burned(Level *lvl, Room *r){
+    for (int y=r->top+1; y<r->bottom; y++) {
+        for (int x=r->left+1; x<r->right; x++) {
 
-   KEY INSIGHT: tunnel rooms do NOT fill their interior.
-   They draw a narrow L-shaped PATH connecting all doors
-   through the room center — this is what creates corridors.
+            uint8_t t = TILE_EMBERS;
 
-   Algorithm (horizontal-primary, wider rooms):
-     - Draw horizontal spine at center.y from 'from' to 'to'
-     - For each door draw a vertical stub from door.y to center.y
-     - 'from'/'to' track the x-span of the spine
-   Vertical-primary mirrors this with axes swapped.
-   ══════════════════════════════════════════════════════════ */
+            switch(rng_int(5)) {
+
+                case 0:
+                    t = TILE_EMPTY;
+                    break;
+
+                case 1:
+                    t = TILE_FIRE_TRAP;
+                    break;
+                case 2:
+                    t = TILE_SECRET_FIRE_TRAP;
+                    break;
+                case 3:
+                    t = TILE_INACTIVE_TRAP;
+                    break;
+                default:
+                    break;
+            }
+            set_tile(lvl,x,y,t);
+        }
+    }
+}
+
+static void paint_striped(Level *lvl, Room *r){
+    fill_rect(lvl, r->left + 1, r->top + 1, room_w(r) - 1, room_h(r) - 1, TILE_EMPTY_SP);
+
+    if (room_w(r) > room_h(r)) {
+        /* vertical stripes */
+        for (int x = r->left + 2; x < r->right; x += 2) {
+            fill_rect(lvl, x, r->top + 1, 1, room_h(r) - 1, TILE_HIGH_GRASS);
+        }
+    } else {
+        /* horizontal stripes */
+        for (int y = r->top + 2; y < r->bottom; y += 2) {
+            fill_rect(lvl, r->left + 1, y, room_w(r) - 1, 1, TILE_HIGH_GRASS);
+        }
+    }
+}
+
+static void paint_study(Level *lvl, Room *r){
+
+    fill_rect(lvl, r->left + 1, r->top + 1, room_w(r) - 1, room_h(r) - 1, TILE_BOOKSHELF);
+
+    fill_rect(lvl, r->left + 2, r->top + 2, room_w(r) - 3, room_h(r) - 3, TILE_EMPTY_SP);
+    /* door openings */
+    for (int i = 0; i < r->n_connected; i++) {
+
+        int x = r->door_x[i];
+        int y = r->door_y[i];
+
+        if (x < 0 || y < 0)
+            continue;
+
+        if (x == r->left) {
+            set_tile(lvl, x + 1, y, TILE_EMPTY);
+        } else if (x == r->right) {
+            set_tile(lvl, x - 1, y, TILE_EMPTY);
+        } else if (y == r->top) {
+            set_tile(lvl, x, y + 1, TILE_EMPTY);
+        } else if (y == r->bottom) {
+            set_tile(lvl, x, y - 1, TILE_EMPTY);
+        }
+    }
+    /* room.center() */
+    int cx, cy;
+    room_center(r, &cx, &cy);
+    set_tile(lvl, cx, cy, TILE_PEDESTAL);
+}
+
+static void paint_graveyard(Level *lvl, Room *r){
+    /* fill room interior with grass */
+    fill_rect(lvl, r->left + 1, r->top + 1, room_w(r) - 1, room_h(r) - 1, TILE_GRASS);
+
+    int w = room_w(r) - 1;
+    int h = room_h(r) - 1;
+    int n_graves = (w > h ? w : h) / 2;
+
+    if (n_graves <= 0)
+        return;
+    /* random grave that gets special loot */
+    int index = rng_int(n_graves);
+    int shift = rng_int(2);
+
+    for (int i = 0; i < n_graves; i++) {
+        int x, y;
+        if (w > h) {
+            /* horizontal room */
+            x = r->left + 1 + shift + i * 2;
+            y = r->top + 2 + rng_int(h - 2);
+        } else {
+            /* vertical room */
+            x = r->left + 2 + rng_int(w - 2);
+            y = r->top + 1 + shift + i * 2;
+        }
+
+        if (!in_bounds(x,y))
+            continue;
+
+        int idx = xy_to_idx(x,y);
+        /*
+           TODO:
+           original:
+             level.drop(
+                i == index ? Generator.random() : new Gold(),
+                pos
+             ).type = Heap.Type.TOMB;
+
+           Here later:
+             spawn_item(lvl, idx, ITEM_GOLD);
+             or
+             spawn_random_item(...)
+        */
+        /* temporary visual marker */
+        lvl->map[idx] = TILE_STATUE_SP;
+    }
+}
+
+static void paint_bridge(Level *lvl, Room *r){
+    uint8_t base = TILE_WATER;
+
+    /*TODO change in future from original:
+    !boss && !nextBoss && Random.Int(3)==0 ? CHASM : WATER*/
+
+    if (rng_int(3)==0)
+        base = TILE_CHASM;
+    fill_rect(lvl, r->left + 1, r->top + 1, room_w(r)-1, room_h(r)-1, base);
+
+    if (r->n_connected != 2)
+        return;
+
+    int d1x = r->door_x[0];
+    int d1y = r->door_y[0];
+
+    int d2x = r->door_x[1];
+    int d2y = r->door_y[1];
+
+    if ((d1x == r->left && d2x == r->right) || (d1x == r->right && d2x == r->left)) {
+        int s = room_w(r)/2;
+
+        draw_inside(lvl,r,d1x,d1y,s,TILE_EMPTY_SP);
+        draw_inside(lvl,r,d2x,d2y,s,TILE_EMPTY_SP);
+
+        int cx,cy;
+        room_center(r,&cx,&cy);
+
+        int y0 = d1y < d2y ? d1y : d2y;
+        int h  = abs(d1y-d2y)+1;
+
+        fill_rect(lvl, cx, y0, 1, h,TILE_EMPTY_SP);
+    }
+    else if ((d1y == r->top && d2y == r->bottom) || (d1y == r->bottom && d2y == r->top)) {
+        int s = room_h(r)/2;
+
+        draw_inside(lvl,r,d1x,d1y,s,TILE_EMPTY_SP);
+        draw_inside(lvl,r,d2x,d2y,s,TILE_EMPTY_SP);
+
+        int cx,cy;
+        room_center(r,&cx,&cy);
+
+        int x0 = d1x < d2x ? d1x : d2x;
+        int w  = abs(d1x-d2x)+1;
+
+        fill_rect(lvl, x0, cy, w, 1, TILE_EMPTY_SP);
+    }
+    else if (d1x == d2x) {
+        fill_rect(lvl, d1x == r->left ? r->left+1 : r->right-1, d1y < d2y ? d1y : d2y, 1, abs(d1y-d2y)+1, TILE_EMPTY_SP);
+    }
+    else if (d1y == d2y) {
+        fill_rect(lvl, d1x < d2x ? d1x : d2x, d1y == r->top ? r->top+1 : r->bottom-1, abs(d1x-d2x)+1, 1, TILE_EMPTY_SP);
+    }
+    else if (d1y == r->top || d1y == r->bottom) {
+        draw_inside(lvl,r, d1x,d1y, abs(d1y-d2y), TILE_EMPTY_SP);
+        draw_inside(lvl,r, d2x,d2y, abs(d1x-d2x), TILE_EMPTY_SP);
+    }
+    else if (d1x == r->left || d1x == r->right) {
+        draw_inside(lvl,r, d1x,d1y, abs(d1x-d2x), TILE_EMPTY_SP);
+        draw_inside(lvl,r, d2x,d2y, abs(d1y-d2y), TILE_EMPTY_SP);
+    }
+}
+
+static void paint_fissure(Level *lvl, Room *r){
+    fill_rect(lvl, r->left + 1, r->top + 1, room_w(r) - 1, room_h(r) - 1, TILE_EMPTY);
+    for (int y = r->top + 2; y < r->bottom - 1; y++) {
+        for (int x = r->left + 2; x < r->right - 1; x++) {
+            int v = y - r->top;
+            int v2 = r->bottom - y;
+
+            if (v2 < v)
+                v = v2;
+
+            int h = x - r->left;
+            int h2 = r->right - x;
+
+            if (h2 < h)
+                h = h2;
+            int min = v < h ? v : h;
+
+            if (min > 2 || rng_int(2)==0) {
+                set_tile(lvl,x,y,TILE_CHASM);
+            }
+        }
+    }
+}
+
+static void paint_standard_room(Level *lvl, Room *r){
+    /* Step 1: Painter.fill(room, WALL) — reset whole room to wall
+           width()+1 = room_w(r)+1 cols, height()+1 = room_h(r)+1 rows */
+    fill_rect(lvl, r->left, r->top, room_w(r)+1, room_h(r)+1, TILE_WALL);
+    //if (r->type == ROOM_ENTRANCE || r->type == ROOM_EXIT) return;
+    /* Step 2: Painter.fill(room, 1, EMPTY) — carve interior
+           width()-1 = room_w(r)-1, height()-1 = room_h(r)-1 */
+    fill_rect(lvl, r->left+1, r->top+1, room_w(r)-1, room_h(r)-1, TILE_EMPTY);
+    if (rng_int(5)==0) {
+        switch(rng_int(6)) {
+        case 0:
+        if (lvl->feeling != FEELING_GRASS) {
+            if (room_w(r) >= 4 && room_h(r) >= 4 && (room_w(r) > 6 || room_h(r) > 6)) {
+                paint_graveyard(lvl,r);
+                return;
+            }
+
+        } else {
+            /* burned room later */
+        }
+        break;
+        case 1:
+            paint_burned(lvl,r);
+            break;
+        case 2:
+            if (room_w(r) >= 4 || room_h(r) >= 4) {
+                paint_striped(lvl, r);
+                return;
+            }
+            break;
+        case 3:
+            if (room_w(r) >= 6 && room_h(r) >= 6) {
+                paint_study(lvl, r);
+                return;
+            }
+            break;
+        case 4:
+        if (lvl->feeling != FEELING_WATER && r->n_connected == 2 && room_w(r)>=4 && room_h(r)>=4) {
+            paint_bridge(lvl,r);
+            return;
+        }
+        break;
+        case 5:
+            if (room_w(r) >= 5 && room_h(r) >= 5) { //TODO in future change to !Dungeon.bossLevel() && !Dungeon.bossLevel(Dungeon.depth+1) && Math.min(room.width(), room.height()) >= 5
+                paint_fissure(lvl,r);
+                return;
+            }
+        break;
+        default:
+            break;
+        }
+    }
+    
+}
+    
+
+static void paint_rooms(Level *lvl)
+{
+    for (int i = 0; i < lvl->num_rooms; i++) {
+
+        Room *r = &lvl->rooms[i];
+
+        switch (r->type) {
+
+        case ROOM_STANDARD:
+            paint_standard_room(lvl, r);
+            break;
+
+        case ROOM_ENTRANCE:
+            paint_entrance(lvl, r);
+            break;
+
+        case ROOM_EXIT:
+            paint_exit(lvl, r);
+            break;
+
+        case ROOM_TUNNEL:
+        case ROOM_NULL:
+        default:
+            break;
+        }
+    }
+}
+
 static void paint_tunnel_room(Level *lvl, Room *r) {
-    int floor = TILE_EMPTY;   /* tunnelTile() = EMPTY for sewers/default */
+    uint8_t floor = (lvl->feeling == FEELING_CHASM)
+        ? TILE_EMPTY_SP : TILE_EMPTY;   
     int cx, cy;
     room_center(r, &cx, &cy);
 
@@ -690,15 +994,6 @@ static void decorate_generic(Level *lvl) {
     for (int i=0; i<LEVEL_SIZE; i++)
         if (lvl->map[i]==TILE_WALL && rng_int(20)==0) lvl->map[i]=TILE_WALL_DECO;
 }
-static void place_embers(Level *lvl) {
-    Point ep=idx_to_xy(lvl->exit);
-    for (int dy=-1;dy<=1;dy++) for (int dx=-1;dx<=1;dx++) {
-        if (!dx&&!dy) continue;
-        int nx=ep.x+dx, ny=ep.y+dy;
-        if (in_bounds(nx,ny) && lvl->map[xy_to_idx(nx,ny)]==TILE_EMPTY && rng_int(3)==0)
-            lvl->map[xy_to_idx(nx,ny)]=TILE_EMBERS;
-    }
-}
 
 static int isqrt(int n) { int r=0; while((r+1)*(r+1)<=n) r++; return r; }
 
@@ -711,6 +1006,22 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme) {
     lvl->theme = theme;
     memset(lvl->map, TILE_WALL, sizeof(lvl->map));
 
+    lvl->feeling = FEELING_NONE;
+
+    //TODO add in future if(!boss_level())
+    switch (rng_int(10)){
+    case 0:
+        lvl->feeling = FEELING_CHASM; /*TODO if (!next_level_is_boss()) */
+        break;
+
+    case 1:
+        lvl->feeling = FEELING_WATER;
+        break;
+
+    case 2:
+        lvl->feeling = FEELING_GRASS;
+        break;   
+    }   
     /* 1 ── BSP split + neighbour graph */
     int retry=0;
     do {
@@ -778,33 +1089,63 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme) {
     paint_rooms(lvl);     /* STANDARD/ENTRANCE/EXIT: fill interior  */
     paint_tunnels(lvl);   /* TUNNEL: narrow path through room center */
     paint_doors(lvl);     /* door tiles last (don't get overwritten) */
-
-    /* 7 ── Entrance / exit tiles */
-    Room *er=&lvl->rooms[entrance_r], *xr=&lvl->rooms[exit_r];
-
-    int ex, ey;
-    room_center(er, &ex, &ey);   //ORIGINALY WAS int ex=rng_range(er->left+1,er->right-1),  ey=rng_range(er->top+1,er->bottom-1);
-    lvl->entrance=xy_to_idx(ex,ey); set_tile(lvl,ex,ey,TILE_ENTRANCE);
-
-    int xx, yy;
-    room_center(xr, &xx, &yy);  //ORIGINALY WAS int xx=rng_range(xr->left+1,xr->right-1),  yy=rng_range(xr->top+1,xr->bottom-1);
-    lvl->exit=xy_to_idx(xx,yy);    set_tile(lvl,xx,yy,TILE_EXIT);
-
-    /* 8 ── Water + grass via Patch automaton */
+    
+    /* 7 ── Water + grass via Patch automaton */
     static uint8_t wp[LEVEL_SIZE], gp[LEVEL_SIZE];
     float wseed,gseed; int wgen,ggen;
     switch (theme) {
-        case THEME_SEWERS: wseed=0.45f;wgen=5;gseed=0.40f;ggen=4; break;
-        case THEME_PRISON: wseed=0.45f;wgen=4;gseed=0.40f;ggen=3; break;
-        case THEME_CAVES:  wseed=0.45f;wgen=6;gseed=0.35f;ggen=3; break;
-        case THEME_CITY:   wseed=0.45f;wgen=4;gseed=0.40f;ggen=3; break;
-        case THEME_HALLS:  wseed=0.40f;wgen=6;gseed=0.30f;ggen=3; break;
-        default:           wseed=0.00f;wgen=0;gseed=0.00f;ggen=0; break; /*TODO MB REMOVE*/
+
+    case THEME_SEWERS:
+        wseed = (lvl->feeling == FEELING_WATER) ? 0.60f : 0.45f;
+        wgen = 5;
+
+        gseed = (lvl->feeling == FEELING_GRASS) ? 0.60f : 0.40f;
+        ggen = 4;
+        break;
+
+    case THEME_PRISON:
+        wseed = (lvl->feeling == FEELING_WATER) ? 0.65f : 0.45f;
+        wgen = 4;
+
+        gseed = (lvl->feeling == FEELING_GRASS) ? 0.60f : 0.40f;
+        ggen = 3;
+        break;
+
+    case THEME_CAVES:
+        wseed = (lvl->feeling == FEELING_WATER) ? 0.60f : 0.45f;
+        wgen = 6;
+
+        gseed = (lvl->feeling == FEELING_GRASS) ? 0.55f : 0.35f;
+        ggen = 3;
+        break;
+
+    case THEME_CITY:
+        wseed = (lvl->feeling == FEELING_WATER) ? 0.65f : 0.45f;
+        wgen = 4;
+
+        gseed = (lvl->feeling == FEELING_GRASS) ? 0.60f : 0.40f;
+        ggen = 3;
+        break;
+
+    case THEME_HALLS:
+        wseed = (lvl->feeling == FEELING_WATER) ? 0.55f : 0.40f;
+        wgen = 6;
+
+        gseed = (lvl->feeling == FEELING_GRASS) ? 0.55f : 0.30f;
+        ggen = 3;
+        break;
+
+    default:
+        wseed = 0.0f;
+        gseed = 0.0f;
+        wgen = 0;
+        ggen = 0;
+        break;
     }
     if (wgen>0) { patch_generate(wseed,wgen,wp); paint_water(lvl,wp); }
     if (ggen>0) { patch_generate(gseed,ggen,gp); paint_grass(lvl,gp); }
 
-    /* 9 ── Theme decoration */
+    /* 8 ── Theme decoration */
     switch (theme) {
         case THEME_SEWERS: decorate_sewers(lvl); break;
         case THEME_PRISON: decorate_prison(lvl); break;
@@ -813,14 +1154,12 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme) {
         case THEME_HALLS:  decorate_halls(lvl); break;
         default:           decorate_generic(lvl); break;
     }
-    place_embers(lvl);
     return 0;
 }
 
 int level_player_on_exit(const Level *lvl, int x, int y){
     return xy_to_idx(x, y) == lvl->exit;
 }
-int level_player_on_entrance(const Level *lvl, int x, int y)
-{
+int level_player_on_entrance(const Level *lvl, int x, int y){
     return xy_to_idx(x, y) == lvl->entrance;
 }

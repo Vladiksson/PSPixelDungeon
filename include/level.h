@@ -4,11 +4,19 @@
 /* Returns 1 if tile is walkable */
 int  player_passable(uint8_t tile);
 
+typedef enum {
+    FEELING_NONE,
+    FEELING_CHASM,
+    FEELING_WATER,
+    FEELING_GRASS
+} LevelFeeling;
+
 typedef struct {
     uint8_t  map[LEVEL_SIZE];
     int      entrance;
     int      exit;
     DungeonTheme theme;
+    LevelFeeling feeling;
     Room     rooms[MAX_ROOMS];
     int      num_rooms;
 } Level;
