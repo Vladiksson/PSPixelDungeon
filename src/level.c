@@ -271,12 +271,20 @@ static DoorType get_door_type(Room *a, Room *b){
         return DOOR_TUNNEL;
     if (a->type == ROOM_VAULT || b->type == ROOM_VAULT)
         return DOOR_LOCKED;
+    if (a->type == ROOM_TREASURY || b->type == ROOM_TREASURY)
+        return DOOR_LOCKED;
     if (a->type == ROOM_LIBRARY || b->type == ROOM_LIBRARY)
         return DOOR_HIDDEN;
     if ((a->type == ROOM_LABORATORY || b->type == ROOM_LABORATORY) && rng_int(3)==0)
             return DOOR_HIDDEN;
     if (a->type == ROOM_CRYPT || b->type == ROOM_CRYPT)
         return DOOR_BARRICADE;
+    if (a->type == ROOM_STORAGE || b->type == ROOM_STORAGE)
+        return DOOR_BARRICADE;
+    if (a->type == ROOM_STATUE || b->type == ROOM_STATUE)
+        return DOOR_LOCKED;
+    if (a->type == ROOM_PIT || b->type == ROOM_PIT)
+        return DOOR_LOCKED;
     return DOOR_REGULAR;
 }
 
@@ -478,6 +486,10 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth) {
     if (ggen>0) { patch_generate(gseed,ggen,gp); paint_grass(lvl,gp); }
     
     decor(lvl);
+
+    /* 9 Scatter loot (graveyard rooms already dropped their own items in paint_rooms(), above — this fills in the rest) */
+    level_spawn_items(lvl, depth);
+
     return 0;
 }
 

@@ -90,6 +90,9 @@ int render_init(RenderCtx *ctx, const char *assets_dir) {
     }
     printf("[render] heroes %d/%d\n", hl, HERO_CLASS_COUNT);
 
+    ctx->items = load_tex(ctx->renderer, assets_dir, ASSET_ITEMS);
+    printf("[render] items %s\n", ctx->items ? "OK" : "MISSING");
+
     return 0;
 }
 
@@ -102,6 +105,7 @@ void render_free(RenderCtx *ctx) {
     for (int i=0; i<HERO_CLASS_COUNT; i++) {
         if (ctx->heroes[i]) SDL_DestroyTexture(ctx->heroes[i]);
     }
+    if (ctx->items) SDL_DestroyTexture(ctx->items);
     IMG_Quit();
 }
 
@@ -154,6 +158,31 @@ void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     }
 }
 
+/* ── render_items ──────────────────────────────────── */
+void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
+    SDL_Texture *tex = ctx->items;
+    if (!tex) return;
+
+    for (int i = 0; i < lvl->num_heaps; i++) {
+        const Heap *h = &lvl->heaps[i];
+
+        if (!h->active || h->count == 0)
+            continue;
+
+        if (h->x < cam->tile_x || h->x > cam->tile_x + VIEW_COLS ||
+            h->y < cam->tile_y || h->y > cam->tile_y + VIEW_ROWS)
+            continue;
+
+        const ItemDef *def = &ITEM_DB[h->items[0].type];
+
+        Point scr = camera_tile_to_screen(cam, h->x, h->y);
+
+        SDL_Rect src = { def->sprite_col * TILE_SIZE, def->sprite_row * TILE_SIZE, TILE_SIZE, TILE_SIZE};
+        SDL_Rect dst = {scr.x, scr.y, TILE_SIZE, TILE_SIZE};
+        SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
+    }
+}
+
 static int is_wall(uint8_t t) {
     return t == TILE_WALL || t == TILE_WALL_DECO || t == TILE_SECRET_DOOR; //TODO rewrite by flags return (gTileFlags[t] & TF_LOS_BLOCKING) != 0;
 }
@@ -196,8 +225,7 @@ static void edge_shadow(SDL_Renderer *r, int px, int py,
     }
 }
 
-void render_shadows(RenderCtx *ctx,
-                    const Level *lvl, const Fog *fog, const Camera *cam) {
+void render_shadows(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam) {
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
 
     for (int ty = cam->tile_y; ty <= cam->tile_y + VIEW_ROWS; ty++) {

@@ -2,6 +2,7 @@
 #include "common.h"
 #include "level.h"
 #include "level_utils.h"
+#include "item.h"
 
 #define HERO_W 12
 #define HERO_H 15
@@ -71,6 +72,10 @@ typedef struct {
     int       frame;       /* index into HERO_CLIPS[anim].frames        */
     float     frame_clock; /* seconds accumulated toward the next frame */
     int       anim_done;   /* 1 once a non-looping clip has played out  */
+
+    ItemStack inventory[MAX_INVENTORY]; /* backpack — no equip/use yet  */
+    int       num_inventory;
+    int       gold;
 } Player;
  
 /* Place player at level entrance */
@@ -90,3 +95,9 @@ void player_animate(Player *p, float dt);
 void player_play_anim(Player *p, AnimState anim);
 
 void player_step_anim(Player *p);
+
+
+/* Add a picked-up stack to the backpack (gold just increments p->gold;
+   stackable kinds merge into an existing slot; otherwise a new slot is
+   used). Returns 0 if the backpack is full and the item is dropped. */
+int player_add_item(Player *p, ItemType type, int quantity);

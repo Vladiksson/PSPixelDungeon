@@ -24,6 +24,9 @@ typedef struct {
    Loaded from ASSET_HERO_BY_CLASS in render_init. */
    SDL_Texture  *heroes[HERO_CLASS_COUNT];
 
+   /* Item icon sheet — ASSET_ITEMS, an 8x16 grid of 16px cells. */
+   SDL_Texture  *items;
+
    DungeonTheme  active_theme;
    int           png_available; 
 } RenderCtx;
@@ -33,6 +36,9 @@ typedef struct {
 int  render_init  (RenderCtx *ctx, const char *assets_dir);
 void render_free  (RenderCtx *ctx);
 void render_frame (RenderCtx *ctx, const Level *lvl, const Camera *cam);
+/* Ground item heap. Call between render_frame and render_shadows so
+   fog-of-war darkens/hides items exactly like it does terrain. */
+void render_items (RenderCtx *ctx, const Level *lvl, const Camera *cam);
 void render_shadows (RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam);
 void render_fog    (RenderCtx *ctx, const Fog    *fog, const Camera *cam);
 void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);

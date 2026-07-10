@@ -1,6 +1,6 @@
 #pragma once
 #include "common.h"
-
+#include "item.h"
 
 typedef enum {
     FEELING_NONE,
@@ -10,13 +10,16 @@ typedef enum {
 } LevelFeeling;
 
 typedef struct {
-    uint8_t  map[LEVEL_SIZE];
-    int      entrance;
-    int      exit;
+    uint8_t      map[LEVEL_SIZE];
+    int          entrance;
+    int          exit;
     DungeonTheme theme;
     LevelFeeling feeling;
-    Room     rooms[MAX_ROOMS];
-    int      num_rooms;
+    Room         rooms[MAX_ROOMS];
+    int          num_rooms;
+
+    Heap         heaps[MAX_LEVEL_ITEMS];
+    int          num_heaps;
 } Level;
 
 typedef struct {
@@ -45,3 +48,15 @@ static inline int room_inside(const Room *r, int x, int y) {
 
 int level_player_on_exit(const Level *lvl, int x, int y);
 int level_player_on_entrance(const Level *lvl, int x, int y);
+
+
+/* ── Items — implemented in item.c ────────────────────────
+   Logically "item system", but these three take a Level* so they
+   live here rather than in item.h (mirrors how level_utils.c owns
+   the tile helpers that also take a Level*). */
+Heap *spawn_item(Level *lvl, int idx, int depth, ItemType type);
+Heap *spawn_random_item(Level *lvl, int idx, int depth);
+Heap *spawn_item_heap(Level *lvl, int idx, int depth, ItemType type, HeapType heap_type);
+void level_spawn_items (Level *lvl, int depth);
+int  level_pickup_at   (Level *lvl, int x, int y, ItemStack *out);
+void place_room_loot(Level *lvl, Room *r, int depth, int count);

@@ -36,6 +36,8 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->frame_clock = 0.0f;
     p->anim_done   = 0;
 
+    p->num_inventory = 0;
+    p->gold          = 0;
 }
  
 void player_play_anim(Player *p, AnimState anim){
@@ -117,4 +119,28 @@ void player_step_anim(Player *p){
     }
 
     p->frame = (p->frame + 1) % clip->count;
+}
+
+
+int player_add_item(Player *p, ItemType type, int quantity) {
+    if (type == ITEM_GOLD) {
+        p->gold += quantity;
+        return 1;
+    }
+ 
+    if (ITEM_DB[type].stackable) {
+        for (int i = 0; i < p->num_inventory; i++) {
+            if (p->inventory[i].type == type) {
+                p->inventory[i].quantity += quantity;
+                return 1;
+            }
+        }
+    }
+ 
+    if (p->num_inventory >= MAX_INVENTORY) return 0;
+ 
+    p->inventory[p->num_inventory].type     = type;
+    p->inventory[p->num_inventory].quantity = quantity;
+    p->num_inventory++;
+    return 1;
 }

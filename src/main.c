@@ -12,6 +12,7 @@
 #include "player.h"
 #include "fov.h"
 #include "dungeon.h"
+#include "item.h"
 
 /* ── PSP kernel module metadata (required for EBOOT.PBP) ──────── */
 /*PSP_MODULE_INFO("PixelDungeonPSP", PSP_MODULE_USER, 1, 0);*/
@@ -125,6 +126,14 @@ int main(int argc, char *argv[]) {
         if (moved) {
             player_step_anim(&player);
 
+            ItemStack picked;
+            if (level_pickup_at(lvl, player.x, player.y, &picked)) {
+                player_add_item(&player, picked.type, picked.quantity);
+                /* TODO: route this to a message log / HUD once one exists */
+                printf("[item] picked up %dx %s\n",
+                       picked.quantity, item_name(picked.type));
+            }
+
             if (level_player_on_exit(lvl, player.x, player.y)) {
                 dungeon_go_down(&dungeon, &player, &cam);
                 lvl = dungeon_current_level(&dungeon);
@@ -144,8 +153,9 @@ int main(int argc, char *argv[]) {
         
         fog_update(fog, lvl, player.x, player.y);
         player_animate(&player, dt);
-        /* Draw: tiles → fog → player → present */
+        /* Draw: tiles → items → fog → player → present */
         render_frame(&rctx, lvl, &cam);
+        render_items(&rctx, lvl, &cam);
         render_shadows(&rctx, lvl, fog, &cam);
         render_fog(&rctx, fog, &cam);
         render_player(&rctx, &player, &cam);

@@ -14,6 +14,7 @@ add_executable(${PROJECT_NAME}
     src/player.c
     src/fov.c
     src/dungeon.c
+    src/item.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O2 -G0 -Wall)
