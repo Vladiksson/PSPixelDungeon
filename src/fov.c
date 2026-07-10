@@ -9,16 +9,7 @@
    ══════════════════════════════════════════════════════════════ */
 static int blocks_light(const Level *lvl, int x, int y) {
     if (!in_bounds(x, y)) return 1;
-    switch (lvl->map[xy_to_idx(x, y)]) {
-        case TILE_WALL:
-        case TILE_WALL_DECO:
-        case TILE_SECRET_DOOR:
-        case TILE_DOOR:
-        case TILE_LOCKED_DOOR:
-            return 1;
-        default:
-            return 0;
-    }
+    return gTileFlags[lvl->map[xy_to_idx(x, y)]] & TF_LOS_BLOCKING;
 }
 
 /* ══════════════════════════════════════════════════════════════

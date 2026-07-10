@@ -1,6 +1,7 @@
 #pragma once
 #include "common.h"
 #include "level.h"
+#include "level_utils.h"
 #include "camera.h"
 #include "assets.h"
 #include "player.h"

@@ -1,6 +1,4 @@
-#ifndef DUNGEON_H
-#define DUNGEON_H
-
+#pragma once
 #include "level.h"
 #include "player.h"
 #include "camera.h"
@@ -26,5 +24,3 @@ Fog *dungeon_current_fog(Dungeon *d);
 int dungeon_go_down(Dungeon *d, Player *player, Camera *cam);
 
 int dungeon_go_up(Dungeon *d, Player *player, Camera *cam);
-
-#endif

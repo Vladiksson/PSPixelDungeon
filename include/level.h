@@ -1,8 +1,6 @@
 #pragma once
 #include "common.h"
 
-/* Returns 1 if tile is walkable */
-int  player_passable(uint8_t tile);
 
 typedef enum {
     FEELING_NONE,
@@ -21,7 +19,16 @@ typedef struct {
     int      num_rooms;
 } Level;
 
-int  level_generate(Level *lvl, uint32_t seed, DungeonTheme theme);
+typedef struct {
+    RoomType specials[16];
+    int num_specials;
+
+    int pit_room_needed;
+    int weak_floor_created;
+    int shop_created;
+} LevelGenState;
+
+int  level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth);
 
 /* Safe tile read — returns TILE_WALL for out-of-bounds */
 static inline uint8_t get_tile_safe(const Level *lvl, int x, int y) {

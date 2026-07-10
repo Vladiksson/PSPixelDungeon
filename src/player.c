@@ -54,7 +54,7 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
     if (!in_bounds(nx, ny)) return 0;
  
     uint8_t tile = lvl->map[xy_to_idx(nx, ny)];
-    if (!player_passable(tile)) return 0;
+    if (!(gTileFlags[tile] & TF_PASSABLE)) return 0;
  
     /* Open closed doors on contact (PD behaviour) */
     if (tile == TILE_DOOR || tile == TILE_LOCKED_DOOR)

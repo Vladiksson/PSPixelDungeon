@@ -76,6 +76,7 @@ static int move_repeat_update(
 /* ── Main ─────────────────────────────────────────────── */
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
+    Terrain_InitFlags(); 
     /* Generate dungeon */
     static Dungeon dungeon;
     dungeon_init(&dungeon);

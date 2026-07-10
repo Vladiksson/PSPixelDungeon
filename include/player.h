@@ -1,6 +1,7 @@
 #pragma once
 #include "common.h"
 #include "level.h"
+#include "level_utils.h"
 
 #define HERO_W 12
 #define HERO_H 15

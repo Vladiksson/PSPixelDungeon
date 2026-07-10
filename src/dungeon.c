@@ -3,10 +3,10 @@
 
 static DungeonTheme get_theme(int depth)
 {
-    if (depth < 1) return THEME_SEWERS;
-    if (depth < 2) return THEME_PRISON;
-    if (depth < 3) return THEME_CAVES;
-    if (depth < 4) return THEME_CITY;
+    if (depth < 5) return THEME_SEWERS;
+    if (depth < 10) return THEME_PRISON;
+    if (depth < 15) return THEME_CAVES;
+    if (depth < 20) return THEME_CITY;
     return THEME_HALLS;
 }
 
@@ -30,7 +30,8 @@ void dungeon_init(Dungeon *d)
     level_generate(
         &d->floors[0],
         d->world_seed,
-        get_theme(0));
+        get_theme(0),
+        d->current_depth);
 
     fog_init(&d->fog[d->current_depth]);
 
@@ -51,7 +52,8 @@ int dungeon_go_down(Dungeon *d,
         level_generate(
             &d->floors[d->current_depth],
             seed,
-            get_theme(d->current_depth));
+            get_theme(d->current_depth),
+            d->current_depth );
 
         d->generated[d->current_depth] = 1;
     }

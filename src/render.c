@@ -33,19 +33,8 @@ static SDL_Texture *load_tex(SDL_Renderer *r, const char *dir, const char *f) {
 /* ── water shore bitmask — exact Level.java getWaterTile() ─
    NEIGHBOURS4 = {-WIDTH,+1,+WIDTH,-1} = {top,right,bottom,left}
    Bit fires when neighbour is UNSTITCHABLE (wall/solid).         */
-static int tile_unstitchable(uint8_t t) {
-    return t == TILE_CHASM ||
-    t == TILE_WATER || 
-    t == TILE_WALL || 
-    t == TILE_DOOR || 
-    //t == TILE_OPEN_DOOR || 
-    t == TILE_LOCKED_DOOR || 
-    t == TILE_PEDESTAL || 
-    t == TILE_EMPTY_SP || 
-    t == TILE_STATUE_SP || 
-    t == TILE_BOOKSHELF || 
-    t == TILE_SECRET_DOOR ||
-    t == TILE_WALL_DECO; //TODO REWRITE AS FLAG TO COMMON.H
+static int tile_unstitchable(uint8_t t){
+    return (gTileFlags[t] & TF_UNSTITCHABLE) != 0;
 }
 static int water_sprite(const Level *lvl, int tx, int ty) {
     int top   = tile_unstitchable(get_tile_safe(lvl, tx,   ty-1));
@@ -166,9 +155,8 @@ void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
 }
 
 static int is_wall(uint8_t t) {
-    return t == TILE_WALL || t == TILE_WALL_DECO || t == TILE_SECRET_DOOR;
+    return t == TILE_WALL || t == TILE_WALL_DECO || t == TILE_SECRET_DOOR; //TODO rewrite by flags return (gTileFlags[t] & TF_LOS_BLOCKING) != 0;
 }
-
 /* Neighbour helper — returns 1 if tile (nx,ny) is a wall, 0 otherwise */
 static int wall_at(const Level *lvl, int nx, int ny) {
     return in_bounds(nx, ny) && is_wall(lvl->map[xy_to_idx(nx, ny)]);
@@ -221,7 +209,7 @@ void render_shadows(RenderCtx *ctx,
             if (!fog->visited[idx]) continue;
 
             /* Only passable (floor-like) tiles get the shadow overlay */
-            if (!player_passable(lvl->map[idx])) continue;
+            if (!(gTileFlags[lvl->map[idx]] & TF_PASSABLE)) continue;
 
             Point scr = camera_tile_to_screen(cam, tx, ty);
 

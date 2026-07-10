@@ -60,21 +60,12 @@ typedef enum {
     DOOR_TUNNEL,
     DOOR_REGULAR,
     DOOR_LOCKED,
-    DOOR_SECRET,
+    //DOOR_SECRET,
     DOOR_HIDDEN,
     DOOR_BARRICADE,
     DOOR_UNLOCKED
 } DoorType;
-/*
- * Room — mirrors Room.java / Rect.java
- *   width()  = right - left
- *   height() = bottom - top
- *   inside() : x > left && y > top && x < right && y < bottom
- *
- * Rooms created by BSP always share a wall with their siblings
- * (left/right/top/bottom of siblings are identical at the split
- * coordinate) — neighbours are detected by O(n²) addNeighbour.
- */
+ 
 typedef struct {
     int left, top, right, bottom;
 
@@ -134,6 +125,21 @@ typedef enum {
     TILE_WATER                  = 63,
     TILE_WATER_TILES            = 48,
 } TileType;
+
+typedef enum {
+    TF_PASSABLE      = 0x0001,
+    TF_LOS_BLOCKING  = 0x0002,
+    TF_FLAMABLE      = 0x0004,
+    TF_SECRET        = 0x0008,
+    TF_SOLID         = 0x0010,
+    TF_AVOID         = 0x0020,
+    TF_LIQUID        = 0x0040,
+    TF_PIT           = 0x0080,
+    TF_UNSTITCHABLE  = 0x0100,
+} TileFlags;
+
+extern uint16_t gTileFlags[256];
+void Terrain_InitFlags(void);
 
 typedef enum {
     THEME_SEWERS = 0,

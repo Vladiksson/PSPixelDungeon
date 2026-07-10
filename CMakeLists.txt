@@ -4,6 +4,10 @@ project(pspixeldungeon C CXX)
 add_executable(${PROJECT_NAME}
     src/main.c
     src/level.c
+    src/level_utils.c
+    src/level_paint.c
+    src/level_decorate.c
+    src/tiles.c
     src/render.c
     src/input.c
     src/camera.c
