@@ -114,8 +114,7 @@ int main(int argc, char *argv[]) {
  
         if (btn_pressed(&inp, BTN_START)) break;
  
-        /* Player movement — d-pad / WASD
-           Camera follows automatically on every successful move */
+        /* Player movement — d-pad / WASD */
         int moved = 0;
 
         moved |= move_repeat_update(&mr, &inp, now, &player, lvl, &cam, BTN_UP,    0, -1);
@@ -146,6 +145,8 @@ int main(int argc, char *argv[]) {
                 fog = dungeon_current_fog(&dungeon);
                 continue;
             }
+            dungeon_on_player_move(&dungeon, &player);
+
         } else {
             if (player.anim == ANIM_RUN)
                 player_play_anim(&player, ANIM_IDLE);

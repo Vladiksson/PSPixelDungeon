@@ -7,6 +7,8 @@ add_executable(${PROJECT_NAME}
     src/level_utils.c
     src/level_paint.c
     src/level_decorate.c
+    src/level_boss.c
+    src/level_last.c
     src/tiles.c
     src/render.c
     src/input.c

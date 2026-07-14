@@ -162,26 +162,25 @@ void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
 void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     SDL_Texture *tex = ctx->items;
     if (!tex) return;
-
+ 
     for (int i = 0; i < lvl->num_heaps; i++) {
         const Heap *h = &lvl->heaps[i];
-
-        if (!h->active || h->count == 0)
-            continue;
-
+        if (!h->active) continue;
         if (h->x < cam->tile_x || h->x > cam->tile_x + VIEW_COLS ||
-            h->y < cam->tile_y || h->y > cam->tile_y + VIEW_ROWS)
-            continue;
-
-        const ItemDef *def = &ITEM_DB[h->items[0].type];
-
+            h->y < cam->tile_y || h->y > cam->tile_y + VIEW_ROWS) continue;
+ 
+        uint8_t col, row;
+        if (!heap_sprite_cell(h, &col, &row)) continue;
+ 
         Point scr = camera_tile_to_screen(cam, h->x, h->y);
-
-        SDL_Rect src = { def->sprite_col * TILE_SIZE, def->sprite_row * TILE_SIZE, TILE_SIZE, TILE_SIZE};
-        SDL_Rect dst = {scr.x, scr.y, TILE_SIZE, TILE_SIZE};
+ 
+        SDL_Rect src = { col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE };
+        SDL_Rect dst = { scr.x, scr.y, TILE_SIZE, TILE_SIZE };
+ 
         SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
     }
 }
+
 
 static int is_wall(uint8_t t) {
     return t == TILE_WALL || t == TILE_WALL_DECO || t == TILE_SECRET_DOOR; //TODO rewrite by flags return (gTileFlags[t] & TF_LOS_BLOCKING) != 0;
@@ -200,8 +199,7 @@ static int wall_at(const Level *lvl, int nx, int ny) {
            1 = start from the far  edge  (S/E walls)
    max_a   alpha at the wall face (fades to 0 over TILE_SIZE*5/8 px)
    ─────────────────────────────────────────────────────────────── */
-static void edge_shadow(SDL_Renderer *r, int px, int py,
-                        int axis, int flip, int max_a) {
+static void edge_shadow(SDL_Renderer *r, int px, int py, int axis, int flip, int max_a) {
     const int STEPS = 5;
     int span  = TILE_SIZE / 4;
     int chunk = span / STEPS;
@@ -363,8 +361,7 @@ static SDL_Rect hero_frame_rect(const Player *p) {
 }
 
 /* ── render_player ────────────────────────────────── */
-void render_player(RenderCtx *ctx, const Player *p, const Camera *cam)
-{
+void render_player(RenderCtx *ctx, const Player *p, const Camera *cam){
     SDL_Texture *tex = ctx->heroes[p->cls];
     if (!tex) return;
  

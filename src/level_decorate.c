@@ -1,5 +1,6 @@
 #include "level_decorate.h"
 #include "level_utils.h"
+#include "level_boss.h"
 
 /* ══════════════════════════════════════════════════════════
    DECORATION  —  SewerLevel.decorate() etc.
@@ -249,3 +250,123 @@ void decorate_generic(Level *lvl) {
         if (lvl->map[i]==TILE_WALL && rng_int(20)==0) lvl->map[i]=TILE_WALL_DECO;
 }
 
+/* ══════════════════════════════════════════════════════════
+   BOSS DECORATION  —  XBossLevel.decorate() etc.
+   ══════════════════════════════════════════════════════════ */
+void decorate_sewers_boss(Level *lvl, int exit_room_idx) {
+    /* "Waterfall" along the boss room's top wall: WALL_DECO on
+       the wall itself, WATER on the row below it, except right
+       above the exit tile, which stays open. */
+    Room *ex = &lvl->rooms[exit_room_idx];
+    int start = xy_to_idx(ex->left + 1, ex->top);
+    int end = start + room_w(ex) - 1;
+    for (int i = start; i < end; i++) {
+        if (i != lvl->exit) {
+            lvl->map[i] = TILE_WALL_DECO;
+            lvl->map[i + LEVEL_W] = TILE_WATER;
+        } else {
+            lvl->map[i + LEVEL_W] = TILE_EMPTY;
+        }
+    }
+    place_sign(lvl);
+}
+
+void decorate_prison_boss(Level *lvl, int exit_room_idx) {
+    for (int i = LEVEL_W + 1; i < LEVEL_SIZE - LEVEL_W - 1; i++) {
+        if (lvl->map[i] == TILE_EMPTY) {
+            float chance = 0.15f;
+            if (lvl->map[i+1]==TILE_WALL && lvl->map[i+LEVEL_W]==TILE_WALL) chance += 0.2f;
+            if (lvl->map[i-1]==TILE_WALL && lvl->map[i+LEVEL_W]==TILE_WALL) chance += 0.2f;
+            if (lvl->map[i+1]==TILE_WALL && lvl->map[i-LEVEL_W]==TILE_WALL) chance += 0.2f;
+            if (lvl->map[i-1]==TILE_WALL && lvl->map[i-LEVEL_W]==TILE_WALL) chance += 0.2f;
+            if (rng_float() < chance) lvl->map[i] = TILE_EMPTY_DECO;
+        }
+    }
+    for (int i = 0; i < LEVEL_W; i++)
+        if (lvl->map[i] == TILE_WALL &&
+            (lvl->map[i+LEVEL_W] == TILE_EMPTY || lvl->map[i+LEVEL_W] == TILE_EMPTY_SP) &&
+            rng_int(4) == 0)
+            lvl->map[i] = TILE_WALL_DECO;
+    for (int i = LEVEL_W; i < LEVEL_SIZE - LEVEL_W; i++)
+        if (lvl->map[i] == TILE_WALL && lvl->map[i-LEVEL_W] == TILE_WALL &&
+            (lvl->map[i+LEVEL_W] == TILE_EMPTY || lvl->map[i+LEVEL_W] == TILE_EMPTY_SP) &&
+            rng_int(2) == 0)
+            lvl->map[i] = TILE_WALL_DECO;
+
+    place_sign(lvl);
+
+    /* Boss room's one door gets upgraded from the plain DOOR that
+       paint_doors() already placed there to a LOCKED_DOOR, and its
+       floor becomes an (currently inert, no trigger yet) trap bed -
+       see the deferred-mechanics note at the top of level_boss.c. */
+    Room *ex = &lvl->rooms[exit_room_idx];
+    set_tile(lvl, ex->door_x[0], ex->door_y[0], TILE_LOCKED_DOOR);
+    fill_rect(lvl, ex->left + 2, ex->top + 2, room_w(ex) - 3, room_h(ex) - 3, TILE_INACTIVE_TRAP);
+}
+
+void decorate_caves_boss(Level *lvl) {
+    for (int i = LEVEL_W + 1; i < LEVEL_SIZE - LEVEL_W; i++) {
+        if (lvl->map[i] == TILE_EMPTY) {
+            int n = 0;
+            if (lvl->map[i+1] == TILE_WALL) n++;
+            if (lvl->map[i-1] == TILE_WALL) n++;
+            if (lvl->map[i+LEVEL_W] == TILE_WALL) n++;
+            if (lvl->map[i-LEVEL_W] == TILE_WALL) n++;
+            if (rng_int(8) <= n) lvl->map[i] = TILE_EMPTY_DECO;
+        }
+    }
+    for (int i = 0; i < LEVEL_SIZE; i++)
+        if (lvl->map[i] == TILE_WALL && rng_int(8) == 0)
+            lvl->map[i] = TILE_WALL_DECO;
+
+    int sx, sy, sidx;
+    do {
+        sx = rng_range(CAVES_ARENA_LEFT, CAVES_ARENA_RIGHT);
+        sy = rng_range(CAVES_ARENA_TOP, CAVES_ARENA_BOTTOM);
+        sidx = xy_to_idx(sx, sy);
+    } while (sidx == lvl->entrance);
+    set_tile(lvl, sx, sy, TILE_SIGN);
+}
+
+void decorate_city_boss(Level *lvl, int arena_door_idx) {
+    for (int i = 0; i < LEVEL_SIZE; i++) {
+        if (lvl->map[i] == TILE_EMPTY && rng_int(10) == 0)
+            lvl->map[i] = TILE_EMPTY_DECO;
+        else if (lvl->map[i] == TILE_WALL && rng_int(8) == 0)
+            lvl->map[i] = TILE_WALL_DECO;
+    }
+    /* One row below and one column right of the arena door - a
+       fixed offset in the original, not a search. */
+    lvl->map[arena_door_idx + LEVEL_W + 1] = TILE_SIGN;
+}
+
+void decorate_halls_boss(Level *lvl) {
+    /* No wall decoration, no sign here - the original really is
+       this much sparser than the other four. */
+    for (int i = 0; i < LEVEL_SIZE; i++)
+        if (lvl->map[i] == TILE_EMPTY && rng_int(10) == 0)
+            lvl->map[i] = TILE_EMPTY_DECO;
+}
+
+
+/* ══════════════════════════════════════════════════════════
+   EPILOGUE DECORATION  —  LastShopLevel/LastLevel .decorate()
+   ══════════════════════════════════════════════════════════ */
+void decorate_last_shop(Level *lvl, int quest_completed) {
+    for (int i = 0; i < LEVEL_SIZE; i++) {
+        if (lvl->map[i] == TILE_EMPTY && rng_int(10) == 0) {
+            lvl->map[i] = TILE_EMPTY_DECO;
+        } else if (lvl->map[i] == TILE_WALL && rng_int(8) == 0) {
+            lvl->map[i] = TILE_WALL_DECO;
+        } else if (lvl->map[i] == TILE_SECRET_DOOR) {
+            lvl->map[i] = TILE_DOOR;
+        }
+    }
+    if (quest_completed) place_sign(lvl);
+}
+ 
+void decorate_last(Level *lvl) {
+    for (int i = 0; i < LEVEL_SIZE; i++)
+        if (lvl->map[i] == TILE_EMPTY && rng_int(10) == 0)
+            lvl->map[i] = TILE_EMPTY_DECO;
+}

@@ -16,14 +16,14 @@ void Terrain_InitFlags(void){
     gTileFlags[TILE_ENTRANCE]               = TF_PASSABLE;
     gTileFlags[TILE_EXIT]                   = TF_PASSABLE;
     gTileFlags[TILE_EMBERS]                 = TF_PASSABLE;
-    gTileFlags[TILE_LOCKED_DOOR]            = TF_LOS_BLOCKING | TF_SOLID | TF_UNSTITCHABLE;
+    gTileFlags[TILE_LOCKED_DOOR]            = TF_PASSABLE;//ORIGINALLY TF_LOS_BLOCKING | TF_SOLID | TF_UNSTITCHABLE;
     gTileFlags[TILE_PEDESTAL]               = TF_PASSABLE | TF_UNSTITCHABLE;
     gTileFlags[TILE_WALL_DECO]              = gTileFlags[TILE_WALL];
     gTileFlags[TILE_BARRICADE]              = TF_FLAMABLE | TF_SOLID | TF_LOS_BLOCKING;
     gTileFlags[TILE_EMPTY_SP]               = gTileFlags[TILE_EMPTY] | TF_UNSTITCHABLE; 
     gTileFlags[TILE_HIGH_GRASS]             = TF_PASSABLE | TF_LOS_BLOCKING | TF_FLAMABLE;
     gTileFlags[TILE_EMPTY_DECO]             = gTileFlags[TILE_EMPTY];
-    gTileFlags[TILE_LOCKED_EXIT]            = TF_SOLID;
+    gTileFlags[TILE_LOCKED_EXIT]            = TF_PASSABLE;//ORIGINALLY TF_SOLID;
     gTileFlags[TILE_UNLOCKED_EXIT]          = TF_PASSABLE;
     gTileFlags[TILE_SIGN]                   = TF_PASSABLE | TF_FLAMABLE;
     gTileFlags[TILE_WELL]                   = TF_AVOID;

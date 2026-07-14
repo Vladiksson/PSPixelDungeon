@@ -381,4 +381,13 @@ typedef struct {
 } Heap;
 
 #define MAX_LEVEL_ITEMS 24
+#define MAX_ITEMS_TO_SPAWN 8
 #define MAX_INVENTORY   20
+
+/* Mirrors Heap.image() from the original: HEAP_NORMAL/HEAP_FOR_SALE
+   show whatever's on top of the stack, but the container/decoration
+   types (chest variants, tomb, skeleton, hidden, mimic) always show
+   their own fixed icon no matter what's inside. Writes the cell into
+   out_col and out_row and returns 1, or returns 0 for an empty heap
+   with nothing to show. */
+int heap_sprite_cell(const Heap *h, uint8_t *out_col, uint8_t *out_row);

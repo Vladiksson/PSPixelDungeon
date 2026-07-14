@@ -9,14 +9,14 @@ uint32_t rng_next(void) {
 }
 int rng_range(int min, int max) {
     if (min >= max) return min;
-    return min + (int)(rng_next() % (unsigned)(max - min + 1));
+    return min + (int)((rng_next() >> 16) % (unsigned)(max - min + 1));
 }
 float rng_float(void) {
     return (float)(rng_next() >> 8) / (float)(1 << 24);
 }
 int rng_int(int max) {
     if (max <= 1) return 0;
-    return (int)(rng_next() % (unsigned)max);
+    return (int)((rng_next() >> 16) % (unsigned)max);
 }
 
 int isqrt(int n) { int r=0; while((r+1)*(r+1)<=n) r++; return r; }

@@ -2,16 +2,11 @@
 #include "level.h"
 #include "level_utils.h"
 
-
-/* col/row are derived from the real sprite index via ITEMS_SHEET_COLS
-   (same division ItemSprite.pick() does in the original), so each
-   line is traceable straight back to the SPRITE_* constant it uses —
-   no hand-picked coordinates left to transcribe wrong. */
 #define CELL(sprite) (sprite) % ITEMS_SHEET_COLS, (sprite) / ITEMS_SHEET_COLS
  
 const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
     /* ── weapons ──────────────────────────────────────────── */
-    [ITEM_DAGGER]           = { "Dagger",          ITEMCAT_WEAPON, CELL(SPRITE_DAGGER),           0 },
+    [ITEM_DAGGER]           = { "Dagger",           ITEMCAT_WEAPON, CELL(SPRITE_DAGGER),           0 },
     [ITEM_KNUCKLES]         = { "Knuckles",         ITEMCAT_WEAPON, CELL(SPRITE_KNUCKLEDUSTER),    0 },
     [ITEM_QUARTERSTAFF]     = { "Quarterstaff",     ITEMCAT_WEAPON, CELL(SPRITE_QUARTERSTAFF),     0 },
     [ITEM_SPEAR]            = { "Spear",            ITEMCAT_WEAPON, CELL(SPRITE_SPEAR),            0 },
@@ -135,14 +130,7 @@ const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
 
 /* ══════════════════════════════════════════════════════════
    RANDOM ITEM SELECTION  —  Generator.random() / Category.prob
-   ══════════════════════════════════════════════════════════
-   Weights below are Generator.java's Category.prob values (each
-   noted inline). FOOD was raised from 0: the original spawns
-   rations through a separate guaranteed-per-level mechanic we
-   don't have, so 0 here would mean food never appears at all.
-   Within a chosen category, this picks uniformly rather than
-   reproducing Generator's per-item sub-weights and diminishing-
-   odds re-roll — simpler, and easy to layer on top later. */
+   ══════════════════════════════════════════════════════════ */
 typedef struct { ItemCategory cat; int weight; } CatWeight;
 
 static const CatWeight SPAWN_WEIGHTS[] = {
@@ -180,16 +168,40 @@ ItemType random_item(void) {
     return ITEM_GOLD;
 }
 
-/* Gold.value() in the original is Random.Int(30,60) scaled by depth;
-   kept simple here since Level now carries ->depth but nothing else
-   about the shape of a "fair" curve is specified anywhere yet. */
-static int gold_amount(int depth) {
-    return rng_range(5, 15) * (depth + 1);
+int gold_amount(int depth) {
+    int d = depth + 1;
+    return rng_range(20 + d * 10, 40 + d * 20);
 }
 
 /* ══════════════════════════════════════════════════════════
    HEAP  —  spawn / pickup
    ══════════════════════════════════════════════════════════ */
+int heap_sprite_cell(const Heap *h, uint8_t *out_col, uint8_t *out_row) {
+    int sprite;
+ 
+    switch (h->type) {
+        case HEAP_NORMAL:
+        case HEAP_FOR_SALE:
+            if (h->count <= 0) return 0;
+            *out_col = ITEM_DB[h->items[0].type].sprite_col;
+            *out_row = ITEM_DB[h->items[0].type].sprite_row;
+            return 1;
+ 
+        case HEAP_CHEST:
+        case HEAP_MIMIC:         sprite = SPRITE_CHEST;         break;
+        case HEAP_LOCKED_CHEST:  sprite = SPRITE_LOCKED_CHEST;  break;
+        case HEAP_CRYSTAL_CHEST: sprite = SPRITE_CRYSTAL_CHEST; break;
+        case HEAP_TOMB:          sprite = SPRITE_TOMB;          break;
+        case HEAP_SKELETON:      sprite = SPRITE_BONES;         break;
+        case HEAP_HIDDEN:        sprite = SPRITE_HIDDEN;        break;
+        default: return 0;
+    }
+ 
+    *out_col = sprite % ITEMS_SHEET_COLS;
+    *out_row = sprite / ITEMS_SHEET_COLS;
+    return 1;
+}
+   
 Heap *spawn_item(Level *lvl, int idx, int depth, ItemType type) {
     if (type < 0 || type >= ITEM_TYPE_COUNT) return 0;
 
@@ -239,8 +251,31 @@ Heap *spawn_random_item(Level *lvl, int idx, int depth) {
     return spawn_item(lvl, idx, depth, random_item());
 }
 
+Heap *spawn_random_item_of_category(Level *lvl, int idx, int depth, ItemCategory cat) {
+    return spawn_item(lvl, idx, depth, random_item_of_category(cat));
+}
+
 Heap *spawn_item_heap(Level *lvl, int idx, int depth, ItemType type, HeapType heap_type){
     Heap *heap = spawn_item(lvl, idx, depth, type);
+    if (heap) heap->type = heap_type;
+    return heap;
+}
+
+Heap *spawn_item_amount_heap(Level *lvl, int idx, int depth, ItemType type, int amount, HeapType heap_type) {
+    Heap *heap = spawn_item_heap(lvl, idx, depth, type, heap_type);
+    if (!heap) return NULL;
+    int quantity = (amount > 0) ? amount : 1;
+    for (int i = 0; i < heap->count; i++) {
+        if (heap->items[i].type == type) {
+            heap->items[i].quantity = quantity;
+            return heap;
+        }
+    }
+    return heap;
+}
+
+Heap *spawn_random_item_of_category_heap(Level *lvl, int idx, int depth, ItemCategory cat, HeapType heap_type){
+    Heap *heap = spawn_random_item_of_category(lvl, idx, depth, cat);
     if (heap) heap->type = heap_type;
     return heap;
 }
@@ -251,6 +286,12 @@ int level_pickup_at(Level *lvl, int x, int y, ItemStack *out) {
 
         if (!h->active || h->x != x || h->y != y)
             continue;
+        if (h->type != HEAP_NORMAL &&
+            h->type != HEAP_FOR_SALE) {
+            h->type = HEAP_NORMAL;
+
+            return 0;
+        }
         if (out)
             *out = h->items[0];
         for (int j = 1; j < h->count; j++)
@@ -265,9 +306,32 @@ int level_pickup_at(Level *lvl, int x, int y, ItemStack *out) {
 }
 
 /* ══════════════════════════════════════════════════════════
+   LEVEL
+   ══════════════════════════════════════════════════════════ */
+void level_add_item_to_spawn(Level *lvl, ItemType type) {
+    if (lvl->num_items_to_spawn >= MAX_ITEMS_TO_SPAWN)
+        return;
+
+    lvl->items_to_spawn[lvl->num_items_to_spawn++] = type;
+}
+
+int level_take_spawn_item(Level *lvl, ItemType *out) {
+    if (lvl->num_items_to_spawn == 0)
+        return 0;
+
+    if (rng_int(lvl->num_items_to_spawn + 1) == 0)
+        return 0;
+
+    int i = rng_int(lvl->num_items_to_spawn);
+    *out = lvl->items_to_spawn[i];
+    lvl->items_to_spawn[i] =
+        lvl->items_to_spawn[--lvl->num_items_to_spawn];
+    return 1;
+}
+/* ══════════════════════════════════════════════════════════
    LEVEL POPULATION  —  called once, at the end of level_generate
    ══════════════════════════════════════════════════════════ */
-static int tile_is_open_floor(uint8_t t) { //REDO BY FLAG SYSTEM
+static int tile_is_open_floor(uint8_t t) { 
     switch ((TileType)t) {
         case TILE_EMPTY:
         case TILE_GRASS:
@@ -288,15 +352,20 @@ static int tile_free_for_item(const Level *lvl, int x, int y) {
 }
 
 void level_spawn_items(Level *lvl, int depth) {
-    int target = rng_range(4, 8) + depth / 4;   /* a bit more loot deeper down */
-    if (target > MAX_LEVEL_ITEMS) target = MAX_LEVEL_ITEMS;
-
+    int target = rng_range(4, 8) + depth / 4;
+    if (target > MAX_LEVEL_ITEMS)
+        target = MAX_LEVEL_ITEMS;
     int attempts = 0;
     while (lvl->num_heaps < target && attempts < 200) {
         attempts++;
         int x = rng_range(0, LEVEL_W - 1);
         int y = rng_range(0, LEVEL_H - 1);
-        if (!tile_free_for_item(lvl, x, y)) continue;
-        spawn_random_item(lvl, xy_to_idx(x, y), depth);
+        if (!tile_free_for_item(lvl, x, y))
+            continue;
+        ItemType type;
+        if (level_take_spawn_item(lvl, &type))
+            spawn_item(lvl, xy_to_idx(x, y), depth, type);
+        else
+            spawn_random_item(lvl, xy_to_idx(x, y), depth);
     }
 }
