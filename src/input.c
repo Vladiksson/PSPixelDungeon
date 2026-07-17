@@ -1,23 +1,4 @@
 #include "input.h"
-
-/* ── PSP path ─────────────────────────────────────────────────────
-   On PSP (real hardware + PPSSPP), SDL keyboard events don't exist.
-   All button input goes through sceCtrl — the PSP controller API.
-   We read it directly with sceCtrlReadBufferPositive() every frame.
-
-   PSP_CTRL_* bitmasks (from <pspctrl.h>):
-     PSP_CTRL_UP      = 0x00000010
-     PSP_CTRL_DOWN    = 0x00000040
-     PSP_CTRL_LEFT    = 0x00000080
-     PSP_CTRL_RIGHT   = 0x00000020
-     PSP_CTRL_CROSS   = 0x00004000   
-     PSP_CTRL_CIRCLE  = 0x00002000
-     PSP_CTRL_LTRIGGER= 0x00000100
-     PSP_CTRL_RTRIGGER= 0x00000200
-     PSP_CTRL_START   = 0x00000008
-     PSP_CTRL_SELECT  = 0x00000001
-─────────────────────────────────────────────────────────────────── */
-
 #include <pspctrl.h>
 
 void input_init(InputState *inp) {
@@ -47,6 +28,8 @@ void input_update(InputState *inp) {
     if (btns & PSP_CTRL_RIGHT)    inp->held |= BTN_RIGHT;
     if (btns & PSP_CTRL_CROSS)    inp->held |= BTN_A;
     if (btns & PSP_CTRL_CIRCLE)   inp->held |= BTN_B;
+    if (btns & PSP_CTRL_TRIANGLE) inp->held |= BTN_X;
+    if (btns & PSP_CTRL_SQUARE)   inp->held |= BTN_Y;
     if (btns & PSP_CTRL_LTRIGGER) inp->held |= BTN_L;
     if (btns & PSP_CTRL_RTRIGGER) inp->held |= BTN_R;
     if (btns & PSP_CTRL_START)    inp->held |= BTN_START;
@@ -54,7 +37,4 @@ void input_update(InputState *inp) {
 
     inp->pressed  = inp->held & ~prev;
     inp->released = ~inp->held & prev;
-
-    /* Home button quits */
-    if (btns & PSP_CTRL_HOME) inp->quit = 1;
 }

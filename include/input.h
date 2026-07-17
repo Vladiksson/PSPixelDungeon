@@ -8,12 +8,14 @@ typedef enum {
     BTN_DOWN   = 1 << 1,
     BTN_LEFT   = 1 << 2,
     BTN_RIGHT  = 1 << 3,
-    BTN_A      = 1 << 4,   /* Cross   / keyboard Z      */
-    BTN_B      = 1 << 5,   /* Circle  / keyboard X      */
-    BTN_L      = 1 << 6,   /* L       / keyboard Q      */
-    BTN_R      = 1 << 7,   /* R       / keyboard E      */
-    BTN_START  = 1 << 8,
-    BTN_SELECT = 1 << 9,
+    BTN_A      = 1 << 4,   /* Cross  */
+    BTN_B      = 1 << 5,   /* Circle */
+    BTN_X      = 1 << 6,   /* Triangle */
+    BTN_Y      = 1 << 7,   /* Square */
+    BTN_L      = 1 << 8,   /* L */
+    BTN_R      = 1 << 9,   /* R */
+    BTN_START  = 1 << 10,
+    BTN_SELECT = 1 << 11,
 } Button;
 
 typedef struct {

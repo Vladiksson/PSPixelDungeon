@@ -375,10 +375,7 @@ void render_player(RenderCtx *ctx, const Player *p, const Camera *cam){
     };
 
     SDL_Rect src = hero_frame_rect(p);
- 
-    SDL_RendererFlip flip = (p->facing == FACE_LEFT) ? SDL_FLIP_HORIZONTAL
-                                                      : SDL_FLIP_NONE;
- 
+    SDL_RendererFlip flip = (p->facing == FACE_LEFT) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
     SDL_RenderCopyEx(ctx->renderer, tex, &src, &dst, 0.0, NULL, flip);
 }
 

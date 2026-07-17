@@ -43,6 +43,16 @@ void Terrain_InitFlags(void){
     gTileFlags[TILE_PARALYTIC_TRAP]         = TF_AVOID;
     gTileFlags[TILE_SECRET_PARALYTIC_TRAP]  = gTileFlags[TILE_EMPTY] | TF_SECRET;
     gTileFlags[TILE_INACTIVE_TRAP]          = gTileFlags[TILE_EMPTY];
+    gTileFlags[TILE_POISON_TRAP]            = TF_AVOID;
+    gTileFlags[TILE_SECRET_POISON_TRAP]     = gTileFlags[TILE_EMPTY] | TF_SECRET;
+    gTileFlags[TILE_ALARM_TRAP]             = TF_AVOID;
+    gTileFlags[TILE_SECRET_ALARM_TRAP]      = gTileFlags[TILE_EMPTY] | TF_SECRET;
+    gTileFlags[TILE_LIGHTNING_TRAP]         = TF_AVOID;
+    gTileFlags[TILE_SECRET_LIGHTNING_TRAP]  = gTileFlags[TILE_EMPTY] | TF_SECRET;
+    gTileFlags[TILE_GRIPPING_TRAP]          = TF_AVOID;
+    gTileFlags[TILE_SECRET_GRIPPING_TRAP]   = gTileFlags[TILE_EMPTY] | TF_SECRET;
+    gTileFlags[TILE_SUMMONING_TRAP]         = TF_AVOID;
+    gTileFlags[TILE_SECRET_SUMMONING_TRAP]  = gTileFlags[TILE_EMPTY] | TF_SECRET;
     for (int i = TILE_WATER_TILES; i < TILE_WATER_TILES + 16; ++i){
         gTileFlags[i]                       = gTileFlags[TILE_WATER];
     }

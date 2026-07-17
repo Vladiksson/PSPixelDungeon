@@ -75,15 +75,11 @@ void decorate_prison(Level *lvl) {
 }
 void decorate_caves(Level *lvl) {
     for (int i = 0; i < lvl->num_rooms; i++) {
-
         Room *room = &lvl->rooms[i];
-
         if (room->type != ROOM_STANDARD)
             continue;
-
         if (room_w(room) <= 3 || room_h(room) <= 3)
             continue;
-
         int s = (room_w(room)+1) * (room_h(room)+1);
 
         if (rng_int(s) > 8) {
@@ -92,21 +88,18 @@ void decorate_caves(Level *lvl) {
                 lvl->map[idx-LEVEL_W] == TILE_WALL)
                 lvl->map[idx] = TILE_WALL;
         }
-
         if (rng_int(s) > 8) {
             int idx = xy_to_idx(room->right-1, room->top+1);
             if (lvl->map[idx+1] == TILE_WALL &&
                 lvl->map[idx-LEVEL_W] == TILE_WALL)
                 lvl->map[idx] = TILE_WALL;
         }
-
         if (rng_int(s) > 8) {
             int idx = xy_to_idx(room->left+1, room->bottom-1);
             if (lvl->map[idx-1] == TILE_WALL &&
                 lvl->map[idx+LEVEL_W] == TILE_WALL)
                 lvl->map[idx] = TILE_WALL;
         }
-
         if (rng_int(s) > 8) {
             int idx = xy_to_idx(room->right-1, room->bottom-1);
             if (lvl->map[idx+1] == TILE_WALL &&
@@ -152,57 +145,44 @@ void decorate_caves(Level *lvl) {
             lvl->map[i]=TILE_WALL_DECO;
     }
     place_sign(lvl);
-    //TODO ADD REST FROM CAVESLEVEL.JAVA 
+    
+    //if (level_is_boss_depth(depth+1)) return; TODO i don't wanna add depth in decorators, it needs different solution
     /* Chasms between adjacent standard rooms that are not connected */
     for (int i = 0; i < lvl->num_rooms; i++) {
-
         Room *r = &lvl->rooms[i];
-
         if (r->type != ROOM_STANDARD)
             continue;
-
         for (int j = 0; j < r->n_neighbours; j++) {
-
             int ni = r->neighbours[j];
-
             if (ni <= i)
                 continue;
-
             Room *n = &lvl->rooms[ni];
-
             if (n->type != ROOM_STANDARD)
                 continue;
-
             if (already_connected(lvl, i, ni))
                 continue;
-
-            int ix0 = (r->left   > n->left)   ? r->left   : n->left;
-            int ix1 = (r->right  < n->right)  ? r->right  : n->right;
-            int iy0 = (r->top    > n->top)    ? r->top    : n->top;
-            int iy1 = (r->bottom < n->bottom) ? r->bottom : n->bottom;
-
-            int iw = ix1 - ix0;
-            int ih = iy1 - iy0;
-
-            if (iw == 0 && ih >= 5) {
-
-                int x = ix0 + 1;
-
-                for (int y = iy0 + 2; y <= iy1 - 1; y++)
-                    set_tile(lvl, x, y, TILE_CHASM);
-
+            /* Rooms share a vertical wall */
+            if (r->right == n->left || n->right == r->left) {
+                int wallx = (r->right == n->left) ? r->right : n->right;
+                int y0 = (r->top > n->top) ? r->top : n->top;
+                int y1 = (r->bottom < n->bottom) ? r->bottom : n->bottom;
+                if (y1 - y0 >= 5) {
+                    for (int y = y0 + 2; y <= y1 - 2; y++)
+                        set_tile(lvl, wallx, y, TILE_CHASM);
+                }
             }
-
-            else if (ih == 0 && iw >= 5) {
-
-                int y = iy0 + 1;
-
-                for (int x = ix0 + 2; x <= ix1 - 1; x++)
-                    set_tile(lvl, x, y, TILE_CHASM);
-
+            /* Rooms share a horizontal wall */
+            else if (r->bottom == n->top || n->bottom == r->top) {
+                int wally = (r->bottom == n->top) ? r->bottom : n->bottom;
+                int x0 = (r->left > n->left) ? r->left : n->left;
+                int x1 = (r->right < n->right) ? r->right : n->right;
+                if (x1 - x0 >= 5) {
+                    for (int x = x0 + 2; x <= x1 - 2; x++)
+                        set_tile(lvl, x, wally, TILE_CHASM);
+                }
             }
         }
-    }   
+    }
 }    
 void decorate_city(Level *lvl) {
     for (int i=0; i<LEVEL_SIZE; i++) {

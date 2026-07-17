@@ -53,6 +53,7 @@ typedef enum {
 	ROOM_WEAK_FLOOR	= 22,
 	ROOM_PIT		= 23,
 	ROOM_ALTAR		= 24,
+    ROOM_COUNT      = 25,
 } RoomType;
 
 typedef enum {
@@ -82,6 +83,17 @@ typedef struct {
     DoorType door_type[MAX_CONN_ROOM];
     RoomType type;
 } Room;
+
+typedef enum {
+    ROOMF_SPECIAL      = 1 << 0,
+    ROOMF_TUNNEL       = 1 << 1,
+    ROOMF_LOCKED_DOOR  = 1 << 2,
+    ROOMF_HIDDEN_DOOR  = 1 << 3,
+    ROOMF_EMPTY_DOOR   = 1 << 4,
+    ROOMF_BARRICADE    = 1 << 5,
+} RoomFlags;
+
+extern const uint16_t gRoomFlags[ROOM_ALTAR + 1];
 
 /* ── Terrain tile IDs — exact mirror of Terrain.java ─── */
 typedef enum {
@@ -122,6 +134,16 @@ typedef enum {
     TILE_PARALYTIC_TRAP         = 21,
 	TILE_SECRET_PARALYTIC_TRAP  = 22,
 	TILE_INACTIVE_TRAP			= 23,
+    TILE_POISON_TRAP            = 27,
+    TILE_SECRET_POISON_TRAP     = 28,
+    TILE_ALARM_TRAP             = 30,
+    TILE_SECRET_ALARM_TRAP      = 31,
+    TILE_LIGHTNING_TRAP         = 32,
+    TILE_SECRET_LIGHTNING_TRAP  = 33,
+    TILE_GRIPPING_TRAP          = 37,
+    TILE_SECRET_GRIPPING_TRAP   = 38,
+    TILE_SUMMONING_TRAP         = 39,
+    TILE_SECRET_SUMMONING_TRAP  = 40,
     TILE_WATER                  = 63,
     TILE_WATER_TILES            = 48,
 } TileType;

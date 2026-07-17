@@ -1,4 +1,5 @@
 #include "level_paint.h"
+#include "level_boss.h"
 #include <stdbool.h>
 
 /* ══════════════════════════════════════════════════════════
@@ -145,10 +146,6 @@ static void paint_shop(Level *lvl, Room *room, int depth){
     paint_room_base(lvl, room, TILE_EMPTY_SP); 
     place_shop_items(lvl, room, depth);
     place_shopkeeper(lvl, room); 
-
-    for (int i=0; i<room->n_connected; i++) {
-        room->door_type[i] = DOOR_REGULAR;
-    }
 }
 /* ══════════════════════════════════════════════════════════
    ENTRANCE/EXIT ROOM PAINTING
@@ -175,10 +172,6 @@ static void paint_exit(Level *lvl, Room *r){
 
 static void paint_boss_exit(Level *lvl, Room *r){
     paint_room_base(lvl, r, TILE_EMPTY);
-
-    for (int i = 0; i < r->n_connected; i++) {
-        r->door_type[i] = DOOR_REGULAR;
-    }
 
     int x = (r->left + r->right) / 2;
     int y = r->top;
@@ -324,14 +317,12 @@ static void paint_graveyard(Level *lvl, Room *r, int depth){
     }
 }
 
-static void paint_bridge(Level *lvl, Room *r){
+static void paint_bridge(Level *lvl, Room *r, int depth){
     uint8_t base = TILE_WATER;
 
-    /*TODO change in future from original:
-    !boss && !nextBoss && Random.Int(3)==0 ? CHASM : WATER*/
-
-    if (rng_int(3)==0)
+    if (!level_is_boss_depth(depth) && !level_is_boss_depth(depth + 1) && rng_int(3) == 0){
         base = TILE_CHASM;
+    }
     fill_rect(lvl, r->left + 1, r->top + 1, room_w(r)-1, room_h(r)-1, base);
 
     int d1x = r->door_x[0];
@@ -411,11 +402,11 @@ static void paint_fissure(Level *lvl, Room *r){
 
 static void paint_standard_room(Level *lvl, Room *r, int depth){
     paint_room_base(lvl, r, TILE_EMPTY);
-    if (rng_int(5)==0) {
+    if (!level_is_boss_depth(depth) && rng_int(5) == 0) {
         switch(rng_int(6)) {
         case 0:
             if (lvl->feeling != FEELING_GRASS) {
-                if (room_w(r) >= 4 && room_h(r) >= 4 && (room_w(r) > 6 || room_h(r) > 6)) {
+                if (room_w(r) >= 4 && room_h(r) >= 4 && (room_w(r) >= 6 || room_h(r) >= 6)) {
                     paint_graveyard(lvl, r, depth);
                     return;
                 }
@@ -444,7 +435,7 @@ static void paint_standard_room(Level *lvl, Room *r, int depth){
         case 4:
             if (lvl->feeling != FEELING_WATER){
                 if(r->n_connected == 2 && room_w(r) >= 4 && room_h(r) >= 4){ 
-                    paint_bridge(lvl,r);
+                    paint_bridge(lvl, r, depth);
                     return;
                 }
                 break;    
@@ -452,7 +443,7 @@ static void paint_standard_room(Level *lvl, Room *r, int depth){
                 // Fissure
             }
         case 5:
-            if (room_w(r) >= 5 && room_h(r) >= 5) { //TODO in future change to !Dungeon.bossLevel() && !Dungeon.bossLevel(Dungeon.depth+1) && Math.min(room.width(), room.height()) >= 5
+            if (!level_is_boss_depth(depth) && !level_is_boss_depth(depth + 1) && room_w(r) >= 5 && room_h(r) >= 5) { 
                 paint_fissure(lvl,r);
                 return;
             }
@@ -473,8 +464,6 @@ static void paint_weak_floor(Level *lvl, Room *r) {
 
     int dx = r->door_x[0];
     int dy = r->door_y[0];
-
-    r->door_type[0] = DOOR_REGULAR;
 
     if (dx == r->left) {
         for (int y = r->top + 1; y < r->bottom; y++) {
@@ -535,7 +524,7 @@ static void paint_vault(Level *lvl, Room *r, int depth) {
             break;
         }
     }
-    if (r->n_connected > 0) r->door_type[0] = DOOR_LOCKED;
+
     level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
 }
 /* ══════════════════════════════════════════════════════════
@@ -582,8 +571,7 @@ static void paint_treasury(Level *lvl, Room *r, int depth){
             spawn_item_amount_heap(lvl, idx, depth, ITEM_GOLD, gold_amount(depth), heap_type);
         }
     }
-    if (r->n_connected > 0)
-        r->door_type[0] = DOOR_LOCKED;
+
     level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
 }
 /* ══════════════════════════════════════════════════════════
@@ -617,8 +605,6 @@ static void paint_storage(Level *lvl, Room *r, int depth){
         storage_prize(lvl, idx, depth);
     }
 
-    if (r->n_connected > 0)
-        r->door_type[0] = DOOR_BARRICADE;
     level_add_item_to_spawn(lvl, ITEM_POTION_LIQUID_FLAME);
 }
 /* ══════════════════════════════════════════════════════════
@@ -629,26 +615,25 @@ static void paint_statue(Level *lvl, Room *r){
     paint_room_base(lvl, r, TILE_EMPTY);
     int cx, cy;
     room_center(r, &cx, &cy);
-    if (r->n_connected > 0) {
-        r->door_type[0] = DOOR_LOCKED;
-        level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
-        int dx = r->door_x[0];
-        int dy = r->door_y[0];
 
-        if (dx == r->left) {
-            fill_rect(lvl, r->right - 1, r->top + 1, 1, room_h(r) - 1, TILE_STATUE);
-            cx = r->right - 2;
-        } else if (dx == r->right) {
-            fill_rect(lvl, r->left + 1, r->top + 1, 1, room_h(r) - 1, TILE_STATUE);
-            cx = r->left + 2;
-        } else if (dy == r->top) {
-            fill_rect(lvl, r->left + 1, r->bottom - 1, room_w(r) - 1, 1, TILE_STATUE);
-            cy = r->bottom - 2;
-        } else if (dy == r->bottom) {
-            fill_rect( lvl, r->left + 1, r->top + 1, room_w(r) - 1, 1, TILE_STATUE);
-            cy = r->top + 2;
-        }
+    level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
+    int dx = r->door_x[0];
+    int dy = r->door_y[0];
+
+    if (dx == r->left) {
+        fill_rect(lvl, r->right - 1, r->top + 1, 1, room_h(r) - 1, TILE_STATUE);
+        cx = r->right - 2;
+    } else if (dx == r->right) {
+        fill_rect(lvl, r->left + 1, r->top + 1, 1, room_h(r) - 1, TILE_STATUE);
+        cx = r->left + 2;
+    } else if (dy == r->top) {
+        fill_rect(lvl, r->left + 1, r->bottom - 1, room_w(r) - 1, 1, TILE_STATUE);
+        cy = r->bottom - 2;
+    } else if (dy == r->bottom) {
+        fill_rect( lvl, r->left + 1, r->top + 1, room_w(r) - 1, 1, TILE_STATUE);
+        cy = r->top + 2;
     }
+    
     /* TODO: spawn_mob(lvl, MOB_STATUE, cx, cy); */
 }
 /* ══════════════════════════════════════════════════════════
@@ -671,7 +656,6 @@ static void paint_pool(Level *lvl, Room *r, int depth){
 
     if (r->n_connected == 0)
         return;
-    r->door_type[0] = DOOR_REGULAR;
 
     int x = -1;
     int y = -1;
@@ -718,7 +702,6 @@ static void paint_pit(Level *lvl, Room *r, int depth){
     paint_room_base(lvl, r, TILE_EMPTY);
     if (r->n_connected == 0)
         return;
-    r->door_type[0] = DOOR_LOCKED;
 
     int wx = -1;
     int wy = -1;
@@ -790,8 +773,7 @@ static void ratking_add_chest(Level *lvl, int pos, int door, int depth){
 
 static void paint_rat_king(Level *lvl, Room *r, int depth){
     paint_room_base(lvl, r, TILE_EMPTY_SP);
-    if (r->n_connected > 0)
-        r->door_type[0] = DOOR_HIDDEN;
+
     int door = xy_to_idx(r->door_x[0], r->door_y[0]);
 
     for (int x = r->left + 1; x < r->right; x++) {
@@ -910,8 +892,7 @@ static void paint_library(Level *lvl, Room *r, int depth){
         }
         if (found) library_prize(lvl, idx, depth);
     }
-    if (r->n_connected > 0)
-        r->door_type[0] = DOOR_LOCKED;
+
     level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
 }
 
@@ -971,8 +952,6 @@ static void paint_laboratory(Level *lvl, Room *r, int depth) {
         if (tries < 100)
             laboratory_prize(lvl, idx, depth);
     }
-    if (r->n_connected > 0)
-        r->door_type[0] = DOOR_LOCKED;
 
     level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
 }
@@ -984,8 +963,7 @@ static void paint_garden(Level *lvl, Room *r, int depth){
     fill_rect(lvl, r->left, r->top, room_w(r) + 1, room_h(r) + 1, TILE_WALL);
     fill_rect(lvl, r->left + 1, r->top + 1, room_w(r) - 1, room_h(r) - 1, TILE_HIGH_GRASS);
     fill_rect(lvl, r->left + 2, r->top + 2, room_w(r) - 3, room_h(r) - 3, TILE_GRASS);
-    if (r->n_connected > 0)
-        r->door_type[0] = DOOR_REGULAR;
+
     if (rng_int(2) == 0) {
         int x, y, idx;
         do {
@@ -1028,30 +1006,29 @@ static void paint_crypt(Level *lvl, Room *r, int depth){
     paint_room_base(lvl, r, TILE_EMPTY);
     int cx, cy;
     room_center(r, &cx, &cy);
-    if (r->n_connected > 0) {
-        r->door_type[0] = DOOR_LOCKED;
-        level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
 
-        int dx = r->door_x[0];
-        int dy = r->door_y[0];
-        if (dx == r->left) {
-            set_tile(lvl, r->right-1, r->top+1, TILE_STATUE);
-            set_tile(lvl, r->right-1, r->bottom-1, TILE_STATUE);
-            cx = r->right - 2;
-        } else if (dx == r->right) {
-            set_tile(lvl, r->left+1, r->top+1, TILE_STATUE);
-            set_tile(lvl, r->left+1, r->bottom-1, TILE_STATUE);
-            cx = r->left + 2;
-        } else if (dy == r->top) {
-            set_tile(lvl, r->left+1, r->bottom-1, TILE_STATUE);
-            set_tile(lvl, r->right-1, r->bottom-1, TILE_STATUE);
-            cy = r->bottom - 2;
-        } else if (dy == r->bottom) {
-            set_tile(lvl, r->left+1, r->top+1, TILE_STATUE);
-            set_tile(lvl, r->right-1, r->top+1, TILE_STATUE);
-            cy = r->top + 2;
-        }
+    level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
+
+    int dx = r->door_x[0];
+    int dy = r->door_y[0];
+    if (dx == r->left) {
+        set_tile(lvl, r->right-1, r->top+1, TILE_STATUE);
+        set_tile(lvl, r->right-1, r->bottom-1, TILE_STATUE);
+        cx = r->right - 2;
+    } else if (dx == r->right) {
+        set_tile(lvl, r->left+1, r->top+1, TILE_STATUE);
+        set_tile(lvl, r->left+1, r->bottom-1, TILE_STATUE);
+        cx = r->left + 2;
+    } else if (dy == r->top) {
+        set_tile(lvl, r->left+1, r->bottom-1, TILE_STATUE);
+        set_tile(lvl, r->right-1, r->bottom-1, TILE_STATUE);
+        cy = r->bottom - 2;
+    } else if (dy == r->bottom) {
+        set_tile(lvl, r->left+1, r->top+1, TILE_STATUE);
+        set_tile(lvl, r->right-1, r->top+1, TILE_STATUE);
+        cy = r->top + 2;
     }
+    
     int idx = xy_to_idx(cx, cy);
     crypt_prize(lvl, idx, depth);
 }
@@ -1079,7 +1056,7 @@ static void paint_blacksmith(Level *lvl, Room *r, int depth){
     for (int i = 0; i < r->n_connected; i++) {
         int dx = r->door_x[i];
         int dy = r->door_y[i];
-        r->door_type[i] = DOOR_UNLOCKED;
+
         if (dx == r->left) {
             set_tile(lvl, dx + 1, dy, TILE_EMPTY);
         } else if (dx == r->right) {
@@ -1129,8 +1106,7 @@ static void paint_armory(Level *lvl, Room *r, int depth){
         } while (lvl->map[idx] != TILE_EMPTY || heap_at(lvl, idx));
         armory_prize(lvl, idx, depth);
     }
-    if (r->n_connected > 0)
-        r->door_type[0] = DOOR_LOCKED;
+
     level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
 }
 /* ══════════════════════════════════════════════════════════
@@ -1150,13 +1126,15 @@ static void paint_traps(Level *lvl, Room *r, int depth){
             trap = TILE_PARALYTIC_TRAP;
             break;
         default:
-            trap = TILE_CHASM;   /* TODO: boss level -> TILE_SUMMONING_TRAP */
+            trap = level_is_boss_depth(depth)
+                ? TILE_SUMMONING_TRAP
+                : TILE_CHASM;
             break;
     }
     fill_rect(lvl, r->left + 1, r->top + 1, room_w(r) - 1, room_h(r) - 1, trap);
     if (r->n_connected == 0)
         return;
-    r->door_type[0] = DOOR_REGULAR;
+
     uint8_t safe_tile = (trap == TILE_CHASM) ? TILE_CHASM : TILE_EMPTY;
     int x = -1;
     int y = -1;
@@ -1196,10 +1174,7 @@ static void paint_traps(Level *lvl, Room *r, int depth){
    ══════════════════════════════════════════════════════════ */
 static void paint_altar(Level *lvl, Room *r, int depth){ //REDO broken
     fill_rect(lvl, r->left, r->top, room_w(r)+1, room_h(r)+1, TILE_WALL);
-    uint8_t floor = TILE_CHASM;
-    /*TODO Original:
-       Dungeon.bossLevel(Dungeon.depth + 1) */
-    //if () floor = TILE_HIGH_GRASS;
+    uint8_t floor = level_is_boss_depth(depth) ? TILE_HIGH_GRASS : TILE_CHASM;
     fill_rect(lvl, r->left + 1, r->top + 1, room_w(r)-1, room_h(r)-1, floor);
     int cx, cy;
     room_center(r, &cx, &cy);
@@ -1245,7 +1220,6 @@ static void paint_altar(Level *lvl, Room *r, int depth){ //REDO broken
                 set_tile(lvl, x, y, TILE_EMPTY_SP);
             }
         }
-        r->door_type[0] = DOOR_EMPTY;
     }
     fill_rect(lvl, cx-1, cy-1, 3, 3, TILE_EMBERS);
     set_tile( lvl, cx, cy, TILE_PEDESTAL);
@@ -1271,8 +1245,6 @@ static void paint_magic_well(Level *lvl, Room *r) {
             /* TODO: Water of Transmutation */
             break;
     }
-    if (r->n_connected > 0)
-        r->door_type[0] = DOOR_REGULAR;
 }
 /* ══════════════════════════════════════════════════════════
    ROOM PAINTING
@@ -1528,8 +1500,6 @@ static void paint_passage(Level *lvl, Room *room){
     int x, y;
     passage_p2xy(room, width, height, p, &x, &y);
     set_tile(lvl, x, y, floor);
-
-    for (int i = 0; i < room->n_connected; i++) room->door_type[i] = DOOR_TUNNEL;
 }
 
 void paint_tunnels(Level *lvl) {

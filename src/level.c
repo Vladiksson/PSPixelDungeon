@@ -119,26 +119,87 @@ void set_price(Level *lvl, int *path, int len, int price) {
 /* ══════════════════════════════════════════════════════════
    ROOM TYPE ASSIGNMENT  —  RegularLevel.assignRoomType(), etc
    ══════════════════════════════════════════════════════════ */
-static int shop_on_level(int depth){
-    return depth == 5 || depth == 10 || depth == 15;//ORIGINAL WAS return depth == 6 || depth == 11 || depth == 16;
+static int entrance_has_special_room(Level *lvl, int entrance_idx) {
+    Room *e = &lvl->rooms[entrance_idx];
+    for (int i = 0; i < e->n_neighbours; i++) {
+        Room *r = &lvl->rooms[e->neighbours[i]];
+        if (room_w(r) >= 5 && room_h(r) >= 5)
+            return 1;
+    }
+    return 0;
 }
 
-static int find_shop_room(Level *lvl, int entrance_idx){
-    Room *entrance = &lvl->rooms[entrance_idx];
-    for (int i = 0; i < entrance->n_connected; i++) {
-        int ni = entrance->connected[i];
+
+static int shop_on_level(int depth){
+    return depth == 5 || depth == 10 || depth == 15;
+}
+
+static void place_special_near_entrance(Level *lvl, int entrance_idx, int depth, int blacksmith_depth){
+    RoomType type = ROOM_NULL;
+    if (depth == blacksmith_depth)
+        type = ROOM_BLACKSMITH;
+    if (shop_on_level(depth))
+        type = ROOM_SHOP;
+    if (type == ROOM_NULL)
+        return;
+    Room *e = &lvl->rooms[entrance_idx];
+    int best = -1;
+    int best_area = 0;
+    for (int i = 0; i < e->n_neighbours; i++) {
+
+        int ni = e->neighbours[i];
         Room *r = &lvl->rooms[ni];
-        if (//r->n_connected == 1 &&
-            //room_w(r) >= 5 &&
-            //room_h(r) >= 5 &&
-            r->type == ROOM_NULL){
-            return ni;
+
+        if (r->type != ROOM_NULL)
+            continue;
+        if (r->n_connected == 0)
+            continue;
+
+        int w = room_w(r);
+        int h = room_h(r);
+
+        if (w < 5 || h < 5)
+            continue;
+
+        int area = w*h;
+
+        if (area > best_area) {
+            best_area = area;
+            best = ni;
         }
     }
-    return -1;
+    if (best >= 0) lvl->rooms[best].type = type;
 }
 
-static const RoomType default_specials[] = {
+const uint16_t gRoomFlags[ROOM_COUNT] = {
+    [ROOM_NULL]      = 0,
+    [ROOM_STANDARD]  = 0,
+    [ROOM_ENTRANCE]  = 0,
+    [ROOM_EXIT]      = 0,
+    [ROOM_BOSS_EXIT] = 0,
+    [ROOM_TUNNEL]    = ROOMF_TUNNEL,
+    [ROOM_PASSAGE]   = ROOMF_TUNNEL,
+    [ROOM_SHOP]      = 0,
+    [ROOM_BLACKSMITH]= 0,
+    [ROOM_TREASURY]  = ROOMF_SPECIAL | ROOMF_LOCKED_DOOR,
+    [ROOM_ARMORY]    = ROOMF_SPECIAL | ROOMF_LOCKED_DOOR,
+    [ROOM_LIBRARY]   = ROOMF_SPECIAL | ROOMF_LOCKED_DOOR,
+    [ROOM_LABORATORY]= ROOMF_SPECIAL,
+    [ROOM_VAULT]     = ROOMF_SPECIAL | ROOMF_LOCKED_DOOR,
+    [ROOM_TRAPS]     = ROOMF_SPECIAL,
+    [ROOM_STORAGE]   = ROOMF_SPECIAL | ROOMF_BARRICADE,
+    [ROOM_MAGIC_WELL]= ROOMF_SPECIAL,
+    [ROOM_GARDEN]    = ROOMF_SPECIAL,
+    [ROOM_CRYPT]     = ROOMF_SPECIAL | ROOMF_LOCKED_DOOR,
+    [ROOM_STATUE]    = ROOMF_SPECIAL | ROOMF_LOCKED_DOOR,
+    [ROOM_POOL]      = ROOMF_SPECIAL,
+    [ROOM_RAT_KING]  = ROOMF_SPECIAL | ROOMF_HIDDEN_DOOR,
+    [ROOM_WEAK_FLOOR]= ROOMF_SPECIAL,
+    [ROOM_PIT]       = ROOMF_SPECIAL | ROOMF_LOCKED_DOOR,
+    [ROOM_ALTAR]     = ROOMF_SPECIAL | ROOMF_EMPTY_DOOR,
+};
+
+static const RoomType default_specials[] = { 
     ROOM_ARMORY,
     ROOM_WEAK_FLOOR,
     ROOM_MAGIC_WELL,
@@ -154,31 +215,6 @@ static const RoomType default_specials[] = {
     ROOM_VAULT,
     ROOM_ALTAR
 };
-
-static int room_is_special(RoomType t){
-    switch (t){
-        case ROOM_ARMORY:
-        case ROOM_LIBRARY:
-        case ROOM_LABORATORY:
-        case ROOM_VAULT:
-        case ROOM_TRAPS:
-        case ROOM_STORAGE:
-        case ROOM_MAGIC_WELL:
-        case ROOM_GARDEN:
-        case ROOM_CRYPT:
-        case ROOM_STATUE:
-        case ROOM_POOL:
-        case ROOM_WEAK_FLOOR:
-        case ROOM_TREASURY:
-        case ROOM_ALTAR:
-        case ROOM_RAT_KING:
-        case ROOM_PIT:
-            return 1;
-        default:
-            return 0;
-    }
-}
-
 
 static int special_index(RoomType *specials, int count, RoomType t){
     for (int i = 0; i < count; i++){
@@ -216,16 +252,13 @@ static void init_special_rooms(LevelGenState *gen, int depth){
     memcpy(gen->specials, default_specials, sizeof(default_specials));
     shuffle_specials(gen->specials, gen->num_specials);
 
-    /*TODO Original:
-       if (Dungeon.bossLevel(Dungeon.depth + 1))
-           specials.remove(WEAK_FLOOR); */
-    (void)depth;
+    if (level_is_boss_depth(depth+1))
+               special_remove(gen->specials, &gen->num_specials, ROOM_WEAK_FLOOR);
 }
 
-static void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int exit_idx, int depth) {
+static void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int exit_idx, DungeonTheme theme, int depth) {
     lvl->rooms[entrance_idx].type = ROOM_ENTRANCE;
-    lvl->rooms[exit_idx].type = ROOM_EXIT;//TODO add alternative for the boss_exit
-
+    lvl->rooms[exit_idx].type = ROOM_EXIT;
     int special_rooms = 0;
     for (int i = 0; i < lvl->num_rooms; i++) {
         Room *r = &lvl->rooms[i];
@@ -287,7 +320,7 @@ static void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int e
                 if (already_connected(lvl, i, ni))
                     continue;
 
-                if (room_is_special(n->type))
+                if (gRoomFlags[r->type] & ROOMF_SPECIAL)
                     continue;
 
                 if (n->type == ROOM_PIT)
@@ -319,43 +352,27 @@ static void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int e
 /* ══════════════════════════════════════════════════════════
    DOOR TYPE ASSIGNMENT 
    ══════════════════════════════════════════════════════════ */
-static int is_tunnel_room(RoomType type){
-    return type == ROOM_TUNNEL || type == ROOM_PASSAGE;
-}
-
 static DoorType special_door(RoomType type){
-    switch (type) {
-    case ROOM_VAULT:
-    case ROOM_TREASURY:
-    case ROOM_STATUE:
-    case ROOM_PIT:
-    case ROOM_LIBRARY:
-    case ROOM_CRYPT:
-    case ROOM_ARMORY:
+    if (gRoomFlags[type] & ROOMF_LOCKED_DOOR)
         return DOOR_LOCKED;
-    case ROOM_RAT_KING:
+    if (gRoomFlags[type] & ROOMF_HIDDEN_DOOR)
         return DOOR_HIDDEN;
-    case ROOM_STORAGE:
+    if (gRoomFlags[type] & ROOMF_BARRICADE)
         return DOOR_BARRICADE;
-    case ROOM_ALTAR:
+    if (gRoomFlags[type] & ROOMF_EMPTY_DOOR)
         return DOOR_EMPTY;
-    default:
-        return DOOR_REGULAR;
-    }
+    return DOOR_REGULAR;
 }
 
 static DoorType get_door_type(Room *a, Room *b){
-    if (is_tunnel_room(a->type) && is_tunnel_room(b->type))
+    if ((gRoomFlags[a->type] & ROOMF_TUNNEL) && (gRoomFlags[b->type] & ROOMF_TUNNEL))
         return DOOR_TUNNEL;
-
     DoorType ta = special_door(a->type);
     if (ta != DOOR_REGULAR)
         return ta;
-
     DoorType tb = special_door(b->type);
     if (tb != DOOR_REGULAR)
         return tb;
-
     if (a->type == ROOM_LABORATORY || b->type == ROOM_LABORATORY)
         return rng_int(3) == 0 ? DOOR_HIDDEN : DOOR_LOCKED;
     return DOOR_REGULAR;
@@ -370,7 +387,6 @@ void assign_door_types(Level *lvl){
         }
     }
 }
-
 
 /* ══════════════════════════════════════════════════════════
    DOOR POSITION CALCULATION  —  RegularLevel.placeDoors()
@@ -388,7 +404,7 @@ void compute_doors(Level *lvl) {
             int iw = ix1-ix0;
             int dx, dy;
             if (iw == 0) { dx=ix0;                        dy=rng_range(iy0+1, iy1-1); }
-            else          { dx=rng_range(ix0+1, ix1-1);   dy=iy0; }
+            else         { dx=rng_range(ix0+1, ix1-1);    dy=iy0; }
             r->door_x[j]=dx; r->door_y[j]=dy;
             for (int k=0; k<n->n_connected; k++)
                 if (n->connected[k]==i) { n->door_x[k]=dx; n->door_y[k]=dy; break; }
@@ -396,18 +412,18 @@ void compute_doors(Level *lvl) {
     }
 }
 
-
-
-
 /* ══════════════════════════════════════════════════════════
    PUBLIC: level_generate
    ══════════════════════════════════════════════════════════ */
-int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth) {
+#define LAST_SHOP_DEPTH 20
+#define FINAL_LEVEL_DEPTH 25
+
+int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int blacksmith_depth) {
     if (level_is_boss_depth(depth))
         return level_generate_boss(lvl, seed, theme, depth);
-    if (depth == 20)
+    if (depth == LAST_SHOP_DEPTH)
         return level_generate_last_shop(lvl, seed, depth, 1);
-    if (depth == 25)
+    if (depth == FINAL_LEVEL_DEPTH)
         return level_generate_last(lvl, seed, depth);
 
     rng_state = seed ? seed : (uint32_t)time(NULL);
@@ -420,19 +436,20 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth) {
     memset(lvl->map, TILE_WALL, sizeof(lvl->map));
 
     lvl->feeling = FEELING_NONE;
-
-    //TODO add in future if(!boss_level())
-    switch (rng_int(10)){
-    case 0:
-        lvl->feeling = FEELING_CHASM; /*TODO if (!next_level_is_boss()) */
-        break;
-    case 1:
-        lvl->feeling = FEELING_WATER;
-        break;
-    case 2:
-        lvl->feeling = FEELING_GRASS;
-        break;   
-    }   
+    if (depth > 0) {
+        switch (rng_int(10)) {
+        case 0:
+            if (!level_is_boss_depth(depth + 1))
+                lvl->feeling = FEELING_CHASM;
+            break;
+        case 1:
+            lvl->feeling = FEELING_WATER;
+            break;
+        case 2:
+            lvl->feeling = FEELING_GRASS;
+            break;
+        }
+    }  
     /* 1 BSP split + neighbour graph */
     int retry=0;
     do {
@@ -447,7 +464,8 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth) {
     int min_dist=isqrt(lvl->num_rooms);
     do {
         do { entrance_r=rng_range(0,lvl->num_rooms-1); }
-        while (room_w(&lvl->rooms[entrance_r])<4 || room_h(&lvl->rooms[entrance_r])<4);
+        while (room_w(&lvl->rooms[entrance_r])<4 || room_h(&lvl->rooms[entrance_r])<4 ||
+            !entrance_has_special_room(lvl, entrance_r));
         do { exit_r=rng_range(0,lvl->num_rooms-1); }
         while (exit_r==entrance_r || room_w(&lvl->rooms[exit_r])<4 || room_h(&lvl->rooms[exit_r])<4);
         build_distance_map(lvl, exit_r);
@@ -488,14 +506,11 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth) {
         if (!found) { room_connect(lvl,ci,ni); add_set(ni); }
     }
 
-    /* Shop generation */
-    if (shop_on_level(depth)) {
-        int shop = find_shop_room(lvl, entrance_r);
-        if (shop >= 0) { lvl->rooms[shop].type = ROOM_SHOP;}
-    }
+    /* 3.5*/
+    place_special_near_entrance(lvl, entrance_r, depth, blacksmith_depth);
     /* 4 Assign room types */
-    assign_types(lvl, &gen, entrance_r, exit_r, depth);
-    
+    assign_types(lvl, &gen, entrance_r, exit_r, theme, depth);
+
     /* 5 Compute door positions */
     compute_doors(lvl);
 

@@ -23,7 +23,9 @@ void dungeon_init(Dungeon *d){
     d->world_seed = (uint32_t)time(NULL);
     d->current_depth = 0;
 
-    level_generate(&d->floors[0], d->world_seed, get_theme(0), d->current_depth);
+    d->blacksmith_depth = 11 + (d->world_seed % 3); 
+
+    level_generate(&d->floors[0], d->world_seed, get_theme(0), d->current_depth, d->blacksmith_depth);
     fog_init(&d->fog[d->current_depth]);
 
     d->generated[0] = 1;
@@ -38,7 +40,7 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
 
     if (!d->generated[d->current_depth]) {
         uint32_t seed = d->world_seed + d->current_depth * 0x9E3779B9u;
-        level_generate(&d->floors[d->current_depth], seed, get_theme(d->current_depth), d->current_depth );
+        level_generate(&d->floors[d->current_depth], seed, get_theme(d->current_depth), d->current_depth, d->blacksmith_depth);
 
         d->generated[d->current_depth] = 1;
     }

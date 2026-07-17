@@ -13,6 +13,8 @@ typedef struct {
 
     int current_depth;
     uint32_t world_seed;
+
+    int blacksmith_depth;
 } Dungeon;
 
 void dungeon_init(Dungeon *d);
