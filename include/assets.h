@@ -116,11 +116,16 @@
    Each font sheet is a different scale (1x, 1.5x, 2x …).
    Use the smallest that's still legible at PSP resolution. */
 #define ASSET_FONTS1X   "font1x.png"
+#define ASSET_FONTS1XA  "font1x_a.png"
+#define ASSET_FONTS1XB  "font1x_b.png"
+#define ASSET_FONTS1XC  "font1x_c.png"
 #define ASSET_FONTS15X  "font15x.png"
 #define ASSET_FONTS2X   "font2x.png"
 #define ASSET_FONTS25X  "font25x.png"
 #define ASSET_FONTS3X   "font3x.png"
 
+#define ASSET_FONTS1X_BY_PAGE { \
+    ASSET_FONTS1XA, ASSET_FONTS1XB, ASSET_FONTS1XC }
 /* ── Music ────────────────────────────────────────────── */
 #define ASSET_THEME     "theme.mp3"
 #define ASSET_TUNE      "game.mp3"

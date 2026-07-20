@@ -2,22 +2,8 @@
 #include "level_boss.h"
 #include <stdbool.h>
 
-/* ══════════════════════════════════════════════════════════
-    "Is there a heap at this tile?"
-    lvl->heaps[] is packed (valid entries are 0..num_heaps-1),
-    NOT indexed by map position - it only has MAX_LEVEL_ITEMS (24)
-    slots against a LEVEL_SIZE (1024) map, so it has to be
-    searched, never indexed directly by a tile index. Several
-    room painters below used to do `lvl->heaps[idx].active` with
-    a tile index - out of bounds essentially any time idx >= 24.
-   ══════════════════════════════════════════════════════════ */
-static int heap_at(const Level *lvl, int idx){
-    Point p = idx_to_xy(idx);
-    for (int i = 0; i < lvl->num_heaps; i++)
-        if (lvl->heaps[i].active && lvl->heaps[i].x == p.x && lvl->heaps[i].y == p.y)
-            return 1;
-    return 0;
-}
+
+static int heap_at(const Level *lvl, int idx) { return level_heap_at_idx((Level *)lvl, idx) != NULL; }
 
 /* ══════════════════════════════════════════════════════════
     Room.center()

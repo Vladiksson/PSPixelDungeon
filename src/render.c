@@ -10,10 +10,7 @@ static void asset_path(char *buf, size_t sz, const char *dir, const char *f) {
 /* ── PNG init ─────────────────────────────────────── */
 static int ensure_png(void) {
     int got = IMG_Init(IMG_INIT_PNG);
-    if (!(got & IMG_INIT_PNG)) {
-        fprintf(stderr,"[render] No PNG support (0x%x): %s\n",got,IMG_GetError());
-        return 0;
-    }
+    if (!(got & IMG_INIT_PNG)) { return 0;}
     return 1;
 }
 
@@ -22,13 +19,13 @@ static SDL_Texture *load_tex(SDL_Renderer *r, const char *dir, const char *f) {
     char path[512];
     asset_path(path, sizeof(path), dir, f);
     SDL_Surface *s = IMG_Load(path);
-    if (!s) { fprintf(stderr,"[render] Load '%s': %s\n",path,IMG_GetError()); return NULL; }
+    if (!s) 
+        return NULL;
     SDL_Texture *t = SDL_CreateTextureFromSurface(r, s);
+    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
     SDL_FreeSurface(s);
-    if (t) printf("[render] OK  %s\n", path);
     return t;
 }
-
 
 /* ── water shore bitmask — exact Level.java getWaterTile() ─
    NEIGHBOURS4 = {-WIDTH,+1,+WIDTH,-1} = {top,right,bottom,left}
@@ -45,58 +42,84 @@ static int water_sprite(const Level *lvl, int tx, int ty) {
 }
 
 /* ── render_init ──────────────────────────────────── */
+static int init_font(BitmapFont *font, SDL_Renderer *renderer, const char *dir){
+    memset(font, 0, sizeof(*font));
+    font->sheet_h = 8;
+
+    const char *font_files[] = ASSET_FONTS1X_BY_PAGE;
+    for (int i = 0; i < 3; i++) {
+        font->tex[i] = load_tex(renderer, dir, font_files[i]);
+        if (!font->tex[i])
+            return 0;
+    }
+    return 1;
+}
+
 int render_init(RenderCtx *ctx, const char *assets_dir) {
     memset(ctx, 0, sizeof(*ctx));
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        fprintf(stderr,"[render] SDL_Init: %s\n",SDL_GetError()); return -1;
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) { 
+        return -1; 
     }
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0"); // nearest filtering
-    SDL_Window *win = SDL_CreateWindow("PSPixel Dungeon",
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        SCREEN_W, SCREEN_H, SDL_WINDOW_SHOWN);
-    if (!win) { fprintf(stderr,"[render] Window: %s\n",SDL_GetError()); return -1; }
-    ctx->renderer = SDL_CreateRenderer(win, -1,
+
+    ctx->window = SDL_CreateWindow(
+        "PSPixel Dungeon",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        SCREEN_W,
+        SCREEN_H,
+        SDL_WINDOW_SHOWN);
+
+    if (!ctx->window) { 
+        return -1; 
+    }
+    ctx->renderer = SDL_CreateRenderer(
+        ctx->window,
+        -1,
         SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!ctx->renderer) { fprintf(stderr,"[render] Renderer: %s\n",SDL_GetError()); return -1; }
+    if (!ctx->renderer) {
+        SDL_DestroyWindow(ctx->window);
+        ctx->window = NULL;
+        return -1;
+    }
 
-    ctx->png_available = 0;
-    if (!assets_dir) return 0;
-    if (!ensure_png()) return 0;
-
+    if (!assets_dir) return -1;
+    if (!ensure_png()) return -1;
+    
+    /*tiles and water*/
     const char *tile_files[]  = ASSET_TILES_BY_THEME;
     const char *water_files[] = ASSET_WATER_BY_THEME;
-    int tl=0, wl=0;
+
     for (int i=0; i<TILESET_COUNT; i++) {
         ctx->tilesets[i] = load_tex(ctx->renderer, assets_dir, tile_files[i]);
         ctx->water[i]    = load_tex(ctx->renderer, assets_dir, water_files[i]);
-        if (ctx->tilesets[i]) tl++;
-        if (ctx->water[i])    wl++;
     }
-    if (tl == 0) {
-        char p[512]; asset_path(p, sizeof(p), assets_dir, tile_files[0]);
-        fprintf(stderr,"[render] 0 tilesets. Tried: '%s'\n"
-                "         assets/ must sit next to EBOOT.PBP\n", p);
-    } else {
-        printf("[render] tiles %d/%d  water %d/%d\n",tl,TILESET_COUNT,wl,TILESET_COUNT);
-        ctx->png_available = 1;
-    }
-    
-    /* One sheet per hero class — indices line up with the HeroClass enum */
+
+    /*hero*/
     const char *hero_files[] = ASSET_HERO_BY_CLASS;
-    int hl = 0;
     for (int i=0; i<HERO_CLASS_COUNT; i++) {
         ctx->heroes[i] = load_tex(ctx->renderer, assets_dir, hero_files[i]);
-        if (ctx->heroes[i]) hl++;
     }
-    printf("[render] heroes %d/%d\n", hl, HERO_CLASS_COUNT);
-
+    /*items*/
     ctx->items = load_tex(ctx->renderer, assets_dir, ASSET_ITEMS);
-    printf("[render] items %s\n", ctx->items ? "OK" : "MISSING");
+    /*fonts*/
+    init_font(&ctx->font, ctx->renderer, assets_dir);
+    /*chrome*/
+    ctx->chrome = load_tex(ctx->renderer, assets_dir, ASSET_CHROME);
 
     return 0;
 }
 
 /* ── render_free ──────────────────────────────────── */
+static void font_free(BitmapFont *font) {
+    for (int i = 0; i < 3; i++) {
+        if (font->tex[i])
+            SDL_DestroyTexture(font->tex[i]);
+    }
+
+    memset(font, 0, sizeof(*font));
+}
+
 void render_free(RenderCtx *ctx) {
     for (int i=0; i<TILESET_COUNT; i++) {
         if (ctx->tilesets[i]) SDL_DestroyTexture(ctx->tilesets[i]);
@@ -106,35 +129,48 @@ void render_free(RenderCtx *ctx) {
         if (ctx->heroes[i]) SDL_DestroyTexture(ctx->heroes[i]);
     }
     if (ctx->items) SDL_DestroyTexture(ctx->items);
+
+    font_free(&ctx->font);
+
+    if (ctx->chrome) SDL_DestroyTexture(ctx->chrome);
+
+    if (ctx->renderer) {
+        SDL_DestroyRenderer(ctx->renderer);
+        ctx->renderer = NULL;
+    }
+
+    if (ctx->window) {
+        SDL_DestroyWindow(ctx->window);
+        ctx->window = NULL;
+    }
+
     IMG_Quit();
+    SDL_Quit();
 }
 
 /* ── render_tile ──────────────────────────────────── */
 void render_tile(RenderCtx *ctx, int sprite_idx, int px, int py) {
     SDL_Rect dst = {px, py, TILE_SIZE, TILE_SIZE};
-    SDL_Texture *tex = ctx->png_available
-                       ? ctx->tilesets[(int)ctx->active_theme] : NULL;
-    if (tex) {
-        SDL_Rect src = {
-            (sprite_idx % TILESET_COLS) * TILESET_TILE_W,
-            (sprite_idx / TILESET_COLS) * TILESET_TILE_H,
-            TILESET_TILE_W, TILESET_TILE_H
-        };
-        SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
-    } 
+    SDL_Texture *tex = ctx->tilesets[(int)ctx->active_theme];
+    if (!tex)
+        return;
+
+    SDL_Rect src = {
+        (sprite_idx % TILESET_COLS) * TILESET_TILE_W,
+        (sprite_idx / TILESET_COLS) * TILESET_TILE_H,
+        TILESET_TILE_W, TILESET_TILE_H
+    };
+    SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
 }
 
 static void render_water_fill(RenderCtx *ctx, int tx, int ty, int px, int py) {
     SDL_Rect dst = {px, py, TILE_SIZE, TILE_SIZE};
-    SDL_Texture *tex = ctx->png_available
-                       ? ctx->water[(int)ctx->active_theme] : NULL;
-    if (tex) {
-        SDL_Rect src = {(tx*TILE_SIZE)%32, (ty*TILE_SIZE)%32, TILE_SIZE, TILE_SIZE};
-        SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
-    } else {
-        SDL_SetRenderDrawColor(ctx->renderer, 0x22, 0x44, 0xAA, 0xFF);
-        SDL_RenderFillRect(ctx->renderer, &dst);
-    }
+    SDL_Texture *tex = ctx->water[(int)ctx->active_theme];
+    if (!tex) 
+        return;
+
+    SDL_Rect src = {(tx*TILE_SIZE)%32, (ty*TILE_SIZE)%32, TILE_SIZE, TILE_SIZE};
+    SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
 }
 
 /* ── render_frame — draws tiles, does NOT present ── */
@@ -183,7 +219,7 @@ void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
 
 
 static int is_wall(uint8_t t) {
-    return t == TILE_WALL || t == TILE_WALL_DECO || t == TILE_SECRET_DOOR; //TODO rewrite by flags return (gTileFlags[t] & TF_LOS_BLOCKING) != 0;
+    return (gTileFlags[t] & TF_SHADOW) != 0;
 }
 /* Neighbour helper — returns 1 if tile (nx,ny) is a wall, 0 otherwise */
 static int wall_at(const Level *lvl, int nx, int ny) {

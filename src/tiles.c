@@ -3,27 +3,27 @@
 
 uint16_t gTileFlags[256];
 
-void Terrain_InitFlags(void){
+void Terrain_InitFlags(void){//ORIGINAL DOESN'T HAVE TF_SHADOW
     memset(gTileFlags, 0, sizeof(gTileFlags));
     gTileFlags[TILE_CHASM]                  = TF_AVOID | TF_PIT | TF_UNSTITCHABLE;
     gTileFlags[TILE_EMPTY]                  = TF_PASSABLE;
     gTileFlags[TILE_GRASS]                  = TF_PASSABLE | TF_FLAMABLE;
     gTileFlags[TILE_EMPTY_WELL]             = TF_PASSABLE;
     gTileFlags[TILE_WATER]                  = TF_PASSABLE | TF_LIQUID | TF_UNSTITCHABLE;
-    gTileFlags[TILE_WALL]                   = TF_LOS_BLOCKING | TF_SOLID | TF_UNSTITCHABLE;
-    gTileFlags[TILE_DOOR]                   = TF_PASSABLE | TF_LOS_BLOCKING | TF_FLAMABLE | TF_SOLID | TF_UNSTITCHABLE;
+    gTileFlags[TILE_WALL]                   = TF_LOS_BLOCKING | TF_SOLID | TF_UNSTITCHABLE | TF_SHADOW;
+    gTileFlags[TILE_DOOR]                   = TF_PASSABLE | TF_LOS_BLOCKING | TF_FLAMABLE | TF_SOLID | TF_UNSTITCHABLE | TF_SHADOW;
     gTileFlags[TILE_OPEN_DOOR]              = TF_PASSABLE | TF_FLAMABLE | TF_UNSTITCHABLE;
     gTileFlags[TILE_ENTRANCE]               = TF_PASSABLE;
     gTileFlags[TILE_EXIT]                   = TF_PASSABLE;
     gTileFlags[TILE_EMBERS]                 = TF_PASSABLE;
-    gTileFlags[TILE_LOCKED_DOOR]            = TF_PASSABLE;//ORIGINALLY TF_LOS_BLOCKING | TF_SOLID | TF_UNSTITCHABLE;
+    gTileFlags[TILE_LOCKED_DOOR]            = TF_PASSABLE | TF_LOS_BLOCKING | TF_SOLID | TF_UNSTITCHABLE | TF_SHADOW; //ORIGINAL DOESN'T HAVE TF_PASSABLE 
     gTileFlags[TILE_PEDESTAL]               = TF_PASSABLE | TF_UNSTITCHABLE;
     gTileFlags[TILE_WALL_DECO]              = gTileFlags[TILE_WALL];
-    gTileFlags[TILE_BARRICADE]              = TF_FLAMABLE | TF_SOLID | TF_LOS_BLOCKING;
+    gTileFlags[TILE_BARRICADE]              = TF_FLAMABLE | TF_SOLID | TF_LOS_BLOCKING | TF_SHADOW;
     gTileFlags[TILE_EMPTY_SP]               = gTileFlags[TILE_EMPTY] | TF_UNSTITCHABLE; 
     gTileFlags[TILE_HIGH_GRASS]             = TF_PASSABLE | TF_LOS_BLOCKING | TF_FLAMABLE;
     gTileFlags[TILE_EMPTY_DECO]             = gTileFlags[TILE_EMPTY];
-    gTileFlags[TILE_LOCKED_EXIT]            = TF_PASSABLE;//ORIGINALLY TF_SOLID;
+    gTileFlags[TILE_LOCKED_EXIT]            = TF_PASSABLE | TF_SHADOW;//ORIGINALLY TF_SOLID;
     gTileFlags[TILE_UNLOCKED_EXIT]          = TF_PASSABLE;
     gTileFlags[TILE_SIGN]                   = TF_PASSABLE | TF_FLAMABLE;
     gTileFlags[TILE_WELL]                   = TF_AVOID;

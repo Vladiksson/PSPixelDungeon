@@ -53,10 +53,16 @@ int level_player_on_entrance(const Level *lvl, int x, int y);
 
 
 /* ── Items — implemented in item.c ────────────────────────
-   Logically "item system", but these three take a Level* so they
+   Logically "item system", but those takes a Level* so they
    live here rather than in item.h (mirrors how level_utils.c owns
    the tile helpers that also take a Level*). */
 int gold_amount(int depth);
+
+Heap *level_create_heap(Level *lvl, int x, int y, HeapType type);
+Heap *level_heap_at(Level *lvl, int x, int y);
+Heap *level_heap_at_idx(Level *lvl, int idx);
+
+int heap_add_item(Heap *heap, ItemType type, int quantity);
 Heap *spawn_item(Level *lvl, int idx, int depth, ItemType type);
 //Heap *spawn_item_amount(Level *lvl, int idx, int depth, ItemType type, int amount);
 Heap *spawn_random_item(Level *lvl, int idx, int depth);
@@ -69,5 +75,4 @@ void level_add_item_to_spawn(Level *lvl, ItemType type);
 int level_take_spawn_item(Level *lvl, ItemType *out);
 
 void level_spawn_items (Level *lvl, int depth);
-int  level_pickup_at   (Level *lvl, int x, int y, ItemStack *out);
 void place_room_loot(Level *lvl, Room *r, int depth, int count);

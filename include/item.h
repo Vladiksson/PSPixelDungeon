@@ -324,6 +324,11 @@ typedef enum {
     ITEM_TYPE_COUNT
 } ItemType;
 
+/* Sentinel meaning "no item" — used for Player's equip slots
+   (weapon/armor/ring1/ring2 in player.h) so an empty slot has a
+   value distinct from every real ItemType, including ITEM_DAGGER==0. */
+#define ITEM_NONE ((ItemType)-1)
+
 /* NOTE on "unidentified" items: the real game shows potions/scrolls/
    wands/rings under a random per-seed alias (color/rune/wood/gem)
    until the hero identifies them, and Item.java carries curse/
@@ -352,8 +357,8 @@ static inline const char *item_name(ItemType t) {
 /* An item stack with no position — used for the player's backpack,
    and as the out-parameter when something is picked up. */
 typedef struct {
-    ItemType type;
-    int      quantity;
+   ItemType type;
+   int      quantity;
 } ItemStack;
 
 /* An item stack sitting on the ground at a tile — used for a level's
@@ -382,7 +387,10 @@ typedef struct {
 
 #define MAX_LEVEL_ITEMS 24
 #define MAX_ITEMS_TO_SPAWN 8
-#define MAX_INVENTORY   20
+
+#define BACKPACK_SLOTS   19
+#define GOLD_SLOT        BACKPACK_SLOTS
+#define MAX_INVENTORY    (BACKPACK_SLOTS + 1)
 
 /* Mirrors Heap.image() from the original: HEAP_NORMAL/HEAP_FOR_SALE
    show whatever's on top of the stack, but the container/decoration

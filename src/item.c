@@ -2,6 +2,9 @@
 #include "level.h"
 #include "level_utils.h"
 
+/*═══════════════════════════════════════════════════════════════
+    Item database
+═══════════════════════════════════════════════════════════════*/
 #define CELL(sprite) (sprite) % ITEMS_SHEET_COLS, (sprite) / ITEMS_SHEET_COLS
  
 const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
@@ -174,7 +177,7 @@ int gold_amount(int depth) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   HEAP  —  spawn / pickup
+   HEAP
    ══════════════════════════════════════════════════════════ */
 int heap_sprite_cell(const Heap *h, uint8_t *out_col, uint8_t *out_row) {
     int sprite;
@@ -201,49 +204,66 @@ int heap_sprite_cell(const Heap *h, uint8_t *out_col, uint8_t *out_row) {
     *out_row = sprite / ITEMS_SHEET_COLS;
     return 1;
 }
-   
-Heap *spawn_item(Level *lvl, int idx, int depth, ItemType type) {
-    if (type < 0 || type >= ITEM_TYPE_COUNT) return 0;
 
-    Point p = idx_to_xy(idx);
-    Heap *heap = NULL;
+Heap *level_create_heap(Level *lvl, int x, int y, HeapType type) {
+    if (lvl->num_heaps >= MAX_LEVEL_ITEMS)
+        return NULL;
+    Heap *h = &lvl->heaps[lvl->num_heaps++];
+    h->type   = type;
+    h->count  = 0;
+    h->x      = x;
+    h->y      = y;
+    h->active = 1;
+    return h;
+}
 
+Heap *level_heap_at(Level *lvl, int x, int y) {
     for (int i = 0; i < lvl->num_heaps; i++) {
         Heap *h = &lvl->heaps[i];
-        if (h->active && h->x == p.x && h->y == p.y) {
-            heap = h;
-            break;
-        }
+        if (h->active && h->x == x && h->y == y)
+            return h;
     }
-    if(!heap){
-        if (lvl->num_heaps >= MAX_LEVEL_ITEMS) return 0;
+    return NULL;
+}
 
-        heap          = &lvl->heaps[lvl->num_heaps++];
-        heap->type    = HEAP_NORMAL;
-        heap->count   = 1;
-        heap->x       = p.x;
-        heap->y       = p.y;
-        heap->active  = 1;
+Heap *level_heap_at_idx(Level *lvl, int idx) {
+    Point p = idx_to_xy(idx);
+    return level_heap_at(lvl, p.x, p.y);
+}
 
-        heap->items[0].type = type;
-        heap->items[0].quantity = (type == ITEM_GOLD) ? gold_amount(depth) : 1;
-        return heap;
-    }
+int heap_add_item(Heap *heap, ItemType type, int quantity) {
     if (ITEM_DB[type].stackable) {
         for (int i = 0; i < heap->count; i++) {
-            ItemStack *it = &heap->items[i];
-            if (it->type == type) {
-                it->quantity += (type == ITEM_GOLD) ? gold_amount(depth) : 1;
-                return heap;
+            if (heap->items[i].type == type) {
+                heap->items[i].quantity += quantity;
+                return 1;
             }
         }
     }
     if (heap->count >= MAX_HEAP_ITEMS)
-        return NULL;
-    ItemStack *it = &heap->items[heap->count++];
+        return 0;
 
-    it->type = type;
-    it->quantity = (type == ITEM_GOLD) ? gold_amount(depth) : 1;
+    heap->items[heap->count].type = type;
+    heap->items[heap->count].quantity = quantity;
+    heap->count++;
+    return 1;
+}
+
+/*═══════════════════════════════════════════════════════════════
+    Item spawning
+═══════════════════════════════════════════════════════════════*/
+Heap *spawn_item(Level *lvl, int idx, int depth, ItemType type) {
+    if (type < 0 || type >= ITEM_TYPE_COUNT)
+        return NULL;
+    Point p = idx_to_xy(idx);
+    Heap *heap = level_heap_at(lvl, p.x, p.y);
+    if (!heap) {
+        heap = level_create_heap(lvl, p.x, p.y, HEAP_NORMAL);
+        if (!heap)
+            return NULL;
+    }
+    if (!heap_add_item(heap, type, (type == ITEM_GOLD) ? gold_amount(depth) : 1))
+        return NULL;
     return heap;
 }
 
@@ -261,16 +281,21 @@ Heap *spawn_item_heap(Level *lvl, int idx, int depth, ItemType type, HeapType he
     return heap;
 }
 
-Heap *spawn_item_amount_heap(Level *lvl, int idx, int depth, ItemType type, int amount, HeapType heap_type) {
-    Heap *heap = spawn_item_heap(lvl, idx, depth, type, heap_type);
-    if (!heap) return NULL;
-    int quantity = (amount > 0) ? amount : 1;
-    for (int i = 0; i < heap->count; i++) {
-        if (heap->items[i].type == type) {
-            heap->items[i].quantity = quantity;
-            return heap;
-        }
+Heap *spawn_item_amount_heap(Level *lvl, int idx, int depth, ItemType type, int amount, HeapType heap_type){
+    if (type < 0 || type >= ITEM_TYPE_COUNT)
+        return NULL;
+    Point p = idx_to_xy(idx);
+    Heap *heap = level_heap_at(lvl, p.x, p.y);
+    if (!heap) {
+        heap = level_create_heap(lvl, p.x, p.y, heap_type);
+        if (!heap)
+            return NULL;
+    } else {
+        heap->type = heap_type;
     }
+    int quantity = (amount > 0) ? amount : 1;
+    if (!heap_add_item(heap, type, quantity))
+        return NULL;
     return heap;
 }
 
@@ -280,34 +305,9 @@ Heap *spawn_random_item_of_category_heap(Level *lvl, int idx, int depth, ItemCat
     return heap;
 }
 
-int level_pickup_at(Level *lvl, int x, int y, ItemStack *out) {
-    for (int i = 0; i < lvl->num_heaps; i++) {
-        Heap *h = &lvl->heaps[i];
-
-        if (!h->active || h->x != x || h->y != y)
-            continue;
-        if (h->type != HEAP_NORMAL &&
-            h->type != HEAP_FOR_SALE) {
-            h->type = HEAP_NORMAL;
-
-            return 0;
-        }
-        if (out)
-            *out = h->items[0];
-        for (int j = 1; j < h->count; j++)
-            h->items[j - 1] = h->items[j];
-
-        h->count--;
-        if (h->count == 0)
-            *h = lvl->heaps[--lvl->num_heaps];
-        return 1;
-    }
-    return 0;
-}
-
-/* ══════════════════════════════════════════════════════════
-   LEVEL
-   ══════════════════════════════════════════════════════════ */
+/*═══════════════════════════════════════════════════════════════
+    Level item pool
+═══════════════════════════════════════════════════════════════*/
 void level_add_item_to_spawn(Level *lvl, ItemType type) {
     if (lvl->num_items_to_spawn >= MAX_ITEMS_TO_SPAWN)
         return;

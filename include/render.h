@@ -6,10 +6,12 @@
 #include "assets.h"
 #include "player.h"
 #include "fov.h"
+#include "font.h"//test of fonts
 #include <SDL2/SDL.h>
 
 /* ── RenderCtx ───────────────────────────────────────── */
 typedef struct {
+   SDL_Window   *window;
    SDL_Renderer *renderer;
 
    /* Tile sheets — one per theme, indexed by DungeonTheme */
@@ -27,8 +29,14 @@ typedef struct {
    /* Item icon sheet — ASSET_ITEMS, an 8x16 grid of 16px cells. */
    SDL_Texture  *items;
 
+   /* Bitmap font — ASSET_FONTS1X. PD's own packed-glyph format, not
+      SDL_ttf; see font.h for the sheet layout. */
+   BitmapFont    font;
+
+   /*ui textures (from Chrome.java)*/
+   SDL_Texture *chrome;
+   
    DungeonTheme  active_theme;
-   int           png_available; 
 } RenderCtx;
 
 /* assets_dir: folder containing tiles0-4.png and water0-4.png, and the

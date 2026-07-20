@@ -17,6 +17,9 @@ add_executable(${PROJECT_NAME}
     src/fov.c
     src/dungeon.c
     src/item.c
+    src/inventory_screen.c
+    src/font.c
+    src/chrome.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O2 -G0 -Wall)

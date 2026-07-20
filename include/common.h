@@ -158,6 +158,7 @@ typedef enum {
     TF_LIQUID        = 0x0040,
     TF_PIT           = 0x0080,
     TF_UNSTITCHABLE  = 0x0100,
+    TF_SHADOW        = 0x0200, //NOT ORIGINAL
 } TileFlags;
 
 extern uint16_t gTileFlags[256];

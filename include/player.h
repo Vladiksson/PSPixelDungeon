@@ -14,10 +14,7 @@
 
 #define HERO_ARMOR_TIER 6
 
-/* ── Hero class ───────────────────────────────────────
-   Order MUST match ASSET_HERO_BY_CLASS in assets.h — the enum value
-   is used directly as an index into that array and into
-   RenderCtx.heroes[]. */
+/* ── Hero class ───────────────────────────────────────*/
 typedef enum {
     HERO_WARRIOR = 0,
     HERO_MAGE,
@@ -26,24 +23,12 @@ typedef enum {
     HERO_CLASS_COUNT
 } HeroClass;
  
-/* Which way the sprite is drawn. The art is drawn facing right;
-   FACE_LEFT is achieved with a horizontal flip at draw time, not a
-   separate set of frames. */
 typedef enum {
     FACE_RIGHT = 0,
     FACE_LEFT  = 1
 } Facing;
  
-/* ── Animation state ──────────────────────────────────
-   Every class (and every armor-tier row on the sheet) shares the same
-   21-column layout:
-     0-2   idle
-     3-8   run    (6-frame cycle)
-     9-13  die    (frame 13 doubles as the "fallen" resting pose)
-     14    operate (search/interact)
-     15-16 read   (2-frame alternate)
-     17-20 attack
-   See HERO_CLIPS below for the exact per-animation playback order. */
+/* ── Animation state ──────────────────────────────────*/
 typedef enum {
     ANIM_IDLE = 0,
     ANIM_RUN,
@@ -64,6 +49,19 @@ typedef struct {
 /* Defined once in player.c; render.c reads it to pick the source rect. */
 extern const AnimClip HERO_CLIPS[ANIM_COUNT];
 
+/* ── Equip slots ───────────────────────────────────────
+   Mirrors Belongings.java's weapon/armor/ring1/ring2 fields (minus
+   the backpack, which stays a flat array on Player — see inventory[]
+   below). Two ring slots exist because the original lets the hero
+   wear two rings at once. */
+typedef enum {
+    EQUIP_WEAPON,
+    EQUIP_ARMOR,
+    EQUIP_RING1,
+    EQUIP_RING2,
+    EQUIP_SLOT_COUNT
+} EquipSlot;
+
 typedef struct {
     int x, y;              /* current tile position                     */
     HeroClass cls;         /* which sprite sheet to draw                */
@@ -73,9 +71,18 @@ typedef struct {
     float     frame_clock; /* seconds accumulated toward the next frame */
     int       anim_done;   /* 1 once a non-looping clip has played out  */
 
-    ItemStack inventory[MAX_INVENTORY]; /* backpack — no equip/use yet  */
+    ItemStack inventory[BACKPACK_SLOTS]; /* backpack (unequipped items)  */
     int       num_inventory;
     int       gold;
+
+    /* Equipped gear. ITEM_NONE means the slot is empty. An equipped
+       item is NOT also present in inventory[] — equipping moves it
+       out of the backpack, same as the original where Belongings'
+       weapon/armor/ring1/ring2 are separate from the backpack Bag. */
+    ItemType  weapon;
+    ItemType  armor;
+    ItemType  ring1;
+    ItemType  ring2;
 } Player;
  
 /* Place player at level entrance */
@@ -94,10 +101,28 @@ void player_animate(Player *p, float dt);
    combat code: player_play_anim(&p, ANIM_ATTACK); */
 void player_play_anim(Player *p, AnimState anim);
 
-void player_step_anim(Player *p);
+int player_operate(Player *p, Level *lvl);
 
+int player_is_busy(const Player *p);
 
 /* Add a picked-up stack to the backpack (gold just increments p->gold;
    stackable kinds merge into an existing slot; otherwise a new slot is
    used). Returns 0 if the backpack is full and the item is dropped. */
 int player_add_item(Player *p, ItemType type, int quantity);
+
+/* ── Backpack / ground / equip ─────────────────────────────────*/
+
+int player_pickup(Player *p, Level *lvl);
+
+int player_drop_item(Player *p, Level *lvl, int slot);
+
+int player_remove_item(Player *p, int slot, int quantity);
+
+int player_equip_item(Player *p, int slot);
+
+int player_unequip(Player *p, EquipSlot slot, Level *lvl);
+
+void player_sort_inventory(Player *p);
+
+/* Backpack slot holding `type`, or -1 if none. */
+int player_find_item(const Player *p, ItemType type);
