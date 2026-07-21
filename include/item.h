@@ -359,6 +359,12 @@ static inline const char *item_name(ItemType t) {
 typedef struct {
    ItemType type;
    int      quantity;
+
+   int8_t  level;         /* enchant tier; can go negative (degraded)     */
+   uint8_t level_known;   /* has the player seen this instance's level?   */
+   uint8_t cursed;        /* is this specific instance cursed?            */
+   uint8_t cursed_known;  /* found out yet? equipping always reveals it   */
+   int16_t durability;    /* current durability, out of item_max_durability() */
 } ItemStack;
 
 /* An item stack sitting on the ground at a tile — used for a level's
@@ -399,3 +405,161 @@ typedef struct {
    out_col and out_row and returns 1, or returns 0 for an empty heap
    with nothing to show. */
 int heap_sprite_cell(const Heap *h, uint8_t *out_col, uint8_t *out_row);
+
+
+/* Add `stack` to `heap` as-is (merging into a matching stackable
+   entry, or taking a new slot), preserving whatever level/cursed/
+   durability/known state it already carries. Use this — not
+   heap_add_item below — whenever an EXISTING instance moves onto the
+   ground (drop, forced unequip), so it doesn't get re-rolled fresh.
+   Returns 1 on success, 0 if the heap's MAX_HEAP_ITEMS slots are full. */
+int heap_add_stack(Heap *heap, ItemStack stack);
+ 
+/* ══════════════════════════════════════════════════════════
+   INSTANCE STATE — level / curse / durability
+   ══════════════════════════════════════════════════════════
+   A from-scratch port of Item.java's level/cursed/durability/
+   levelKnown/cursedKnown machinery onto ItemStack. Durability only
+   ever ticks down for upgraded (level>0) items, exactly like the
+   original's use() — a fresh, un-enchanted item never breaks. */
+ 
+#define ITEM_DURABILITY_WARN_NUM 1
+#define ITEM_DURABILITY_WARN_DEN 6   /* matches Item.java's DURABILITY_WARNING_LEVEL = 1/6f */
+ 
+typedef enum {
+    ITEM_USE_OK = 0,          /* nothing notable happened                    */
+    ITEM_USE_WARN_BREAKING,   /* durability just crossed the low threshold   */
+    ITEM_USE_BROKE            /* durability just hit 0 this call             */
+} ItemUseResult;
+ 
+/* isBroken()/effectiveLevel()/visiblyUpgraded()/visiblyCursed()/
+   visiblyBroken()/isIdentified() — direct ports, kept inline since
+   they're pure field reads with no ITEM_DB/RNG dependency. */
+static inline int item_is_broken(const ItemStack *s) {
+    return s->durability <= 0;
+}
+static inline int item_effective_level(const ItemStack *s) {
+    return item_is_broken(s) ? 0 : s->level;
+}
+static inline int item_visibly_upgraded(const ItemStack *s) {
+    return s->level_known ? s->level : 0;
+}
+static inline int item_visibly_cursed(const ItemStack *s) {
+    return s->cursed && s->cursed_known;
+}
+static inline int item_visibly_broken(const ItemStack *s) {
+    return s->level_known && item_is_broken(s);
+}
+static inline int item_is_identified(const ItemStack *s) {
+    return s->level_known && s->cursed_known;
+}
+ 
+/* Empty-slot sentinel for Player's equip slots (see player.h) — an
+   all-zero ItemStack with type forced to ITEM_NONE. */
+static inline ItemStack item_stack_none(void) {
+    ItemStack s;
+    memset(&s, 0, sizeof(s));
+    s.type = ITEM_NONE;
+    return s;
+}
+ 
+/* Placeholder per-category curse chance out of 100. The real odds
+   live in Weapon.java/Armor.java/Wand.java/Ring.java, which weren't
+   part of what you shared — this is a reasonable stand-in with the
+   same shape (only equipables that stay on your body/in your hand
+   roll cursed). Tune freely. */
+int item_curse_chance_pct(ItemCategory cat);
+ 
+/* Placeholder max-durability formula — same caveat as above; the
+   real per-category numbers live in files I don't have. Clamped to
+   at least 1 so a heavily degraded item is merely fragile, not
+   instantly indestructible-zero. Shape mirrors Item.java's
+   maxDurability(level) being overridden per subclass. */
+int item_max_durability(ItemType type, int level);
+ 
+/* Build a freshly-spawned instance of `type`: level 0, durability at
+   max, curse rolled per item_curse_chance_pct() (skipped for
+   stackable types — see the ItemStack comment above), and
+   level_known set immediately for WEAPON/ARMOR (their enchant level
+   is visible on pickup in the original — only whether they're cursed
+   stays hidden) but left unknown for WAND/RING (hidden until
+   identified, same as their shuffled name/sprite below). That
+   WEAPON/ARMOR-vs-WAND/RING split is inferred from vanilla behaviour
+   since those subclasses weren't part of what you shared — flip it
+   if yours differs. Call this wherever loot is created instead of a
+   bare {type, quantity} literal so the new fields start consistent
+   rather than uninitialized. heap_add_item below already does. */
+void item_stack_init(ItemStack *stack, ItemType type, int quantity);
+ 
+/* fix()/polish() — reset/nudge durability back up. */
+void item_fix(ItemStack *stack);
+void item_polish(ItemStack *stack);
+ 
+/* upgrade()/degrade() — adjust level and fix(). Matches the original
+   exactly: upgrading also clears+reveals curse (a +1 scroll cleanses
+   as it enchants); degrading does not touch curse state at all. */
+void item_upgrade(ItemStack *stack);
+void item_upgrade_n(ItemStack *stack, int n);
+void item_degrade(ItemStack *stack);
+void item_degrade_n(ItemStack *stack, int n);
+ 
+/* use() — wear an upgraded item down by one hit's worth of
+   durability (a no-op for level<=0 or already-broken items, exactly
+   like the original's guard). Returns what just happened so the
+   caller can react (message/sound/etc.) — this port doesn't have a
+   message-log system yet, so that reaction lives wherever you end up
+   calling this from, not here. */
+ItemUseResult item_use(ItemStack *stack);
+ 
+/* identify() — reveal this instance's level+curse, and (for
+   POTION/SCROLL/WAND/RING) mark the whole TYPE known for the rest of
+   the run. */
+void item_identify(ItemStack *stack);
+ 
+/* ══════════════════════════════════════════════════════════
+   IDENTIFY — per-TYPE "known" tracking + shuffled unidentified look
+   ══════════════════════════════════════════════════════════
+   A from-scratch port of ItemStatusHandler.java's random label/image
+   shuffle + known set, adapted to this port's flat ItemType enum (the
+   original keyed off Class<? extends Item> per subclass; here it's
+   just ItemType). Applies to POTION/SCROLL/WAND/RING — the categories
+   that hide their true name behind a per-run color/rune/wood/gem
+   alias until identified. WAND_MAGIC_MISSILE is excluded from the
+   wand shuffle, same as the original (see the comment above
+   SPRITE_WAND_MAGIC_MISSILE) — it's always shown as itself. Every
+   other category (weapon/armor/food/misc/gold/key/bag/quest) was
+   never hidden by name, so item_status_is_known() just reports true
+   for them — only their level/cursed (above) can be unknown. */
+ 
+/* Reset all identify state for a new run: re-shuffle which alias
+   look each shuffled type gets, and forget every type. Call once
+   when a new game starts (mirrors building a fresh ItemStatusHandler
+   + Generator.reset() in the original). If you never call this
+   explicitly, the first identify-related call auto-initializes once,
+   so it's safe to skip for a single-run build — just re-call it
+   yourself for run 2 onward, or the second run reuses run 1's looks. */
+void item_status_reset(void);
+ 
+/* Mark `type` identified. If every other member of its shuffled
+   category is already known, the last remaining one is auto-known
+   too — the same deduction ItemStatusHandler.know() makes. No-op for
+   categories that were never shuffled. */
+void item_status_know(ItemType type);
+ 
+/* Is `type` identified this run? Always true for categories that
+   were never shuffled. */
+int item_status_is_known(ItemType type);
+ 
+/* Cell in items.png to actually draw for `type` — the real sprite
+   once known, otherwise this run's shuffled alias (a color/rune/
+   wood/gem look shared by the whole unidentified category). */
+void item_display_sprite(ItemType type, uint8_t *out_col, uint8_t *out_row);
+ 
+/* Display name for `stack`: the shuffled alias ("turquoise potion",
+   "kaunan scroll", "holly wand", "diamond ring") while its type is
+   unidentified, otherwise the real name with a +N / "(cursed)" suffix
+   once level_known/cursed_known say so (mirrors Item.java's
+   toString(), minus the quantity — callers still handle "x%d"
+   themselves, same as before). Writes into caller-owned `buf`
+   (`bufsz` bytes) and returns it, snprintf-return-style. */
+const char *item_display_name(const ItemStack *stack, char *buf, size_t bufsz);

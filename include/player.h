@@ -1,8 +1,5 @@
 #pragma once
-#include "common.h"
 #include "level.h"
-#include "level_utils.h"
-#include "item.h"
 
 #define HERO_W 12
 #define HERO_H 15
@@ -79,10 +76,10 @@ typedef struct {
        item is NOT also present in inventory[] — equipping moves it
        out of the backpack, same as the original where Belongings'
        weapon/armor/ring1/ring2 are separate from the backpack Bag. */
-    ItemType  weapon;
-    ItemType  armor;
-    ItemType  ring1;
-    ItemType  ring2;
+    ItemStack weapon;
+    ItemStack armor;
+    ItemStack ring1;
+    ItemStack ring2;
 } Player;
  
 /* Place player at level entrance */
@@ -109,6 +106,13 @@ int player_is_busy(const Player *p);
    stackable kinds merge into an existing slot; otherwise a new slot is
    used). Returns 0 if the backpack is full and the item is dropped. */
 int player_add_item(Player *p, ItemType type, int quantity);
+
+/* Same as player_add_item, but takes an already-built ItemStack and
+   adds it as-is — no fresh roll, no reset. This is what
+   player_pickup and player_unequip use, so a +2 cursed ring found on
+   the ground (or just taken off) keeps being a +2 cursed ring once
+   it's in the backpack. */
+int player_add_stack(Player *p, ItemStack stack);
 
 /* ── Backpack / ground / equip ─────────────────────────────────*/
 

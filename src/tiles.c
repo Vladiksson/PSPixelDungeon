@@ -3,11 +3,11 @@
 
 uint16_t gTileFlags[256];
 
-void Terrain_InitFlags(void){//ORIGINAL DOESN'T HAVE TF_SHADOW
+void Terrain_InitFlags(void){//ORIGINAL DOESN'T HAVE TF_SHADOW, TF_OPEN_FLOOR
     memset(gTileFlags, 0, sizeof(gTileFlags));
     gTileFlags[TILE_CHASM]                  = TF_AVOID | TF_PIT | TF_UNSTITCHABLE;
-    gTileFlags[TILE_EMPTY]                  = TF_PASSABLE;
-    gTileFlags[TILE_GRASS]                  = TF_PASSABLE | TF_FLAMABLE;
+    gTileFlags[TILE_EMPTY]                  = TF_PASSABLE | TF_OPEN_FLOOR;
+    gTileFlags[TILE_GRASS]                  = TF_PASSABLE | TF_FLAMABLE | TF_OPEN_FLOOR;
     gTileFlags[TILE_EMPTY_WELL]             = TF_PASSABLE;
     gTileFlags[TILE_WATER]                  = TF_PASSABLE | TF_LIQUID | TF_UNSTITCHABLE;
     gTileFlags[TILE_WALL]                   = TF_LOS_BLOCKING | TF_SOLID | TF_UNSTITCHABLE | TF_SHADOW;
@@ -21,7 +21,7 @@ void Terrain_InitFlags(void){//ORIGINAL DOESN'T HAVE TF_SHADOW
     gTileFlags[TILE_WALL_DECO]              = gTileFlags[TILE_WALL];
     gTileFlags[TILE_BARRICADE]              = TF_FLAMABLE | TF_SOLID | TF_LOS_BLOCKING | TF_SHADOW;
     gTileFlags[TILE_EMPTY_SP]               = gTileFlags[TILE_EMPTY] | TF_UNSTITCHABLE; 
-    gTileFlags[TILE_HIGH_GRASS]             = TF_PASSABLE | TF_LOS_BLOCKING | TF_FLAMABLE;
+    gTileFlags[TILE_HIGH_GRASS]             = TF_PASSABLE | TF_LOS_BLOCKING | TF_FLAMABLE | TF_OPEN_FLOOR;
     gTileFlags[TILE_EMPTY_DECO]             = gTileFlags[TILE_EMPTY];
     gTileFlags[TILE_LOCKED_EXIT]            = TF_PASSABLE | TF_SHADOW;//ORIGINALLY TF_SOLID;
     gTileFlags[TILE_UNLOCKED_EXIT]          = TF_PASSABLE;

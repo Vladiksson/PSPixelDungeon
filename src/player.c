@@ -44,10 +44,10 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->num_inventory = 0;
     p->gold          = 0;
 
-    p->weapon = ITEM_NONE;
-    p->armor  = ITEM_NONE;
-    p->ring1  = ITEM_NONE;
-    p->ring2  = ITEM_NONE;
+    p->weapon = item_stack_none();
+    p->armor  = item_stack_none();
+    p->ring1  = item_stack_none();
+    p->ring2  = item_stack_none();
 }
 
 /*═══════════════════════════════════════════════════════════════
@@ -124,7 +124,7 @@ static Heap *heap_at_for_drop(Level *lvl, int x, int y) {
     return level_create_heap(lvl, x, y, HEAP_NORMAL);
 }
 
-static ItemType *equip_slot_ptr(Player *p, EquipSlot slot) {
+static ItemStack *equip_slot_ptr(Player *p, EquipSlot slot) {
     switch (slot) {
         case EQUIP_WEAPON: return &p->weapon;
         case EQUIP_ARMOR:  return &p->armor;
@@ -156,25 +156,30 @@ static int player_use_key(Player *p, ItemType key) {
 /*═══════════════════════════════════════════════════════════════
     Inventory management
 ═══════════════════════════════════════════════════════════════*/
-int player_add_item(Player *p, ItemType type, int quantity) {
-    if (type == ITEM_GOLD) {
-        p->gold += quantity;
+int player_add_stack(Player *p, ItemStack stack) {
+    if (stack.type == ITEM_GOLD) {
+        p->gold += stack.quantity;
         return 1;
     }
-    if (ITEM_DB[type].stackable) {
+    if (ITEM_DB[stack.type].stackable) {
         for (int i = 0; i < p->num_inventory; i++) {
-            if (p->inventory[i].type == type) {
-                p->inventory[i].quantity += quantity;
+            if (p->inventory[i].type == stack.type) {
+                p->inventory[i].quantity += stack.quantity;
                 return 1;
             }
         }
     }
     if (p->num_inventory >= BACKPACK_SLOTS) return 0;
- 
-    p->inventory[p->num_inventory].type     = type;
-    p->inventory[p->num_inventory].quantity = quantity;
+
+    p->inventory[p->num_inventory] = stack;
     p->num_inventory++;
     return 1;
+}
+
+int player_add_item(Player *p, ItemType type, int quantity) {
+    ItemStack stack;
+    item_stack_init(&stack, type, quantity);
+    return player_add_stack(p, stack);
 }
 
 int player_remove_item(Player *p, int slot, int quantity) {
@@ -205,8 +210,8 @@ void player_sort_inventory(Player *p) {
 int player_equip_item(Player *p, int slot) {
     if (slot < 0 || slot >= p->num_inventory) return 0;
 
-    ItemType type = p->inventory[slot].type;
-    ItemCategory cat = ITEM_DB[type].cat;
+    ItemStack incoming = p->inventory[slot];
+    ItemCategory cat = ITEM_DB[incoming.type].cat;
 
     EquipSlot target;
     if (cat == ITEMCAT_WEAPON) {
@@ -214,47 +219,69 @@ int player_equip_item(Player *p, int slot) {
     } else if (cat == ITEMCAT_ARMOR) {
         target = EQUIP_ARMOR;
     } else if (cat == ITEMCAT_RING) {
-        target = (p->ring1 == ITEM_NONE) ? EQUIP_RING1
-               : (p->ring2 == ITEM_NONE) ? EQUIP_RING2
+        target = (p->ring1.type == ITEM_NONE) ? EQUIP_RING1
+               : (p->ring2.type == ITEM_NONE) ? EQUIP_RING2
                : EQUIP_RING1;
     } else {
         return 0; /* not an equipable category */
     }
 
-    ItemType *dst = equip_slot_ptr(p, target);
+    ItemStack *dst = equip_slot_ptr(p, target);
+
+    /* A cursed item stays welded to the hand — can't be swapped out
+       to make room for something else. Mirrors EquipableItem.
+       doUnequip()'s refusal, checked on the raw cursed flag (not
+       cursed_known) same as the original: you don't get advance
+       warning, the failed swap *is* how you find out. */
+    if (dst->type != ITEM_NONE && dst->cursed) {
+        return 0;
+    }
 
     /* Take one unit out of the backpack first, so a swap has the
        slot it needs to put the old gear back into. */
     if (!player_remove_item(p, slot, 1)) return 0;
 
-    if (*dst != ITEM_NONE) {
-        if (!player_add_item(p, *dst, 1)) {
+    if (dst->type != ITEM_NONE) {
+        if (!player_add_stack(p, *dst)) {
             /* No room for the item being swapped out — put the new
                one back and bail, matching collect() failing cleanly. */
-            player_add_item(p, type, 1);
+            player_add_stack(p, incoming);
             return 0;
         }
     }
 
-    *dst = type;
+    *dst = incoming;
+    dst->quantity = 1; /* equipped gear is always exactly one unit, even
+                           if it came off a stack of stackable weapons */
+
+    /* Equipping is how you find out whether it's cursed — win or
+       lose — see KindOfWeapon.doEquip() setting cursedKnown = true
+       unconditionally, before checking `cursed`. */
+    dst->cursed_known = 1;
+
     return 1;
 }
 
 int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
-    ItemType *src = equip_slot_ptr(p, slot);
-    if (!src || *src == ITEM_NONE) return 0;
+    ItemStack *src = equip_slot_ptr(p, slot);
+    if (!src || src->type == ITEM_NONE) return 0;
 
-    ItemType type = *src;
+    /* Cursed gear refuses to come off at all — same as the original,
+       checked on the raw cursed flag rather than cursed_known. */
+    if (src->cursed) return 0;
 
-    if (player_add_item(p, type, 1)) {
-        *src = ITEM_NONE;
+    ItemStack stack = *src;
+    stack.quantity = 1;
+
+    if (player_add_stack(p, stack)) {
+        *src = item_stack_none();
         return 1;
     }
 
     if (lvl) {
         Heap *h = heap_at_for_drop(lvl, p->x, p->y);
-        if (h && heap_add_item(h, type, 1)) {
-            *src = ITEM_NONE;
+        if (h && heap_add_stack(h, stack)) {
+            *src = item_stack_none();
             return 1;
         }
     }
@@ -279,7 +306,7 @@ int player_pickup(Player *p, Level *lvl) {
     if (h->count == 0) return 0;
 
     ItemStack top = h->items[0];
-    if (!player_add_item(p, top.type, top.quantity)) {
+    if (!player_add_stack(p, top)) {
         return 0; /* backpack full — leave it on the ground, don't lose it */
     }
 
@@ -301,7 +328,7 @@ int player_drop_item(Player *p, Level *lvl, int slot) {
     if (!h) return 0;
 
     ItemStack stack = p->inventory[slot];
-    if (!heap_add_item(h, stack.type, stack.quantity)) return 0;
+    if (!heap_add_stack(h, stack)) return 0;
 
     inventory_remove_slot(p, slot);
     return 1;

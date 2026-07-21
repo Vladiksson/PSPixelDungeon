@@ -1,10 +1,6 @@
 #pragma once
-/*
- * assets.h — C mirror of Assets.java
- * Every string constant matches the original filename exactly.
- * All files live under the ASSETS_DIR folder ("assets/").
- */
 
+/* assets.h — C mirror of Assets.java*/
 /* ── UI / HUD ─────────────────────────────────────────── */
 #define ASSET_ARCS_BG       "arcs1.png"
 #define ASSET_ARCS_FG       "arcs2.png"
@@ -112,9 +108,11 @@
     ASSET_WATER_CITY,   ASSET_WATER_HALLS }
 
 /* ── Bitmap fonts ─────────────────────────────────────── */
-/* PD uses its own bitmap font renderer — NOT SDL_ttf.
+/* PD uses its own bitmap font renderer.
    Each font sheet is a different scale (1x, 1.5x, 2x …).
-   Use the smallest that's still legible at PSP resolution. */
+   I use the smallest one, 
+   but since sdl doesn't wanna work with original resolution 1024x8,
+   I've split it into three parts(a,b,c).*/
 #define ASSET_FONTS1X   "font1x.png"
 #define ASSET_FONTS1XA  "font1x_a.png"
 #define ASSET_FONTS1XB  "font1x_b.png"

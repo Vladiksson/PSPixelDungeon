@@ -1,5 +1,4 @@
 #pragma once
-#include "level.h"
 #include "level_utils.h"
 
 void paint_rooms(Level *lvl, int depth);

@@ -2,7 +2,7 @@
 #include <time.h>
 
 static DungeonTheme get_theme(int depth){
-    if (depth < 5) return THEME_SEWERS;
+    if (depth < 5 ) return THEME_SEWERS;
     if (depth < 10) return THEME_PRISON;
     if (depth < 15) return THEME_CAVES;
     if (depth < 20) return THEME_CITY;

@@ -217,13 +217,9 @@ void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     }
 }
 
-
-static int is_wall(uint8_t t) {
-    return (gTileFlags[t] & TF_SHADOW) != 0;
-}
 /* Neighbour helper — returns 1 if tile (nx,ny) is a wall, 0 otherwise */
 static int wall_at(const Level *lvl, int nx, int ny) {
-    return in_bounds(nx, ny) && is_wall(lvl->map[xy_to_idx(nx, ny)]);
+    return in_bounds(nx, ny) && ((gTileFlags[lvl->map[xy_to_idx(nx, ny)]] & TF_SHADOW) != 0);
 }
 
 /* ── Stepped gradient shadow ──────────────────────────────────

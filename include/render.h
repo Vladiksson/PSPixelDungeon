@@ -1,12 +1,9 @@
 #pragma once
-#include "common.h"
-#include "level.h"
-#include "level_utils.h"
 #include "camera.h"
 #include "assets.h"
 #include "player.h"
 #include "fov.h"
-#include "font.h"//test of fonts
+#include "font.h"
 #include <SDL2/SDL.h>
 
 /* ── RenderCtx ───────────────────────────────────────── */

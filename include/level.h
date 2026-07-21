@@ -1,6 +1,86 @@
 #pragma once
-#include "common.h"
 #include "item.h"
+
+/* ── Room constants ──────────────────────────────────── */
+#define MAX_ROOMS       64
+#define MAX_NEIGHBOURS   8   /* BSP rooms have 2-4 typically     */
+#define MAX_CONN_ROOM    8   /* max door-connections per room     */
+
+typedef enum {
+    ROOM_NULL       = 0,
+    ROOM_STANDARD   = 1,
+    ROOM_ENTRANCE   = 2,
+    ROOM_EXIT       = 3,
+    ROOM_BOSS_EXIT  = 4,
+    ROOM_TUNNEL     = 5,
+    ROOM_PASSAGE    = 6,
+	ROOM_SHOP	    = 7,
+	ROOM_BLACKSMITH	= 8,
+	ROOM_TREASURY	= 9,
+	ROOM_ARMORY		= 10,
+	ROOM_LIBRARY	= 11,
+	ROOM_LABORATORY	= 12,
+	ROOM_VAULT		= 13,
+	ROOM_TRAPS		= 14,
+	ROOM_STORAGE	= 15,
+	ROOM_MAGIC_WELL	= 16,
+	ROOM_GARDEN		= 17,
+	ROOM_CRYPT		= 18,
+	ROOM_STATUE		= 19,
+	ROOM_POOL		= 20,
+	ROOM_RAT_KING	= 21,
+	ROOM_WEAK_FLOOR	= 22,
+	ROOM_PIT		= 23,
+	ROOM_ALTAR		= 24,
+    ROOM_COUNT      = 25,
+} RoomType;
+
+typedef enum {
+    DOOR_EMPTY,
+    DOOR_TUNNEL,
+    DOOR_REGULAR,
+    DOOR_LOCKED,
+    //DOOR_SECRET,
+    DOOR_HIDDEN,
+    DOOR_BARRICADE,
+    DOOR_UNLOCKED
+} DoorType;
+ 
+typedef struct {
+    int left, top, right, bottom;
+
+    int neighbours   [MAX_NEIGHBOURS];
+    int n_neighbours;
+    int distance;             /* BFS distance (pathfinding)   */
+    int price;                /* Dijkstra cost (default 1)    */
+
+    int connected [MAX_CONN_ROOM];
+    int door_x    [MAX_CONN_ROOM];
+    int door_y    [MAX_CONN_ROOM];
+    int n_connected;
+
+    DoorType door_type[MAX_CONN_ROOM];
+    RoomType type;
+} Room;
+
+typedef enum {
+    ROOMF_SPECIAL      = 1 << 0,
+    ROOMF_TUNNEL       = 1 << 1,
+    ROOMF_LOCKED_DOOR  = 1 << 2,
+    ROOMF_HIDDEN_DOOR  = 1 << 3,
+    ROOMF_EMPTY_DOOR   = 1 << 4,
+    ROOMF_BARRICADE    = 1 << 5,
+} RoomFlags;
+
+extern const uint16_t gRoomFlags[ROOM_ALTAR + 1];
+
+typedef enum {
+    THEME_SEWERS = 0,
+    THEME_PRISON = 1,
+    THEME_CAVES  = 2,
+    THEME_CITY   = 3,
+    THEME_HALLS  = 4,
+} DungeonTheme;
 
 typedef enum {
     FEELING_NONE,

@@ -13,7 +13,7 @@
 #include "fov.h"
 #include "dungeon.h"
 #include "item.h"
-#include "inventory_screen.h" //test of sdl inventory
+#include "inventory_screen.h" 
 #include "font.h"
 
 /* ── PSP kernel module metadata (required for EBOOT.PBP) ──────── */
@@ -74,7 +74,7 @@ static int move_repeat_update(
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
     Terrain_InitFlags(); 
-    /* Generate dungeon */
+
     static Dungeon dungeon;
     dungeon_init(&dungeon);
 
@@ -84,13 +84,12 @@ int main(int argc, char *argv[]) {
     Player player;
     player_init(&player, lvl, 1);
 
-    InventoryUI inv = {0}; //test of sdl inventory
+    InventoryUI inv = {0};
 
     Camera cam;
     camera_init(&cam, 0, 0);
     camera_center_on(&cam, player.x, player.y);
 
-    /* render_init always returns 0; check stderr output for load status */
     RenderCtx rctx;
     render_init(&rctx, ASSETS_DIR);
  
@@ -150,7 +149,7 @@ int main(int argc, char *argv[]) {
                 player_sort_inventory(&player);
 
         } else {
-            /* Player movement — d-pad / WASD */
+            /* Player movement — d-pad */
             int moved = 0;
 
             moved |= move_repeat_update(&mr, &inp, now, &player, lvl, &cam, BTN_UP,    0, -1);

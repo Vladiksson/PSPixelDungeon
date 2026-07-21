@@ -1,6 +1,7 @@
 #include "item.h"
 #include "level.h"
 #include "level_utils.h"
+#include <stdio.h>   /* snprintf — item_display_name */
 
 /*═══════════════════════════════════════════════════════════════
     Item database
@@ -186,8 +187,10 @@ int heap_sprite_cell(const Heap *h, uint8_t *out_col, uint8_t *out_row) {
         case HEAP_NORMAL:
         case HEAP_FOR_SALE:
             if (h->count <= 0) return 0;
-            *out_col = ITEM_DB[h->items[0].type].sprite_col;
-            *out_row = ITEM_DB[h->items[0].type].sprite_row;
+            /* Identify-aware: an unidentified potion/scroll/wand/ring
+               on the ground shows its shuffled alias look here too,
+               not just in the backpack. */
+            item_display_sprite(h->items[0].type, out_col, out_row);
             return 1;
  
         case HEAP_CHEST:
@@ -231,23 +234,43 @@ Heap *level_heap_at_idx(Level *lvl, int idx) {
     return level_heap_at(lvl, p.x, p.y);
 }
 
-int heap_add_item(Heap *heap, ItemType type, int quantity) {
-    if (ITEM_DB[type].stackable) {
+/* Shared by heap_add_item/heap_add_stack below: merge into a matching
+   stackable entry, or take a fresh slot. Neither rolls or resets
+   anything — the two public wrappers decide whether `stack` arrives
+   fresh (heap_add_item) or already-instanced (heap_add_stack). */
+static int heap_insert(Heap *heap, ItemStack stack) {
+    if (ITEM_DB[stack.type].stackable) {
         for (int i = 0; i < heap->count; i++) {
-            if (heap->items[i].type == type) {
-                heap->items[i].quantity += quantity;
+            if (heap->items[i].type == stack.type) {
+                heap->items[i].quantity += stack.quantity;
                 return 1;
             }
         }
     }
     if (heap->count >= MAX_HEAP_ITEMS)
         return 0;
-
-    heap->items[heap->count].type = type;
-    heap->items[heap->count].quantity = quantity;
+ 
+    heap->items[heap->count] = stack;
     heap->count++;
     return 1;
 }
+ 
+int heap_add_stack(Heap *heap, ItemStack stack) {
+    return heap_insert(heap, stack);
+}
+ 
+int heap_add_item(Heap *heap, ItemType type, int quantity) {
+    /* Was a bare {type, quantity} field assignment, which left
+       level/cursed/durability as whatever garbage sat in this heap
+       slot before (heap tables are reused). Routing through
+       item_stack_init means every freshly-spawned heap item — every
+       spawn_item()/spawn_item_amount_heap() call below included —
+       now gets a properly rolled instance for free. */
+    ItemStack stack;
+    item_stack_init(&stack, type, quantity);
+    return heap_insert(heap, stack);
+}
+
 
 /*═══════════════════════════════════════════════════════════════
     Item spawning
@@ -266,21 +289,21 @@ Heap *spawn_item(Level *lvl, int idx, int depth, ItemType type) {
         return NULL;
     return heap;
 }
-
+ 
 Heap *spawn_random_item(Level *lvl, int idx, int depth) {
     return spawn_item(lvl, idx, depth, random_item());
 }
-
+ 
 Heap *spawn_random_item_of_category(Level *lvl, int idx, int depth, ItemCategory cat) {
     return spawn_item(lvl, idx, depth, random_item_of_category(cat));
 }
-
+ 
 Heap *spawn_item_heap(Level *lvl, int idx, int depth, ItemType type, HeapType heap_type){
     Heap *heap = spawn_item(lvl, idx, depth, type);
     if (heap) heap->type = heap_type;
     return heap;
 }
-
+ 
 Heap *spawn_item_amount_heap(Level *lvl, int idx, int depth, ItemType type, int amount, HeapType heap_type){
     if (type < 0 || type >= ITEM_TYPE_COUNT)
         return NULL;
@@ -298,30 +321,30 @@ Heap *spawn_item_amount_heap(Level *lvl, int idx, int depth, ItemType type, int 
         return NULL;
     return heap;
 }
-
+ 
 Heap *spawn_random_item_of_category_heap(Level *lvl, int idx, int depth, ItemCategory cat, HeapType heap_type){
     Heap *heap = spawn_random_item_of_category(lvl, idx, depth, cat);
     if (heap) heap->type = heap_type;
     return heap;
 }
-
+ 
 /*═══════════════════════════════════════════════════════════════
     Level item pool
 ═══════════════════════════════════════════════════════════════*/
 void level_add_item_to_spawn(Level *lvl, ItemType type) {
     if (lvl->num_items_to_spawn >= MAX_ITEMS_TO_SPAWN)
         return;
-
+ 
     lvl->items_to_spawn[lvl->num_items_to_spawn++] = type;
 }
-
+ 
 int level_take_spawn_item(Level *lvl, ItemType *out) {
     if (lvl->num_items_to_spawn == 0)
         return 0;
-
+ 
     if (rng_int(lvl->num_items_to_spawn + 1) == 0)
         return 0;
-
+ 
     int i = rng_int(lvl->num_items_to_spawn);
     *out = lvl->items_to_spawn[i];
     lvl->items_to_spawn[i] =
@@ -331,26 +354,13 @@ int level_take_spawn_item(Level *lvl, ItemType *out) {
 /* ══════════════════════════════════════════════════════════
    LEVEL POPULATION  —  called once, at the end of level_generate
    ══════════════════════════════════════════════════════════ */
-static int tile_is_open_floor(uint8_t t) { 
-    switch ((TileType)t) {
-        case TILE_EMPTY:
-        case TILE_GRASS:
-        case TILE_HIGH_GRASS:
-        case TILE_EMPTY_SP:
-        case TILE_EMPTY_DECO:
-            return 1;
-        default:
-            return 0;
-    }
-}
-
 static int tile_free_for_item(const Level *lvl, int x, int y) {
     int idx = xy_to_idx(x, y);
-    if (idx == lvl->entrance || idx == lvl->exit) return 0;
-    if (!tile_is_open_floor(lvl->map[idx])) return 0;
-    return 1;
+    if (idx == lvl->entrance || idx == lvl->exit) 
+        return 0;
+    return (gTileFlags[lvl->map[idx]] & TF_OPEN_FLOOR) != 0;
 }
-
+ 
 void level_spawn_items(Level *lvl, int depth) {
     int target = rng_range(4, 8) + depth / 4;
     if (target > MAX_LEVEL_ITEMS)
@@ -369,3 +379,280 @@ void level_spawn_items(Level *lvl, int depth) {
             spawn_random_item(lvl, xy_to_idx(x, y), depth);
     }
 }
+ 
+/* ══════════════════════════════════════════════════════════
+   INSTANCE STATE — level / curse / durability
+   ══════════════════════════════════════════════════════════ */
+int item_curse_chance_pct(ItemCategory cat) {
+    switch (cat) {
+        case ITEMCAT_WEAPON: return 10;
+        case ITEMCAT_ARMOR:  return 12;
+        case ITEMCAT_WAND:   return 8;
+        case ITEMCAT_RING:   return 8;
+        default:             return 0;
+    }
+}
+ 
+int item_max_durability(ItemType type, int level) {
+    int base;
+    switch (ITEM_DB[type].cat) {
+        case ITEMCAT_WEAPON: base = 24 + level * 8; break;
+        case ITEMCAT_ARMOR:  base = 30 + level * 8; break;
+        case ITEMCAT_WAND:   base = 12 + level * 4; break;
+        case ITEMCAT_RING:   base = 20 + level * 4; break;
+        default:             base = 1;              break; /* Item.java's own base-class default */
+    }
+    return base < 1 ? 1 : base;
+}
+ 
+void item_stack_init(ItemStack *stack, ItemType type, int quantity) {
+    stack->type     = type;
+    stack->quantity = quantity;
+    stack->level    = 3; //redo
+ 
+    ItemCategory cat = ITEM_DB[type].cat;
+    stack->level_known = (cat == ITEMCAT_WEAPON || cat == ITEMCAT_ARMOR) ? 1 : 0;
+ 
+    /* Stackable kinds share one quantity across the whole stack, so
+       they can't carry a per-unit curse — only single-instance
+       equipables roll one. */
+    int chance = ITEM_DB[type].stackable ? 0 : item_curse_chance_pct(cat);
+    stack->cursed       = (chance > 0 && rng_int(100) < chance) ? 1 : 0;
+    stack->cursed_known = 0;
+ 
+    stack->durability = (int16_t)item_max_durability(type, stack->level);
+}
+ 
+void item_fix(ItemStack *stack) {
+    stack->durability = (int16_t)item_max_durability(stack->type, stack->level);
+}
+ 
+void item_polish(ItemStack *stack) {
+    int max = item_max_durability(stack->type, stack->level);
+    if (stack->durability < max) stack->durability++;
+}
+ 
+void item_upgrade(ItemStack *stack) {
+    stack->cursed       = 0;
+    stack->cursed_known = 1;
+    stack->level++;
+    item_fix(stack);
+}
+void item_upgrade_n(ItemStack *stack, int n) {
+    for (int i = 0; i < n; i++) item_upgrade(stack);
+}
+ 
+void item_degrade(ItemStack *stack) {
+    stack->level--;
+    item_fix(stack);
+}
+void item_degrade_n(ItemStack *stack, int n) {
+    for (int i = 0; i < n; i++) item_degrade(stack);
+}
+ 
+ItemUseResult item_use(ItemStack *stack) {
+    if (!(stack->level > 0) || item_is_broken(stack))
+        return ITEM_USE_OK;
+ 
+    int max       = item_max_durability(stack->type, stack->level);
+    int threshold = (max * ITEM_DURABILITY_WARN_NUM) / ITEM_DURABILITY_WARN_DEN;
+    int before    = stack->durability;
+ 
+    stack->durability--;
+ 
+    if (stack->durability <= 0)                             return ITEM_USE_BROKE;
+    if (before >= threshold && stack->durability < threshold) return ITEM_USE_WARN_BREAKING;
+    return ITEM_USE_OK;
+}
+ 
+void item_identify(ItemStack *stack) {
+    stack->level_known  = 1;
+    stack->cursed_known = 1;
+    item_status_know(stack->type);
+}
+ 
+/* ══════════════════════════════════════════════════════════
+   IDENTIFY — per-TYPE "known" tracking + shuffled unidentified look
+   ══════════════════════════════════════════════════════════ */
+#define LOOK_COUNT 12
+ 
+static const ItemType POTION_TYPES[LOOK_COUNT] = {
+    ITEM_POTION_HEALING, ITEM_POTION_EXPERIENCE, ITEM_POTION_TOXIC_GAS,
+    ITEM_POTION_PARALYTIC_GAS, ITEM_POTION_LIQUID_FLAME, ITEM_POTION_LEVITATION,
+    ITEM_POTION_STRENGTH, ITEM_POTION_MIND_VISION, ITEM_POTION_PURITY,
+    ITEM_POTION_INVISIBILITY, ITEM_POTION_MIGHT, ITEM_POTION_FROST,
+};
+static const uint8_t POTION_LOOK_SPRITES[LOOK_COUNT] = {
+    SPRITE_POTION_TURQUOISE, SPRITE_POTION_CRIMSON, SPRITE_POTION_AZURE,
+    SPRITE_POTION_JADE, SPRITE_POTION_GOLDEN, SPRITE_POTION_MAGENTA,
+    SPRITE_POTION_CHARCOAL, SPRITE_POTION_IVORY, SPRITE_POTION_AMBER,
+    SPRITE_POTION_BISTRE, SPRITE_POTION_INDIGO, SPRITE_POTION_SILVER,
+};
+static const char *const POTION_LOOK_NAMES[LOOK_COUNT] = {
+    "turquoise", "crimson", "azure", "jade", "golden", "magenta",
+    "charcoal", "ivory", "amber", "bistre", "indigo", "silver",
+};
+ 
+static const ItemType SCROLL_TYPES[LOOK_COUNT] = {
+    ITEM_SCROLL_IDENTIFY, ITEM_SCROLL_TELEPORTATION, ITEM_SCROLL_REMOVE_CURSE,
+    ITEM_SCROLL_RECHARGING, ITEM_SCROLL_MAGIC_MAPPING, ITEM_SCROLL_CHALLENGE,
+    ITEM_SCROLL_TERROR, ITEM_SCROLL_LULLABY, ITEM_SCROLL_PSIONIC_BLAST,
+    ITEM_SCROLL_MIRROR_IMAGE, ITEM_SCROLL_UPGRADE, ITEM_SCROLL_ENCHANTMENT,
+};
+static const uint8_t SCROLL_LOOK_SPRITES[LOOK_COUNT] = {
+    SPRITE_SCROLL_KAUNAN, SPRITE_SCROLL_SOWILO, SPRITE_SCROLL_LAGUZ,
+    SPRITE_SCROLL_YNGVI, SPRITE_SCROLL_GYFU, SPRITE_SCROLL_RAIDO,
+    SPRITE_SCROLL_ISAZ, SPRITE_SCROLL_MANNAZ, SPRITE_SCROLL_NAUDIZ,
+    SPRITE_SCROLL_BERKANAN, SPRITE_SCROLL_ODAL, SPRITE_SCROLL_TIWAZ,
+};
+static const char *const SCROLL_LOOK_NAMES[LOOK_COUNT] = {
+    "kaunan", "sowilo", "laguz", "yngvi", "gyfu", "raido",
+    "isaz", "mannaz", "naudiz", "berkanan", "odal", "tiwaz",
+};
+ 
+/* Excludes ITEM_WAND_MAGIC_MISSILE — fixed look, never shuffled. */
+static const ItemType WAND_TYPES[LOOK_COUNT] = {
+    ITEM_WAND_TELEPORTATION, ITEM_WAND_SLOWNESS, ITEM_WAND_FIREBOLT,
+    ITEM_WAND_REGROWTH, ITEM_WAND_POISON, ITEM_WAND_BLINK,
+    ITEM_WAND_LIGHTNING, ITEM_WAND_AMOK, ITEM_WAND_REACH,
+    ITEM_WAND_FLOCK, ITEM_WAND_DISINTEGRATION, ITEM_WAND_AVALANCHE,
+};
+static const uint8_t WAND_LOOK_SPRITES[LOOK_COUNT] = {
+    SPRITE_WAND_HOLLY, SPRITE_WAND_YEW, SPRITE_WAND_EBONY,
+    SPRITE_WAND_CHERRY, SPRITE_WAND_TEAK, SPRITE_WAND_ROWAN,
+    SPRITE_WAND_WILLOW, SPRITE_WAND_MAHOGANY, SPRITE_WAND_BAMBOO,
+    SPRITE_WAND_PURPLEHEART, SPRITE_WAND_OAK, SPRITE_WAND_BIRCH,
+};
+static const char *const WAND_LOOK_NAMES[LOOK_COUNT] = {
+    "holly", "yew", "ebony", "cherry", "teak", "rowan",
+    "willow", "mahogany", "bamboo", "purpleheart", "oak", "birch",
+};
+ 
+static const ItemType RING_TYPES[LOOK_COUNT] = {
+    ITEM_RING_MENDING, ITEM_RING_DETECTION, ITEM_RING_SHADOWS,
+    ITEM_RING_POWER, ITEM_RING_HERBALISM, ITEM_RING_ACCURACY,
+    ITEM_RING_EVASION, ITEM_RING_SATIETY, ITEM_RING_HASTE,
+    ITEM_RING_ELEMENTS, ITEM_RING_HAGGLER, ITEM_RING_THORNS,
+};
+static const uint8_t RING_LOOK_SPRITES[LOOK_COUNT] = {
+    SPRITE_RING_DIAMOND, SPRITE_RING_OPAL, SPRITE_RING_GARNET,
+    SPRITE_RING_RUBY, SPRITE_RING_AMETHYST, SPRITE_RING_TOPAZ,
+    SPRITE_RING_ONYX, SPRITE_RING_TOURMALINE, SPRITE_RING_EMERALD,
+    SPRITE_RING_SAPPHIRE, SPRITE_RING_QUARTZ, SPRITE_RING_AGATE,
+};
+static const char *const RING_LOOK_NAMES[LOOK_COUNT] = {
+    "diamond", "opal", "garnet", "ruby", "amethyst", "topaz",
+    "onyx", "tourmaline", "emerald", "sapphire", "quartz", "agate",
+};
+ 
+typedef struct {
+    ItemCategory       cat;
+    const ItemType    *types;
+    const uint8_t      *sprites;
+    const char *const  *names;
+    const char         *suffix;   /* "potion" / "scroll" / "wand" / "ring" */
+} ShuffledCategory;
+ 
+static const ShuffledCategory SHUFFLED[] = {
+    { ITEMCAT_POTION, POTION_TYPES, POTION_LOOK_SPRITES, POTION_LOOK_NAMES, "potion" },
+    { ITEMCAT_SCROLL, SCROLL_TYPES, SCROLL_LOOK_SPRITES, SCROLL_LOOK_NAMES, "scroll" },
+    { ITEMCAT_WAND,   WAND_TYPES,   WAND_LOOK_SPRITES,   WAND_LOOK_NAMES,   "wand"   },
+    { ITEMCAT_RING,   RING_TYPES,   RING_LOOK_SPRITES,   RING_LOOK_NAMES,   "ring"   },
+};
+#define N_SHUFFLED (int)(sizeof(SHUFFLED) / sizeof(SHUFFLED[0]))
+ 
+static uint8_t gLookIndex[ITEM_TYPE_COUNT]; /* which of the 12 looks this type shows as   */
+static uint8_t gKnown[ITEM_TYPE_COUNT];     /* has the player identified this type yet?   */
+static int     gStatusReady = 0;
+ 
+static const ShuffledCategory *shuffled_category_for(ItemType type) {
+    if (type == ITEM_WAND_MAGIC_MISSILE) return NULL; /* fixed look, never hidden */
+    ItemCategory cat = ITEM_DB[type].cat;
+    for (int i = 0; i < N_SHUFFLED; i++) {
+        if (SHUFFLED[i].cat == cat) return &SHUFFLED[i];
+    }
+    return NULL;
+}
+ 
+static void shuffle_looks(const ShuffledCategory *sc) {
+    uint8_t perm[LOOK_COUNT];
+    for (int i = 0; i < LOOK_COUNT; i++) perm[i] = (uint8_t)i;
+    for (int i = LOOK_COUNT - 1; i > 0; i--) {
+        int j = rng_int(i + 1);
+        uint8_t tmp = perm[i]; perm[i] = perm[j]; perm[j] = tmp;
+    }
+    for (int i = 0; i < LOOK_COUNT; i++) {
+        gLookIndex[sc->types[i]] = perm[i];
+    }
+}
+ 
+void item_status_reset(void) {
+    memset(gKnown, 0, sizeof(gKnown));
+    for (int i = 0; i < N_SHUFFLED; i++) shuffle_looks(&SHUFFLED[i]);
+    gStatusReady = 1;
+}
+ 
+static void ensure_status_ready(void) {
+    if (!gStatusReady) item_status_reset();
+}
+ 
+void item_status_know(ItemType type) {
+    ensure_status_ready();
+    const ShuffledCategory *sc = shuffled_category_for(type);
+    if (!sc) return;
+ 
+    gKnown[type] = 1;
+ 
+    /* Elimination: once every other member of the category is known,
+       the last one is obvious too — same deduction
+       ItemStatusHandler.know() makes. */
+    int unknown_idx = -1, unknown_count = 0;
+    for (int i = 0; i < LOOK_COUNT; i++) {
+        if (!gKnown[sc->types[i]]) { unknown_idx = i; unknown_count++; }
+    }
+    if (unknown_count == 1) {
+        gKnown[sc->types[unknown_idx]] = 1;
+    }
+}
+ 
+int item_status_is_known(ItemType type) {
+    ensure_status_ready();
+    const ShuffledCategory *sc = shuffled_category_for(type);
+    return sc ? gKnown[type] : 1;
+}
+ 
+void item_display_sprite(ItemType type, uint8_t *out_col, uint8_t *out_row) {
+    ensure_status_ready();
+    const ShuffledCategory *sc = shuffled_category_for(type);
+ 
+    if (!sc || gKnown[type]) {
+        *out_col = ITEM_DB[type].sprite_col;
+        *out_row = ITEM_DB[type].sprite_row;
+        return;
+    }
+ 
+    uint8_t sprite = sc->sprites[gLookIndex[type]];
+    *out_col = sprite % ITEMS_SHEET_COLS;
+    *out_row = sprite / ITEMS_SHEET_COLS;
+}
+ 
+const char *item_display_name(const ItemStack *stack, char *buf, size_t bufsz) {
+    ensure_status_ready();
+    ItemType type = stack->type;
+    const ShuffledCategory *sc = shuffled_category_for(type);
+ 
+    if (sc && !gKnown[type]) {
+        snprintf(buf, bufsz, "%s %s", sc->names[gLookIndex[type]], sc->suffix);
+        return buf;
+    }
+ 
+    if (stack->level_known && stack->level != 0) {
+        snprintf(buf, bufsz, "%s%+d%s", item_name(type), stack->level,
+                  item_visibly_cursed(stack) ? " (cursed)" : "");
+    } else {
+        snprintf(buf, bufsz, "%s%s", item_name(type),
+                  item_visibly_cursed(stack) ? " (cursed)" : "");
+    }
+    return buf;
+}
+ 
