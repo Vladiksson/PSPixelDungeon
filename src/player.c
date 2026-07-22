@@ -1,5 +1,4 @@
 #include "player.h"
-#include <stdlib.h> /* qsort — player_sort_inventory */
 
 /*═══════════════════════════════════════════════════════════════
     Animation data
@@ -41,8 +40,18 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->frame_clock = 0.0f;
     p->anim_done   = 0;
 
-    p->num_inventory = 0;
-    p->gold          = 0;
+    p->gold = 0;
+
+    /* Every bag starts cleared/unowned with its type tag set, then
+       the backpack is switched on — it's the one bag the hero always
+       starts with (mirrors Belongings' constructor always building a
+       backpack Bag, while SeedPouch/ScrollHolder/WandHolster/Keyring
+       stay null until bought). */
+    for (int t = 0; t < BAG_TYPE_COUNT; t++) {
+        p->bags[t].type = (BagType)t;
+        bag_clear(&p->bags[t]);
+    }
+    bag_init(&p->bags[BAG_BACKPACK], BAG_BACKPACK);
 
     p->weapon = item_stack_none();
     p->armor  = item_stack_none();
@@ -134,24 +143,12 @@ static ItemStack *equip_slot_ptr(Player *p, EquipSlot slot) {
     }
 }
 
-static void inventory_remove_slot(Player *p, int slot) {
-    for (int i = slot; i < p->num_inventory - 1; i++) {
-        p->inventory[i] = p->inventory[i + 1];
-    }
-    p->num_inventory--;
-}
-
-static int item_type_cmp(const void *a, const void *b) {
-    ItemType ta = ((const ItemStack *)a)->type;
-    ItemType tb = ((const ItemStack *)b)->type;
-    return (int)ta - (int)tb;
-}
-
 static int player_use_key(Player *p, ItemType key) {
-    int slot = player_find_item(p, key);
-    if (slot < 0)
+    Bag *bag = NULL;
+    int slot = -1;
+    if (!player_locate_item(p, key, &bag, &slot))
         return 0;
-    return player_remove_item(p, slot, 1);
+    return bag_remove_item(bag, slot, 1);
 }
 /*═══════════════════════════════════════════════════════════════
     Inventory management
@@ -161,19 +158,21 @@ int player_add_stack(Player *p, ItemStack stack) {
         p->gold += stack.quantity;
         return 1;
     }
-    if (ITEM_DB[stack.type].stackable) {
-        for (int i = 0; i < p->num_inventory; i++) {
-            if (p->inventory[i].type == stack.type) {
-                p->inventory[i].quantity += stack.quantity;
-                return 1;
-            }
-        }
-    }
-    if (p->num_inventory >= BACKPACK_SLOTS) return 0;
 
-    p->inventory[p->num_inventory] = stack;
-    p->num_inventory++;
-    return 1;
+    /* A bag Item (Seed Pouch, Scroll Holder, Magical Holster, Keyring)
+       doesn't take a slot — picking one up activates the matching
+       satellite container instead. */
+    int granted = bag_type_for_item(stack.type);
+    if (granted >= 0) {
+        return player_acquire_bag(p, (BagType)granted);
+    }
+
+    /* Route into whichever owned bag accepts this item type — a
+       specialty pouch if one matches, the backpack otherwise. Same
+       as Item.collect() checking the container for a sub-Bag whose
+       grab() matches, in the original game. */
+    Bag *bag = player_bag_for_item(p, stack.type);
+    return bag_add_stack(bag, stack);
 }
 
 int player_add_item(Player *p, ItemType type, int quantity) {
@@ -183,34 +182,25 @@ int player_add_item(Player *p, ItemType type, int quantity) {
 }
 
 int player_remove_item(Player *p, int slot, int quantity) {
-    if (slot < 0 || slot >= p->num_inventory || quantity <= 0) return 0;
-    if (p->inventory[slot].quantity < quantity) return 0;
-
-    p->inventory[slot].quantity -= quantity;
-
-    if (p->inventory[slot].quantity == 0) {
-        inventory_remove_slot(p, slot);
-    }
-    return 1;
+    return bag_remove_item(&p->bags[BAG_BACKPACK], slot, quantity);
 }
 
 int player_find_item(const Player *p, ItemType type) {
-    for (int i = 0; i < p->num_inventory; i++) {
-        if (p->inventory[i].type == type) return i;
-    }
-    return -1;
+    return bag_find_item(&p->bags[BAG_BACKPACK], type);
 }
 
 void player_sort_inventory(Player *p) {
-    qsort(p->inventory, (size_t)p->num_inventory, sizeof(ItemStack), item_type_cmp);
+    bag_sort(&p->bags[BAG_BACKPACK]);
 }
+
 /*═══════════════════════════════════════════════════════════════
     Equipment
 ═══════════════════════════════════════════════════════════════*/
 int player_equip_item(Player *p, int slot) {
-    if (slot < 0 || slot >= p->num_inventory) return 0;
+    Bag *backpack = &p->bags[BAG_BACKPACK];
+    if (slot < 0 || slot >= backpack->count) return 0;
 
-    ItemStack incoming = p->inventory[slot];
+    ItemStack incoming = backpack->items[slot];
     ItemCategory cat = ITEM_DB[incoming.type].cat;
 
     EquipSlot target;
@@ -239,7 +229,7 @@ int player_equip_item(Player *p, int slot) {
 
     /* Take one unit out of the backpack first, so a swap has the
        slot it needs to put the old gear back into. */
-    if (!player_remove_item(p, slot, 1)) return 0;
+    if (!bag_remove_item(backpack, slot, 1)) return 0;
 
     if (dst->type != ITEM_NONE) {
         if (!player_add_stack(p, *dst)) {
@@ -290,6 +280,74 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
 }
 
 /*═══════════════════════════════════════════════════════════════
+    Bags
+═══════════════════════════════════════════════════════════════*/
+int player_acquire_bag(Player *p, BagType type) {
+    if (type <= BAG_BACKPACK || type >= BAG_TYPE_COUNT) return 0;
+
+    Bag *bag = &p->bags[type];
+    if (bag->capacity > 0) return 1; /* already own one — no-op, not a reset */
+
+    bag_init(bag, type);
+
+    /* Absorb any matching items already loose in the backpack — same
+       as Bag.collect() reaching back into the container it just
+       joined, in the original game. */
+    Bag *backpack = &p->bags[BAG_BACKPACK];
+    int i = 0;
+    while (i < backpack->count) {
+        if (bag_add_stack(bag, backpack->items[i])) {
+            bag_remove_item(backpack, i, backpack->items[i].quantity);
+        } else {
+            i++;
+        }
+    }
+    return 1;
+}
+
+Bag *player_get_bag(Player *p, BagType type) {
+    if (type < 0 || type >= BAG_TYPE_COUNT) return NULL;
+    return (p->bags[type].capacity > 0) ? &p->bags[type] : NULL;
+}
+
+Bag *player_bag_for_item(Player *p, ItemType item_type) {
+    for (int t = BAG_SEED_POUCH; t < BAG_TYPE_COUNT; t++) {
+        Bag *bag = &p->bags[t];
+        if (bag->capacity > 0 && bag_grabs(bag->type, item_type)) {
+            return bag;
+        }
+    }
+    return &p->bags[BAG_BACKPACK]; /* general storage — always owned */
+}
+
+int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
+    for (int t = 0; t < BAG_TYPE_COUNT; t++) {
+        Bag *bag = &p->bags[t];
+        if (bag->capacity == 0) continue;
+
+        int slot = bag_find_item(bag, type);
+        if (slot >= 0) {
+            if (out_bag)  *out_bag  = bag;
+            if (out_slot) *out_slot = slot;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
+    if (!bag || slot < 0 || slot >= bag->count) return 0;
+
+    Heap *h = heap_at_for_drop(lvl, p->x, p->y);
+    if (!h) return 0;
+
+    ItemStack stack = bag->items[slot];
+    if (!heap_add_stack(h, stack)) return 0;
+
+    return bag_remove_item(bag, slot, stack.quantity);
+}
+
+/*═══════════════════════════════════════════════════════════════
     Ground interaction
 ═══════════════════════════════════════════════════════════════*/
 int player_pickup(Player *p, Level *lvl) {
@@ -307,7 +365,7 @@ int player_pickup(Player *p, Level *lvl) {
 
     ItemStack top = h->items[0];
     if (!player_add_stack(p, top)) {
-        return 0; /* backpack full — leave it on the ground, don't lose it */
+        return 0; /* nowhere to put it — leave it on the ground, don't lose it */
     }
 
     for (int i = 1; i < h->count; i++) {
@@ -322,16 +380,7 @@ int player_pickup(Player *p, Level *lvl) {
 }
 
 int player_drop_item(Player *p, Level *lvl, int slot) {
-    if (slot < 0 || slot >= p->num_inventory) return 0;
-
-    Heap *h = heap_at_for_drop(lvl, p->x, p->y);
-    if (!h) return 0;
-
-    ItemStack stack = p->inventory[slot];
-    if (!heap_add_stack(h, stack)) return 0;
-
-    inventory_remove_slot(p, slot);
-    return 1;
+    return player_drop_from_bag(p, lvl, &p->bags[BAG_BACKPACK], slot);
 }
 
 /*═══════════════════════════════════════════════════════════════

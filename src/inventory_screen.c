@@ -1,5 +1,6 @@
 #include "inventory_screen.h"
 #include "chrome.h"
+#include "icons.h"
 #include <stdio.h>
 
 /* ── Layout ───────────────────────────────────────────── */
@@ -33,6 +34,20 @@
 #define EQUIP_PANEL_X (INV_GRID_X + GRID_W + PANEL_GAP)
 #define EQUIP_PANEL_Y INV_GRID_Y
 
+/* Bag tab strip — one square per owned bag, stacked in the panel's
+   left margin (INV_GRID_X leaves a bit of room to spare there, since
+   the grid+gap+equip-panel block is centered with margin on both
+   sides). Placement is derived from the grid macros above rather
+   than SCREEN_W directly, so it should hold up if those change —
+   still worth eyeballing on real hardware/an emulator since it can't
+   be rendered from here. */
+#define BAG_COLS      4     /* seed pouch (8) and the 12-slot bags all divide evenly */
+#define BAG_TAB_SIZE  18
+#define BAG_TAB_GAP    1
+#define BAG_TABS_X    (INV_GRID_X - BAG_TAB_GAP - BAG_TAB_SIZE)
+#define BAG_TABS_Y    INV_GRID_Y
+ 
+
 #define ICON_SIZE 16
 
 /* ── Palette  ──────────── */
@@ -47,28 +62,34 @@ static const SDL_Color COL_SLOT_UNKNOWN     = { 0x40, 0x46, 0x5B, 0xFF };
 static const SDL_Color COL_SLOT_GOLD        = { 0x3a, 0x30, 0x24, 0xFF };
 
 
-void inventory_ui_open (InventoryUI *ui) { ui->open = 1; ui->cursor = 0; }
+void inventory_ui_open (InventoryUI *ui) { ui->open = 1; ui->cursor = 0; ui->active_bag = BAG_BACKPACK; }
 void inventory_ui_close(InventoryUI *ui) { ui->open = 0; }
-
+ 
 void inventory_ui_move(InventoryUI *ui, int dx, int dy) {
-    if (ui->cursor < MAX_INVENTORY) {
-        int col = ui->cursor % INV_COLS;
-        int row = ui->cursor / INV_COLS;
-        if (dx > 0 && col == INV_COLS - 1) {
-            ui->cursor = CURSOR_WEAPON + row;
+    int backpack_tab = (ui->active_bag == BAG_BACKPACK);
+    int cols       = backpack_tab ? INV_COLS : BAG_COLS;
+    int rows       = backpack_tab ? INV_ROWS : bag_capacity_for_type(ui->active_bag) / cols;
+    int slot_count = backpack_tab ? MAX_INVENTORY : bag_capacity_for_type(ui->active_bag);
+ 
+    if (ui->cursor < slot_count) {
+        int col = ui->cursor % cols;
+        int row = ui->cursor / cols;
+        if (dx > 0 && col == cols - 1) {
+            int target = CURSOR_WEAPON + row;
+            ui->cursor = (target > CURSOR_RING2) ? CURSOR_RING2 : target;
             return;
         }
         col += dx;
         row += dy;
         if (col < 0)
-            col = INV_COLS - 1;
-        if (col >= INV_COLS)
+            col = cols - 1;
+        if (col >= cols)
             col = 0;
         if (row < 0)
-            row = INV_ROWS - 1;
-        if (row >= INV_ROWS)
+            row = rows - 1;
+        if (row >= rows)
             row = 0;
-        ui->cursor = row * INV_COLS + col;
+        ui->cursor = row * cols + col;
     } else {
         if (dy < 0 && ui->cursor > CURSOR_WEAPON)
             ui->cursor--;
@@ -76,7 +97,33 @@ void inventory_ui_move(InventoryUI *ui, int dx, int dy) {
             ui->cursor++;
         if (dx < 0) {
             int row = ui->cursor - CURSOR_WEAPON;
-            ui->cursor = row * INV_COLS + (INV_COLS - 1);
+            if (row >= rows)
+                row = rows - 1;
+            ui->cursor = row * cols + (cols - 1);
+        }
+    }
+}
+ 
+void inventory_ui_next_tab(InventoryUI *ui, const Player *p) {
+    int t = ui->active_bag;
+    for (int step = 0; step < BAG_TYPE_COUNT; step++) {
+        t = (t + 1) % BAG_TYPE_COUNT;
+        if (p->bags[t].capacity > 0) {
+            ui->active_bag = (BagType)t;
+            ui->cursor = 0;
+            return;
+        }
+    }
+}
+ 
+void inventory_ui_prev_tab(InventoryUI *ui, const Player *p) {
+    int t = ui->active_bag;
+    for (int step = 0; step < BAG_TYPE_COUNT; step++) {
+        t = (t - 1 + BAG_TYPE_COUNT) % BAG_TYPE_COUNT;
+        if (p->bags[t].capacity > 0) {
+            ui->active_bag = (BagType)t;
+            ui->cursor = 0;
+            return;
         }
     }
 }
@@ -97,6 +144,16 @@ static void draw_text(RenderCtx *ctx, int x, int y, SDL_Color c, const char *s) 
     }
     font_draw_text(ctx->renderer, font, x, y, 1, s);
 }
+
+static void draw_icon(RenderCtx *ctx, IconId icon, int x, int y, int size) {
+    uint8_t sx, sy, sw, sh;
+    icon_sprite(icon, &sx, &sy, &sw, &sh);
+
+    SDL_Rect src = { sx, sy, sw, sh };
+    SDL_Rect dst = { x + (size - sw) / 2, y + (size - sh) / 2, sw, sh };
+    SDL_RenderCopy(ctx->renderer, ctx->icons, &src, &dst);
+}
+
 
 static void draw_item_icon(RenderCtx *ctx, ItemStack stack, int x, int y, int size) {
     if (stack.type == ITEM_NONE)
@@ -178,33 +235,56 @@ static void draw_equip_slot(RenderCtx *ctx, int x, int y, int size, ItemStack st
     }
 }
 
+static void draw_bag_tabs(RenderCtx *ctx, const Player *p, BagType active) {
+    for (int t = 0; t < BAG_TYPE_COUNT; t++) {
+        if (p->bags[t].capacity == 0)
+            continue; /* not owned yet — no tab */
+        
+        NinePatch tab_set = (t == (int)active) ? chrome_tab_selected(ctx->chrome) : chrome_tab_unselected(ctx->chrome);
+        ninepatch_draw(ctx->renderer, &tab_set, 120+BAG_TAB_GAP+t*(BAG_TAB_SIZE+5*BAG_TAB_GAP), 200+BAG_TAB_GAP, 24, BAG_TAB_SIZE);
+
+        draw_icon(ctx, bag_icon((BagType)t), 120+4*BAG_TAB_GAP+t*(BAG_TAB_SIZE+5*BAG_TAB_GAP), 200-BAG_TAB_GAP, BAG_TAB_SIZE);
+    }
+}
+
 void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
     if (!ui->open) return;
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
-
-    NinePatch tab_set = chrome_tab_set(ctx->chrome);
+ 
+    NinePatch tab_set = chrome_toast(ctx->chrome);
     ninepatch_draw(ctx->renderer, &tab_set, 120, 16, SCREEN_W - 240, SCREEN_H - 80);
-
-    draw_text(ctx, INV_GRID_X, INV_GRID_Y - PANEL_GAP, COL_TEXT, "EBAnuY RoT SRANOGO OLEGA");
-
-    /* Backpack grid */
-    for (int i = 0; i < MAX_INVENTORY; i++) {
-        int col = i % INV_COLS;
-        int row = i / INV_COLS;
+ 
+    int backpack_tab = (ui->active_bag == BAG_BACKPACK);
+    int grid_cols     = backpack_tab ? INV_COLS : BAG_COLS;
+    int slot_count    = backpack_tab ? MAX_INVENTORY : bag_capacity_for_type(ui->active_bag);
+    const Bag *bag    = &p->bags[ui->active_bag];
+ 
+    draw_text(ctx, INV_GRID_X, INV_GRID_Y - PANEL_GAP, COL_TEXT,
+              backpack_tab ? "EBAnuY RoT SRANOGO OLEGA" : bag_name(ui->active_bag));
+              
+    draw_bag_tabs(ctx, p, ui->active_bag);
+    /* Active bag's grid — the backpack is bags[BAG_BACKPACK], same
+       storage as every other tab now, just with its own established
+       5x4 layout plus the dedicated gold-display cell. */
+    for (int i = 0; i < slot_count; i++) {
+        int col = i % grid_cols;
+        int row = i / grid_cols;
         int x = INV_GRID_X + col * (INV_SLOT + INV_GAP);
         int y = INV_GRID_Y + row * (INV_SLOT + INV_GAP);
 
         ItemStack stack = item_stack_none();
-        if (i == GOLD_SLOT) {
+        if (backpack_tab && i == GOLD_SLOT) {
             stack.type = ITEM_GOLD;
             stack.quantity = p->gold;
-        } else if (i < p->num_inventory) {
-            stack = p->inventory[i];
+        } else if (i < bag->count) {
+            stack = bag->items[i];
         }
         draw_slot(ctx, x, y, INV_SLOT, stack, i == ui->cursor);
     }
 
-    /* Equip panel */
+    /* Equip panel — always visible regardless of which tab is active,
+       same as the equipped-item slots always showing at the top of
+       WndBag's grid no matter which bag it's displaying. */
     draw_equip_slot(ctx, EQUIP_PANEL_X, EQUIP_PANEL_Y + 0 * (EQUIP_SLOT + EQUIP_GAP), EQUIP_SLOT, p->weapon, SPRITE_WEAPON, ui->cursor == CURSOR_WEAPON);
     draw_equip_slot(ctx, EQUIP_PANEL_X, EQUIP_PANEL_Y + 1 * (EQUIP_SLOT + EQUIP_GAP), EQUIP_SLOT, p->armor,  SPRITE_ARMOR,  ui->cursor == CURSOR_ARMOR );
     draw_equip_slot(ctx, EQUIP_PANEL_X, EQUIP_PANEL_Y + 2 * (EQUIP_SLOT + EQUIP_GAP), EQUIP_SLOT, p->ring1,  SPRITE_RING,   ui->cursor == CURSOR_RING1 );
@@ -212,13 +292,13 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
 
     
     ItemStack stack = item_stack_none();
-
-    if (ui->cursor < MAX_INVENTORY) {
-        if (ui->cursor == GOLD_SLOT ) {
+ 
+    if (ui->cursor < slot_count) {
+        if (backpack_tab && ui->cursor == GOLD_SLOT ) {
             stack.type = ITEM_GOLD;
             stack.quantity = p->gold;
-        } else if (ui->cursor < p->num_inventory) {
-            stack = p->inventory[ui->cursor];
+        } else if (ui->cursor < bag->count) {
+            stack = bag->items[ui->cursor];
         }
     } else {
         switch (ui->cursor) {

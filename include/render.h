@@ -4,6 +4,7 @@
 #include "player.h"
 #include "fov.h"
 #include "font.h"
+#include "icons.h"
 #include <SDL2/SDL.h>
 
 /* ── RenderCtx ───────────────────────────────────────── */
@@ -32,6 +33,8 @@ typedef struct {
 
    /*ui textures (from Chrome.java)*/
    SDL_Texture *chrome;
+   /*ui/hud icons*/
+   SDL_Texture *icons;
    
    DungeonTheme  active_theme;
 } RenderCtx;

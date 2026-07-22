@@ -1,5 +1,6 @@
 #pragma once
 #include "level.h"
+#include "bag.h"
 
 #define HERO_W 12
 #define HERO_H 15
@@ -47,10 +48,9 @@ typedef struct {
 extern const AnimClip HERO_CLIPS[ANIM_COUNT];
 
 /* ── Equip slots ───────────────────────────────────────
-   Mirrors Belongings.java's weapon/armor/ring1/ring2 fields (minus
-   the backpack, which stays a flat array on Player — see inventory[]
-   below). Two ring slots exist because the original lets the hero
-   wear two rings at once. */
+   Mirrors Belongings.java's weapon/armor/ring1/ring2 fields. Two ring
+   slots exist because the original lets the hero wear two rings at
+   once. */
 typedef enum {
     EQUIP_WEAPON,
     EQUIP_ARMOR,
@@ -68,14 +68,20 @@ typedef struct {
     float     frame_clock; /* seconds accumulated toward the next frame */
     int       anim_done;   /* 1 once a non-looping clip has played out  */
 
-    ItemStack inventory[BACKPACK_SLOTS]; /* backpack (unequipped items)  */
-    int       num_inventory;
-    int       gold;
+    /* All storage — the backpack included — lives here. bags[BAG_
+       BACKPACK] is set up in player_init() and always owned; it's
+       what used to be a flat inventory[]/num_inventory pair, and now
+       holds everything the four specialty pouches
+       (bags[BAG_SEED_POUCH..BAG_KEYRING]) don't. Those four start at
+       capacity == 0 (not owned) until player_acquire_bag() grants
+       one. See bag.h. */
+    Bag bags[BAG_TYPE_COUNT];
+    int gold;   /* never an ItemStack — tracked separately, same as before */
 
-    /* Equipped gear. ITEM_NONE means the slot is empty. An equipped
-       item is NOT also present in inventory[] — equipping moves it
-       out of the backpack, same as the original where Belongings'
-       weapon/armor/ring1/ring2 are separate from the backpack Bag. */
+    /* Equipped gear. ITEM_NONE means the slot is empty. Equipping
+       moves an item out of bags[BAG_BACKPACK] into one of these,
+       same as the original where Belongings' weapon/armor/ring1/
+       ring2 are separate from the backpack Bag. */
     ItemStack weapon;
     ItemStack armor;
     ItemStack ring1;
@@ -102,19 +108,25 @@ int player_operate(Player *p, Level *lvl);
 
 int player_is_busy(const Player *p);
 
-/* Add a picked-up stack to the backpack (gold just increments p->gold;
-   stackable kinds merge into an existing slot; otherwise a new slot is
-   used). Returns 0 if the backpack is full and the item is dropped. */
+/* Add a freshly-generated stack of `type` to wherever it belongs: gold
+   increments p->gold; picking up a bag Item (Seed Pouch, Scroll
+   Holder, Magical Holster, Keyring) activates that satellite
+   container instead of taking a slot; anything else lands in the
+   owned bag that accepts it, or the backpack otherwise. Returns 0 if
+   that landing spot turns out to be full. */
 int player_add_item(Player *p, ItemType type, int quantity);
 
 /* Same as player_add_item, but takes an already-built ItemStack and
    adds it as-is — no fresh roll, no reset. This is what
    player_pickup and player_unequip use, so a +2 cursed ring found on
    the ground (or just taken off) keeps being a +2 cursed ring once
-   it's in the backpack. */
+   it's put away. */
 int player_add_stack(Player *p, ItemStack stack);
 
-/* ── Backpack / ground / equip ─────────────────────────────────*/
+/* ── Backpack / ground / equip ─────────────────────────────────
+   "Backpack" below always means bags[BAG_BACKPACK] specifically —
+   for the specialty pouches, use the Bag-scoped functions in the
+   Bags section further down. */
 
 int player_pickup(Player *p, Level *lvl);
 
@@ -128,5 +140,42 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 
 void player_sort_inventory(Player *p);
 
-/* Backpack slot holding `type`, or -1 if none. */
+/* Backpack slot holding `type`, or -1 if none. Only looks in
+   bags[BAG_BACKPACK] — see player_locate_item to also check the
+   specialty pouches. */
 int player_find_item(const Player *p, ItemType type);
+
+/* ── Bags ─────────────────────────────────────────────────────
+   The backpack itself (bags[BAG_BACKPACK]) is reachable through
+   these too — see bag.h. */
+
+/* Grant the player a specialty bag (e.g. after picking one up as
+   loot): sets its capacity and absorbs any matching items already
+   loose in the backpack into it, mirroring Bag.collect() reaching
+   back into the container it just joined, in the original game.
+   Returns 0 for BAG_BACKPACK (already set up in player_init) or an
+   out-of-range type; 1 (no-op, doesn't reset it) if the player
+   already owns that bag. */
+int player_acquire_bag(Player *p, BagType type);
+
+/* Bag of this type, or NULL if the player doesn't own it yet.
+   bags[BAG_BACKPACK] is always owned, so BAG_BACKPACK never
+   returns NULL. */
+Bag *player_get_bag(Player *p, BagType type);
+
+/* Owned bag that `item_type` should land in — a specialty pouch if
+   one accepts it, otherwise the backpack. Used to route newly
+   collected items, same as Item.collect() checking the container for
+   a sub-Bag whose grab() matches, in the original game. Never NULL. */
+Bag *player_bag_for_item(Player *p, ItemType item_type);
+
+/* Find `type` anywhere the player is carrying it — the backpack or
+   any owned specialty pouch. Returns 1 and sets *out_bag*out_slot if
+   found (out_bag is never NULL on success). Used so e.g. a key filed
+   into the Keyring still works for unlocking doors. */
+int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot);
+
+/* Drop one stack out of any bag onto the tile the player is standing
+   on. player_drop_item above is the bags[BAG_BACKPACK]-only shorthand
+   for this. */
+int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot);

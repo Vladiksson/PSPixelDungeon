@@ -104,8 +104,10 @@ int render_init(RenderCtx *ctx, const char *assets_dir) {
     ctx->items = load_tex(ctx->renderer, assets_dir, ASSET_ITEMS);
     /*fonts*/
     init_font(&ctx->font, ctx->renderer, assets_dir);
-    /*chrome*/
+    /*chrome ui*/
     ctx->chrome = load_tex(ctx->renderer, assets_dir, ASSET_CHROME);
+    /*icons*/
+    ctx->icons = load_tex(ctx->renderer, assets_dir, ASSET_ICONS);
 
     return 0;
 }
@@ -133,6 +135,7 @@ void render_free(RenderCtx *ctx) {
     font_free(&ctx->font);
 
     if (ctx->chrome) SDL_DestroyTexture(ctx->chrome);
+    if (ctx->icons) SDL_DestroyTexture(ctx->icons);
 
     if (ctx->renderer) {
         SDL_DestroyRenderer(ctx->renderer);

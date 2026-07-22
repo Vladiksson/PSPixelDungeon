@@ -20,6 +20,8 @@ add_executable(${PROJECT_NAME}
     src/inventory_screen.c
     src/font.c
     src/chrome.c
+    src/bag.c
+    src/icons.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O2 -G0 -Wall)

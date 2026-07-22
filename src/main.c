@@ -147,6 +147,10 @@ int main(int argc, char *argv[]) {
                 player_drop_item(&player, lvl, inv.cursor);
             if (btn_pressed(&inp, BTN_X))
                 player_sort_inventory(&player);
+            if (btn_pressed(&inp, BTN_R))
+                inventory_ui_next_tab(&inv, &player);
+            if (btn_pressed(&inp, BTN_L))
+                inventory_ui_prev_tab(&inv, &player);
 
         } else {
             /* Player movement — d-pad */
