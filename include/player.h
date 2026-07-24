@@ -69,12 +69,12 @@ typedef struct {
     int       anim_done;   /* 1 once a non-looping clip has played out  */
 
     /* All storage — the backpack included — lives here. bags[BAG_
-       BACKPACK] is set up in player_init() and always owned; it's
-       what used to be a flat inventory[]/num_inventory pair, and now
-       holds everything the four specialty pouches
-       (bags[BAG_SEED_POUCH..BAG_KEYRING]) don't. Those four start at
-       capacity == 0 (not owned) until player_acquire_bag() grants
-       one. See bag.h. */
+       BACKPACK] is set up in player_init() and always present; a
+       specialty pouch's own Item sits in there like any other item
+       once picked up (droppable, sellable, takes a slot — see
+       bag.h), while bags[BAG_SEED_POUCH..BAG_KEYRING] hold that
+       pouch's actual CONTENTS. See player_has_bag() below for how
+       "do I currently have this pouch" is tracked. */
     Bag bags[BAG_TYPE_COUNT];
     int gold;   /* never an ItemStack — tracked separately, same as before */
 
@@ -109,11 +109,13 @@ int player_operate(Player *p, Level *lvl);
 int player_is_busy(const Player *p);
 
 /* Add a freshly-generated stack of `type` to wherever it belongs: gold
-   increments p->gold; picking up a bag Item (Seed Pouch, Scroll
-   Holder, Magical Holster, Keyring) activates that satellite
-   container instead of taking a slot; anything else lands in the
-   owned bag that accepts it, or the backpack otherwise. Returns 0 if
-   that landing spot turns out to be full. */
+   increments p->gold; anything else lands in whichever owned pouch
+   accepts it, or the backpack otherwise (same slot-taking rules as
+   any item). Picking up a bag Item (Seed Pouch, Scroll Holder,
+   Magical Holster, Keyring) additionally brings that pouch's contents
+   storage online — or, if it's already been discovered before,
+   sweeps in anything of its kind that piled up loose while it was
+   dropped. Returns 0 if there was nowhere to put it. */
 int player_add_item(Player *p, ItemType type, int quantity);
 
 /* Same as player_add_item, but takes an already-built ItemStack and
@@ -142,40 +144,44 @@ void player_sort_inventory(Player *p);
 
 /* Backpack slot holding `type`, or -1 if none. Only looks in
    bags[BAG_BACKPACK] — see player_locate_item to also check the
-   specialty pouches. */
+   specialty pouches the player currently has on them. */
 int player_find_item(const Player *p, ItemType type);
 
 /* ── Bags ─────────────────────────────────────────────────────
-   The backpack itself (bags[BAG_BACKPACK]) is reachable through
-   these too — see bag.h. */
+   A pouch's tab (see inventory_screen.c) is meant to track physical
+   possession, not just "have I ever found one" — these functions
+   read that state straight from the backpack rather than from a
+   separate owned/not-owned flag. */
 
-/* Grant the player a specialty bag (e.g. after picking one up as
-   loot): sets its capacity and absorbs any matching items already
-   loose in the backpack into it, mirroring Bag.collect() reaching
-   back into the container it just joined, in the original game.
-   Returns 0 for BAG_BACKPACK (already set up in player_init) or an
-   out-of-range type; 1 (no-op, doesn't reset it) if the player
-   already owns that bag. */
-int player_acquire_bag(Player *p, BagType type);
+/* Does the player currently have this bag on them? Always true for
+   BAG_BACKPACK. For a specialty pouch, true exactly when its own Item
+   (bag_item_type(type)) is sitting somewhere in bags[BAG_BACKPACK] —
+   drop it and this goes false; pick it back up and it goes true
+   again, with the pouch's contents untouched the whole time. */
+int player_has_bag(const Player *p, BagType type);
 
-/* Bag of this type, or NULL if the player doesn't own it yet.
-   bags[BAG_BACKPACK] is always owned, so BAG_BACKPACK never
-   returns NULL. */
+/* Bag of this type if the player currently has it on them, else
+   NULL. Shorthand for "player_has_bag(p, type) ? &p->bags[type] :
+   NULL". */
 Bag *player_get_bag(Player *p, BagType type);
 
 /* Owned bag that `item_type` should land in — a specialty pouch if
-   one accepts it, otherwise the backpack. Used to route newly
-   collected items, same as Item.collect() checking the container for
-   a sub-Bag whose grab() matches, in the original game. Never NULL. */
+   the player currently has one that accepts it, otherwise the
+   backpack. Used to route newly collected items, same as
+   Item.collect() checking the container for a sub-Bag whose grab()
+   matches, in the original game. Never NULL. */
 Bag *player_bag_for_item(Player *p, ItemType item_type);
 
 /* Find `type` anywhere the player is carrying it — the backpack or
-   any owned specialty pouch. Returns 1 and sets *out_bag*out_slot if
-   found (out_bag is never NULL on success). Used so e.g. a key filed
-   into the Keyring still works for unlocking doors. */
+   any specialty pouch currently on them. Returns 1 and sets
+   *out_bag*out_slot if found (out_bag is never NULL on success).
+   Used so e.g. a key filed into the Keyring still works for unlocking
+   doors, as long as the Keyring itself hasn't been dropped. */
 int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot);
 
 /* Drop one stack out of any bag onto the tile the player is standing
    on. player_drop_item above is the bags[BAG_BACKPACK]-only shorthand
-   for this. */
+   for this — dropping a pouch's own Item is just a normal
+   player_drop_item/player_drop_from_bag call on its backpack slot,
+   nothing bag-specific needed for that. */
 int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot);

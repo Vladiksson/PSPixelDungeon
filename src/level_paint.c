@@ -69,45 +69,91 @@ static int shop_xy2p(Room *room, int x, int y){
     }
 }
 
-static ItemType shop_random_item(int depth){ //TODO check original .java
+#define SHOP_ITEM_COUNT 15
+
+static void shop_build_inventory(ItemType items[SHOP_ITEM_COUNT], int depth){
+    int n = 0;
+
     switch(depth){
-        case 5:
-            switch(rng_int(2)){
-                case 0: return ITEM_QUARTERSTAFF;
-                default: return ITEM_SPEAR;
-            }
-        case 10:
-            switch(rng_int(2)){
-                case 0: return ITEM_SWORD;
-                default: return ITEM_MACE;
-            }
-        case 15:
-            switch(rng_int(2)){
-                case 0: return ITEM_LONGSWORD;
-                default: return ITEM_BATTLE_AXE;
-            }
-        case 20:
-            switch(rng_int(3)){
-                case 0: return ITEM_GLAIVE;
-                case 1: return ITEM_WAR_HAMMER;
-                default: return ITEM_PLATE_ARMOR;
-            }
+    case 5: // 6-й этаж оригинала
+        items[n++] = rng_int(2) ? ITEM_QUARTERSTAFF : ITEM_SPEAR;
+        items[n++] = ITEM_LEATHER_ARMOR;
+        items[n++] = ITEM_BAG_SEED_POUCH;
+        // items[n++] = ITEM_WEIGHTSTONE;
+        break;
+
+    case 10:
+        items[n++] = rng_int(2) ? ITEM_SWORD : ITEM_MACE;
+        items[n++] = ITEM_MAIL_ARMOR;
+        items[n++] = ITEM_BAG_SCROLL_HOLDER;
+        // items[n++] = ITEM_WEIGHTSTONE;
+        break;
+
+    case 15:
+        items[n++] = rng_int(2) ? ITEM_LONGSWORD : ITEM_BATTLE_AXE;
+        items[n++] = ITEM_SCALE_ARMOR;
+        items[n++] = ITEM_BAG_WAND_HOLSTER;
+        // items[n++] = ITEM_WEIGHTSTONE;
+        break;
+
+    case 20:
+        switch(rng_int(3)){
+        case 0: items[n++] = ITEM_GLAIVE; break;
+        case 1: items[n++] = ITEM_WAR_HAMMER; break;
+        case 2: items[n++] = ITEM_PLATE_ARMOR; break;
+        }
+        // items[n++] = ITEM_TORCH;
+        // items[n++] = ITEM_TORCH;
+        break;
     }
-    return random_item();
+
+    items[n++] = ITEM_POTION_HEALING;
+
+    for(int i=0;i<3;i++)
+        items[n++] = random_item_of_category(ITEMCAT_POTION);
+
+    items[n++] = ITEM_SCROLL_IDENTIFY;
+    items[n++] = ITEM_SCROLL_REMOVE_CURSE;
+    items[n++] = ITEM_SCROLL_MAGIC_MAPPING;
+    items[n++] = random_item_of_category(ITEMCAT_SCROLL);
+
+    items[n++] = ITEM_RATION;
+    items[n++] = ITEM_RATION;
+
+    // items[n++] = ITEM_ANKH;
+
+    while(n < SHOP_ITEM_COUNT)
+        items[n++] = ITEM_RATION;
+}
+
+static void shuffle_items(ItemType *a, int n){//TODO transfer to the item.c
+    for(int i=n-1;i>0;i--){
+        int j = rng_int(i+1);
+        ItemType t = a[i];
+        a[i] = a[j];
+        a[j] = t;
+    }
 }
 
 
-static void place_shop_items(Level *lvl, Room *room, int depth){//REDO
+static void place_shop_items(Level *lvl, Room *room, int depth){
+
     int per = perimeter_length(room);
-    int count = 15;
 
     int pos = shop_xy2p(room, room->door_x[0], room->door_y[0]);
-    pos += (per-count)/2;
+    pos += (per - SHOP_ITEM_COUNT) / 2;
 
-    for (int i=0; i<count; i++) {
-        Point p = shop_p2xy(room, (pos+i)%per);
-        int idx = xy_to_idx(p.x,p.y);
-        spawn_item_heap(lvl, idx, depth, shop_random_item(depth), HEAP_FOR_SALE);
+    ItemType items[SHOP_ITEM_COUNT];
+
+    shop_build_inventory(items, depth);
+    shuffle_items(items, SHOP_ITEM_COUNT);
+
+    for(int i = 0; i < SHOP_ITEM_COUNT; i++){
+
+        Point p = shop_p2xy(room, (pos + i) % per);
+        int idx = xy_to_idx(p.x, p.y);
+
+        spawn_item_heap(lvl, idx, depth, items[i], HEAP_FOR_SALE);
     }
 }
 

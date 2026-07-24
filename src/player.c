@@ -42,11 +42,11 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
 
     p->gold = 0;
 
-    /* Every bag starts cleared/unowned with its type tag set, then
-       the backpack is switched on — it's the one bag the hero always
+    /* Every bag starts cleared with its type tag set, then the
+       backpack is switched on — it's the one bag the hero always
        starts with (mirrors Belongings' constructor always building a
        backpack Bag, while SeedPouch/ScrollHolder/WandHolster/Keyring
-       stay null until bought). */
+       stay uninitialized until their Item is first picked up). */
     for (int t = 0; t < BAG_TYPE_COUNT; t++) {
         p->bags[t].type = (BagType)t;
         bag_clear(&p->bags[t]);
@@ -57,6 +57,11 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->armor  = item_stack_none();
     p->ring1  = item_stack_none();
     p->ring2  = item_stack_none();
+
+
+    /* STARTING ITEMS */
+    player_add_item(p, ITEM_DAGGER, 1);//TEST
+    player_add_item(p, ITEM_BAG_KEYRING, 1);
 }
 
 /*═══════════════════════════════════════════════════════════════
@@ -150,6 +155,35 @@ static int player_use_key(Player *p, ItemType key) {
         return 0;
     return bag_remove_item(bag, slot, 1);
 }
+
+/* Bring a specialty pouch's contents storage online: first time ever
+   (capacity == 0), set it up from scratch; either way, sweep the
+   backpack for anything loose that this pouch accepts. That sweep is
+   what covers both first-time discovery AND picking the pouch back
+   up after it sat dropped somewhere with new matching items piling
+   up loose in the meantime — mirrors Bag.collect() reaching back
+   into the container it just joined, in the original game. Only
+   ever called right after the pouch's own Item has actually been
+   placed in the backpack (see player_add_stack), so player_has_bag()
+   is already true by the time this runs. */
+static void player_acquire_bag(Player *p, BagType type) {
+    if (type <= BAG_BACKPACK || type >= BAG_TYPE_COUNT) return;
+
+    Bag *bag = &p->bags[type];
+    if (bag->capacity == 0) {
+        bag_init(bag, type);
+    }
+
+    Bag *backpack = &p->bags[BAG_BACKPACK];
+    int i = 0;
+    while (i < backpack->count) {
+        if (bag_add_stack(bag, backpack->items[i])) {
+            bag_remove_item(backpack, i, backpack->items[i].quantity);
+        } else {
+            i++;
+        }
+    }
+}
 /*═══════════════════════════════════════════════════════════════
     Inventory management
 ═══════════════════════════════════════════════════════════════*/
@@ -159,20 +193,25 @@ int player_add_stack(Player *p, ItemStack stack) {
         return 1;
     }
 
-    /* A bag Item (Seed Pouch, Scroll Holder, Magical Holster, Keyring)
-       doesn't take a slot — picking one up activates the matching
-       satellite container instead. */
+    /* Route into whichever pouch currently on the player accepts
+       this item type, or the backpack otherwise — same as
+       Item.collect() checking the container for a sub-Bag whose
+       grab() matches, in the original game. A bag Item itself
+       (Seed Pouch, Scroll Holder, Magical Holster, Keyring) is never
+       accepted by another pouch, so it always lands in the backpack,
+       same as any other item. */
+    Bag *bag = player_bag_for_item(p, stack.type);
+    if (!bag_add_stack(bag, stack)) return 0;
+
+    /* If what just landed in the backpack was a pouch's own Item,
+       bring that pouch's contents online (or top it up, if this is a
+       repeat pickup after being dropped). */
     int granted = bag_type_for_item(stack.type);
     if (granted >= 0) {
-        return player_acquire_bag(p, (BagType)granted);
+        player_acquire_bag(p, (BagType)granted);
     }
 
-    /* Route into whichever owned bag accepts this item type — a
-       specialty pouch if one matches, the backpack otherwise. Same
-       as Item.collect() checking the container for a sub-Bag whose
-       grab() matches, in the original game. */
-    Bag *bag = player_bag_for_item(p, stack.type);
-    return bag_add_stack(bag, stack);
+    return 1;
 }
 
 int player_add_item(Player *p, ItemType type, int quantity) {
@@ -282,52 +321,33 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
 /*═══════════════════════════════════════════════════════════════
     Bags
 ═══════════════════════════════════════════════════════════════*/
-int player_acquire_bag(Player *p, BagType type) {
-    if (type <= BAG_BACKPACK || type >= BAG_TYPE_COUNT) return 0;
+int player_has_bag(const Player *p, BagType type) {
+    if (type == BAG_BACKPACK) return 1; /* always on your person */
+    if (type < 0 || type >= BAG_TYPE_COUNT) return 0;
 
-    Bag *bag = &p->bags[type];
-    if (bag->capacity > 0) return 1; /* already own one — no-op, not a reset */
-
-    bag_init(bag, type);
-
-    /* Absorb any matching items already loose in the backpack — same
-       as Bag.collect() reaching back into the container it just
-       joined, in the original game. */
-    Bag *backpack = &p->bags[BAG_BACKPACK];
-    int i = 0;
-    while (i < backpack->count) {
-        if (bag_add_stack(bag, backpack->items[i])) {
-            bag_remove_item(backpack, i, backpack->items[i].quantity);
-        } else {
-            i++;
-        }
-    }
-    return 1;
+    return bag_find_item(&p->bags[BAG_BACKPACK], bag_item_type(type)) >= 0;
 }
 
 Bag *player_get_bag(Player *p, BagType type) {
-    if (type < 0 || type >= BAG_TYPE_COUNT) return NULL;
-    return (p->bags[type].capacity > 0) ? &p->bags[type] : NULL;
+    return player_has_bag(p, type) ? &p->bags[type] : NULL;
 }
 
 Bag *player_bag_for_item(Player *p, ItemType item_type) {
     for (int t = BAG_SEED_POUCH; t < BAG_TYPE_COUNT; t++) {
-        Bag *bag = &p->bags[t];
-        if (bag->capacity > 0 && bag_grabs(bag->type, item_type)) {
-            return bag;
+        if (player_has_bag(p, (BagType)t) && bag_grabs((BagType)t, item_type)) {
+            return &p->bags[t];
         }
     }
-    return &p->bags[BAG_BACKPACK]; /* general storage — always owned */
+    return &p->bags[BAG_BACKPACK]; /* general storage — always available */
 }
 
 int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
     for (int t = 0; t < BAG_TYPE_COUNT; t++) {
-        Bag *bag = &p->bags[t];
-        if (bag->capacity == 0) continue;
+        if (!player_has_bag(p, (BagType)t)) continue;
 
-        int slot = bag_find_item(bag, type);
+        int slot = bag_find_item(&p->bags[t], type);
         if (slot >= 0) {
-            if (out_bag)  *out_bag  = bag;
+            if (out_bag)  *out_bag  = &p->bags[t];
             if (out_slot) *out_slot = slot;
             return 1;
         }
@@ -379,7 +399,7 @@ int player_pickup(Player *p, Level *lvl) {
     return 1;
 }
 
-int player_drop_item(Player *p, Level *lvl, int slot) {
+int player_drop_item(Player *p, Level *lvl, int slot) {//redo as player_drop_from_bag(&player, lvl, &player.bags[inv.active_bag], inv.cursor); for main.c
     return player_drop_from_bag(p, lvl, &p->bags[BAG_BACKPACK], slot);
 }
 

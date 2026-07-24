@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
                 }
             }
             if (btn_pressed(&inp, BTN_Y))
-                player_drop_item(&player, lvl, inv.cursor);
+                player_drop_from_bag(&player, lvl, &player.bags[inv.active_bag], inv.cursor);
             if (btn_pressed(&inp, BTN_X))
                 player_sort_inventory(&player);
             if (btn_pressed(&inp, BTN_R))

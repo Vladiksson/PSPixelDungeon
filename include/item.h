@@ -348,6 +348,7 @@ extern const ItemDef ITEM_DB[ITEM_TYPE_COUNT];
 
 /* Weighted random item type, independent of any Level — see item.c
    for the category weights (adapted from Generator.java). */
+ItemType random_item_of_category(ItemCategory cat);
 ItemType random_item(void);
 
 static inline const char *item_name(ItemType t) {

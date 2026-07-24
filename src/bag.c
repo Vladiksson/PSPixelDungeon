@@ -54,7 +54,11 @@ int bag_grabs(BagType bag_type, ItemType item_type) {
         case BAG_SCROLL_HOLDER: return cat == ITEMCAT_SCROLL;
         case BAG_WAND_HOLSTER:  return cat == ITEMCAT_WAND;
         case BAG_KEYRING:       return cat == ITEMCAT_KEY;
-        case BAG_BACKPACK:      return cat != ITEMCAT_GOLD && cat != ITEMCAT_BAG;
+        /* General storage: anything except gold, which is never an
+           ItemStack (tracked as Player.gold) — this now includes bag
+           Items themselves, since a pouch sits in the backpack as a
+           real, droppable item. */
+        case BAG_BACKPACK:      return cat != ITEMCAT_GOLD;
         default:                return 0;
     }
 }

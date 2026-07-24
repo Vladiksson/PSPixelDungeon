@@ -151,7 +151,7 @@ static const CatWeight SPAWN_WEIGHTS[] = {
 };
 #define N_SPAWN_CATS (int)(sizeof(SPAWN_WEIGHTS) / sizeof(SPAWN_WEIGHTS[0]))
 
-static ItemType random_item_of_category(ItemCategory cat) {
+ItemType random_item_of_category(ItemCategory cat) {
     ItemType pool[ITEM_TYPE_COUNT];
     int n = 0;
     for (int i = 0; i < ITEM_TYPE_COUNT; i++)
