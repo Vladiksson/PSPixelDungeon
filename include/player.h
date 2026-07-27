@@ -136,7 +136,7 @@ int player_drop_item(Player *p, Level *lvl, int slot);
 
 int player_remove_item(Player *p, int slot, int quantity);
 
-int player_equip_item(Player *p, int slot);
+int player_equip_item(Player *p, Bag *bag, int slot);
 
 int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 

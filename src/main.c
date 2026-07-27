@@ -106,52 +106,63 @@ int main(int argc, char *argv[]) {
         last = now;
         input_update(&inp);
         
-        if (btn_pressed(&inp, BTN_SELECT)) { //test of sdl inventory
+        if (btn_pressed(&inp, BTN_SELECT)) {
             if (inv.open)
                 inventory_ui_close(&inv);
             else
                 inventory_ui_open(&inv);
         }
         if (inv.open) {
-            if (btn_pressed(&inp, BTN_UP))
-                inventory_ui_move(&inv, 0, -1);
-            if (btn_pressed(&inp, BTN_DOWN))
-                inventory_ui_move(&inv, 0, 1);
-            if (btn_pressed(&inp, BTN_LEFT))
-                inventory_ui_move(&inv, -1, 0);
-            if (btn_pressed(&inp, BTN_RIGHT))
-                inventory_ui_move(&inv, 1, 0);
-            if (btn_pressed(&inp, BTN_B))
-                inventory_ui_close(&inv);
-            if (btn_pressed(&inp, BTN_A)) {
-                if (inv.cursor < MAX_INVENTORY) {
-                    player_equip_item(&player, inv.cursor);
-                } else {
-                    switch (inv.cursor) {
-                    case CURSOR_WEAPON:
-                        player_unequip(&player, EQUIP_WEAPON, lvl);
-                        break;
-                    case CURSOR_ARMOR:
-                        player_unequip(&player, EQUIP_ARMOR, lvl);
-                        break;
-                    case CURSOR_RING1:
-                        player_unequip(&player, EQUIP_RING1, lvl);
-                        break;
-                    case CURSOR_RING2:
-                        player_unequip(&player, EQUIP_RING2, lvl);
-                        break;
+            if (!inv.desc_open) {
+                if (btn_pressed(&inp, BTN_UP))
+                    inventory_ui_move(&inv, 0, -1);
+                if (btn_pressed(&inp, BTN_DOWN))
+                    inventory_ui_move(&inv, 0, 1);
+                if (btn_pressed(&inp, BTN_LEFT))
+                    inventory_ui_move(&inv, -1, 0);
+                if (btn_pressed(&inp, BTN_RIGHT))
+                    inventory_ui_move(&inv, 1, 0);
+                if (btn_pressed(&inp, BTN_A)) {
+                    if (inv.cursor < MAX_INVENTORY) {
+                        player_equip_item(&player, &player.bags[inv.active_bag], inv.cursor);
+                    } else {
+                        switch (inv.cursor) {
+                        case CURSOR_WEAPON:
+                            player_unequip(&player, EQUIP_WEAPON, lvl);
+                            break;
+                        case CURSOR_ARMOR:
+                            player_unequip(&player, EQUIP_ARMOR, lvl);
+                            break;
+                        case CURSOR_RING1:
+                            player_unequip(&player, EQUIP_RING1, lvl);
+                            break;
+                        case CURSOR_RING2:
+                            player_unequip(&player, EQUIP_RING2, lvl);
+                            break;
+                        }
                     }
                 }
-            }
-            if (btn_pressed(&inp, BTN_Y))
-                player_drop_from_bag(&player, lvl, &player.bags[inv.active_bag], inv.cursor);
-            if (btn_pressed(&inp, BTN_X))
-                player_sort_inventory(&player);
-            if (btn_pressed(&inp, BTN_R))
-                inventory_ui_next_tab(&inv, &player);
-            if (btn_pressed(&inp, BTN_L))
-                inventory_ui_prev_tab(&inv, &player);
+                if (btn_pressed(&inp, BTN_Y))
+                    player_drop_from_bag(&player, lvl, &player.bags[inv.active_bag], inv.cursor);
+                if (btn_pressed(&inp, BTN_X)) {
+                    Bag *bag = &player.bags[inv.active_bag];
 
+                    bag_sort(bag);
+
+                    item_identify(&bag->items[inv.cursor]);//TEST
+                    item_upgrade(&bag->items[inv.cursor]);//TEST
+                }
+                if (btn_pressed(&inp, BTN_R))
+                    inventory_ui_next_tab(&inv, &player);
+                if (btn_pressed(&inp, BTN_L))
+                    inventory_ui_prev_tab(&inv, &player);
+            }
+            if (btn_pressed(&inp, BTN_B)){
+                    if (inv.desc_open)
+                        inventory_ui_desc_close(&inv);
+                    else
+                        inventory_ui_desc_open(&inv);
+            }    
         } else {
             /* Player movement — d-pad */
             int moved = 0;

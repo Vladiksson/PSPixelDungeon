@@ -69,13 +69,13 @@ static int shop_xy2p(Room *room, int x, int y){
     }
 }
 
-#define SHOP_ITEM_COUNT 15
+//#define SHOP_ITEM_COUNT 15
 
-static void shop_build_inventory(ItemType items[SHOP_ITEM_COUNT], int depth){
+static int shop_build_inventory(ItemType *items, int depth){
     int n = 0;
 
     switch(depth){
-    case 5: // 6-й этаж оригинала
+    case 5: 
         items[n++] = rng_int(2) ? ITEM_QUARTERSTAFF : ITEM_SPEAR;
         items[n++] = ITEM_LEATHER_ARMOR;
         items[n++] = ITEM_BAG_SEED_POUCH;
@@ -122,8 +122,7 @@ static void shop_build_inventory(ItemType items[SHOP_ITEM_COUNT], int depth){
 
     // items[n++] = ITEM_ANKH;
 
-    while(n < SHOP_ITEM_COUNT)
-        items[n++] = ITEM_RATION;
+    return n;
 }
 
 static void shuffle_items(ItemType *a, int n){//TODO transfer to the item.c
@@ -140,18 +139,29 @@ static void place_shop_items(Level *lvl, Room *room, int depth){
 
     int per = perimeter_length(room);
 
+    ItemType items[16];          // запас
+
+    int count = shop_build_inventory(items, depth);
+
+    shuffle_items(items, count);
+
     int pos = shop_xy2p(room, room->door_x[0], room->door_y[0]);
-    pos += (per - SHOP_ITEM_COUNT) / 2;
+    pos += (per - count) / 2;
 
-    ItemType items[SHOP_ITEM_COUNT];
 
-    shop_build_inventory(items, depth);
-    shuffle_items(items, SHOP_ITEM_COUNT);
-
-    for(int i = 0; i < SHOP_ITEM_COUNT; i++){
+    for (int i = 0; i < count; i++) {
 
         Point p = shop_p2xy(room, (pos + i) % per);
         int idx = xy_to_idx(p.x, p.y);
+
+        if (level_heap_at_idx(lvl, idx) != NULL) {
+            int tries = 200;
+            do {
+                int x = rng_range(room->left + 1, room->right - 1);
+                int y = rng_range(room->top + 1, room->bottom - 1);
+                idx = xy_to_idx(x, y);
+            } while (--tries > 0 && level_heap_at_idx(lvl, idx) != NULL);
+        }
 
         spawn_item_heap(lvl, idx, depth, items[i], HEAP_FOR_SALE);
     }

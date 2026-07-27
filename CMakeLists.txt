@@ -17,6 +17,9 @@ add_executable(${PROJECT_NAME}
     src/fov.c
     src/dungeon.c
     src/item.c
+    src/item_db.c
+    src/item_spawn.c
+    src/item_identify.c
     src/inventory_screen.c
     src/font.c
     src/chrome.c

@@ -2,19 +2,11 @@
 #include "common.h"
 
 /* ══════════════════════════════════════════════════════════
-   ITEM SPRITE SHEET  —  exact port of ItemSpriteSheet.java
-   (com.watabou.pixeldungeon.sprites, original watabou/pixel-dungeon)
-   ══════════════════════════════════════════════════════════
-   Every constant/value below matches the Java source exactly. In
-   the original, ItemSprite.pick() turns a flat index into a cell
-   with:  cols = textureWidth/SIZE;  row = index/cols; col = index%cols;
-   items.png here is 128x256 (measured) = 8 cols x 16 rows of 16px
-   cells, so ITEMS_SHEET_COLS is 8 — same formula, this port's atlas.
-   ══════════════════════════════════════════════════════════ */
+   ITEM SPRITE SHEET port of ItemSpriteSheet.java
+   ══════════════════════════════════════════════════════════*/
 #define ITEMS_SHEET_COLS 8
  
-/* Placeholders (generic "unidentified gear" icons — a plain
-   silhouette, used before a weapon/armor/ring's true look is known) */
+/* Placeholders */
 #define SPRITE_WEAPON            5
 #define SPRITE_ARMOR             6
 #define SPRITE_RING              7
@@ -130,8 +122,7 @@
 #define SPRITE_SEED_FADELEAF    94
 #define SPRITE_SEED_ROTBERRY    95
  
-/* Quest / unique items — not wired into ItemType yet (each needs its
-   own quest logic), sprite constants ready for when they are */
+/* Quest items*/
 #define SPRITE_ROSE            100
 #define SPRITE_PICKAXE         101
 #define SPRITE_ORE             102
@@ -139,6 +130,7 @@
 #define SPRITE_PHANTOM         118
 #define SPRITE_DUST            121
 #define SPRITE_TOKEN           122
+#define SPRITE_AMULET           87
  
 /* Heaps — decorative/container sprites, not carryable Items */
 #define SPRITE_BONES              0
@@ -148,7 +140,7 @@
 #define SPRITE_CRYSTAL_CHEST     105
 #define SPRITE_HIDDEN            119
  
-/* Food — fixed, real sprites */
+/* Food */
 #define SPRITE_RATION             4
 #define SPRITE_PASTY             112
 #define SPRITE_MEAT               113
@@ -164,19 +156,19 @@
  
 /* Misc */
 #define SPRITE_ANKH                1
-#define SPRITE_GOLD                14
-#define SPRITE_STYLUS              80
+#define SPRITE_STYLUS              80 /*unused*/
 #define SPRITE_DEWDROP             81
 #define SPRITE_MASTERY             82
 #define SPRITE_TORCH               84
 #define SPRITE_BEACON              85
 #define SPRITE_KIT                 86
-#define SPRITE_AMULET              87
 #define SPRITE_VIAL                120
 #define SPRITE_WEIGHT              123
 #define SPRITE_BOMB                124
 #define SPRITE_HONEYPOT            125
- 
+
+/*GOLD*/
+#define SPRITE_GOLD                14
 /* ══════════════════════════════════════════════════════════
    ITEM SYSTEM
    ══════════════════════════════════════════════════════════
@@ -187,141 +179,150 @@
    ITEMS_SHEET_COLS, so it's exact — not a visual guess. */
 
 typedef enum {
-    ITEMCAT_WEAPON,
-    ITEMCAT_ARMOR,
-    ITEMCAT_WAND,
-    ITEMCAT_POTION,
-    ITEMCAT_SCROLL,
-    ITEMCAT_RING,
-    ITEMCAT_SEED,
-    ITEMCAT_FOOD,
-    ITEMCAT_MISC,
-    ITEMCAT_GOLD,
-    ITEMCAT_KEY,     /* not in the random loot pool - vault-specific */
-    ITEMCAT_BAG,     /* not in the random loot pool                  */
-    ITEMCAT_QUEST,   /* not in the random loot pool                  */
-    ITEMCAT_COUNT
+   ITEMCAT_WEAPON,
+   ITEMCAT_ARMOR,
+   ITEMCAT_WAND,
+   ITEMCAT_POTION,
+   ITEMCAT_SCROLL,
+   ITEMCAT_RING,
+   ITEMCAT_SEED,
+   ITEMCAT_FOOD,
+   ITEMCAT_MISC,
+   ITEMCAT_GOLD,
+   ITEMCAT_KEY,     /* not in the random loot pool                  */
+   ITEMCAT_BAG,     /* not in the random loot pool                  */
+   ITEMCAT_QUEST,   /* not in the random loot pool                  */
+   ITEMCAT_COUNT
 } ItemCategory;
 
 typedef enum {
-    /* ── Weapons — Generator.Category.WEAPON, ────────────────────────────── */
-    ITEM_DAGGER = 0,
-    ITEM_KNUCKLES,
-    ITEM_QUARTERSTAFF,
-    ITEM_SPEAR,
-    ITEM_MACE,
-    ITEM_SWORD,
-    ITEM_LONGSWORD,
-    ITEM_BATTLE_AXE,
-    ITEM_WAR_HAMMER,
-    ITEM_GLAIVE,
-    ITEM_SHORT_SWORD,
-    ITEM_DART,
-    ITEM_JAVELIN,
-    ITEM_INCENDIARY_DART,
-    ITEM_CURARE_DART,
-    ITEM_SHURIKEN,
-    ITEM_BOOMERANG,
-    ITEM_TAMAHAWK,          /* sic — matches Generator.java's spelling */
+   /* ── Weapons — Generator.Category.WEAPON, ────────────────────────────── */
+   ITEM_DAGGER = 0,
+   ITEM_KNUCKLES,
+   ITEM_QUARTERSTAFF,
+   ITEM_SPEAR,
+   ITEM_MACE,
+   ITEM_SWORD,
+   ITEM_LONGSWORD,
+   ITEM_BATTLE_AXE,
+   ITEM_WAR_HAMMER,
+   ITEM_GLAIVE,
+   ITEM_SHORT_SWORD,
+   ITEM_DART,
+   ITEM_JAVELIN,
+   ITEM_INCENDIARY_DART,
+   ITEM_CURARE_DART,
+   ITEM_SHURIKEN,
+   ITEM_BOOMERANG,
+   ITEM_TAMAHAWK,          /* sic — matches Generator.java's spelling */
+   /* ── Armor ────────────────────────────────────────────────────── */
+   ITEM_CLOTH_ARMOR,
+   ITEM_LEATHER_ARMOR,
+   ITEM_MAIL_ARMOR,
+   ITEM_SCALE_ARMOR,
+   ITEM_PLATE_ARMOR,
+   /* ── Wands ──────────────────────────────────────────────────── */
+   ITEM_WAND_TELEPORTATION,
+   ITEM_WAND_SLOWNESS,
+   ITEM_WAND_FIREBOLT,
+   ITEM_WAND_REGROWTH,
+   ITEM_WAND_POISON,
+   ITEM_WAND_BLINK,
+   ITEM_WAND_LIGHTNING,
+   ITEM_WAND_AMOK,
+   ITEM_WAND_REACH,
+   ITEM_WAND_FLOCK,
+   ITEM_WAND_MAGIC_MISSILE,
+   ITEM_WAND_DISINTEGRATION,
+   ITEM_WAND_AVALANCHE,
+   /* ── Potions ─────────────────────────────────────────────── */
+   ITEM_POTION_HEALING,
+   ITEM_POTION_EXPERIENCE,
+   ITEM_POTION_TOXIC_GAS,
+   ITEM_POTION_PARALYTIC_GAS,
+   ITEM_POTION_LIQUID_FLAME,
+   ITEM_POTION_LEVITATION,
+   ITEM_POTION_STRENGTH,
+   ITEM_POTION_MIND_VISION,
+   ITEM_POTION_PURITY,
+   ITEM_POTION_INVISIBILITY,
+   ITEM_POTION_MIGHT,
+   ITEM_POTION_FROST,
+   /* ── Scrolls ────────────────────────────────────────────── */
+   ITEM_SCROLL_IDENTIFY,
+   ITEM_SCROLL_TELEPORTATION,
+   ITEM_SCROLL_REMOVE_CURSE,
+   ITEM_SCROLL_RECHARGING,
+   ITEM_SCROLL_MAGIC_MAPPING,
+   ITEM_SCROLL_CHALLENGE,
+   ITEM_SCROLL_TERROR,
+   ITEM_SCROLL_LULLABY,
+   ITEM_SCROLL_PSIONIC_BLAST,
+   ITEM_SCROLL_MIRROR_IMAGE,
+   ITEM_SCROLL_UPGRADE,
+   ITEM_SCROLL_ENCHANTMENT,
+   /* ── Rings ─────────────────────────────────────────────── */
+   ITEM_RING_MENDING,
+   ITEM_RING_DETECTION,
+   ITEM_RING_SHADOWS,
+   ITEM_RING_POWER,
+   ITEM_RING_HERBALISM,
+   ITEM_RING_ACCURACY,
+   ITEM_RING_EVASION,
+   ITEM_RING_SATIETY,
+   ITEM_RING_HASTE,
+   ITEM_RING_ELEMENTS,
+   ITEM_RING_HAGGLER,
+   ITEM_RING_THORNS,
+   /* ── Seeds ────────────────────────────────────────────── */
+   ITEM_SEED_FIREBLOOM,
+   ITEM_SEED_ICECAP,
+   ITEM_SEED_SORROWMOSS,
+   ITEM_SEED_DREAMWEED,
+   ITEM_SEED_SUNGRASS,
+   ITEM_SEED_EARTHROOT,
+   ITEM_SEED_FADELEAF,
+   ITEM_SEED_ROTBERRY,
+   /* ── Food ────────────────────────────────────────────── */
+   ITEM_RATION,
+   ITEM_PASTY,
+   ITEM_MYSTERY_MEAT,
+   ITEM_STEAK,
+   ITEM_OVERPRICED,
+   ITEM_FROZEN_CARPACCIO,
+   /* ── Misc ────────────────────────────────────────────── */
+   ITEM_ANKH,
+   ITEM_DEWDROP,
+   ITEM_MASTERY,
+   ITEM_TORCH,
+   ITEM_BEACON,
+   ITEM_KIT,
+   ITEM_VIAL,
+   ITEM_WEIGHT,
+   ITEM_BOMB,
+   ITEM_HONEYPOT,
+   /* ── Currency ────────────────────────────────────────── */
+   ITEM_GOLD,
+   /* ── Keys — not in the random loot pool ──────────────── */
+   ITEM_KEY_IRON,
+   ITEM_KEY_GOLDEN,
+   ITEM_KEY_SKELETON,
+   /* ── Bags — not in the random loot pool ──────────────── */
+   ITEM_BAG_SEED_POUCH,
+   ITEM_BAG_SCROLL_HOLDER,
+   ITEM_BAG_WAND_HOLSTER,
+   ITEM_BAG_KEYRING,
+   /* ── Quest — not in the random loot pool ─────────────── */
+   ITEM_ROSE,
+   ITEM_PICKAXE,
+   ITEM_ORE,
+   ITEM_SKULL,
+   ITEM_PHANTOM,
+   ITEM_DUST,
+   ITEM_TOKEN,
+   ITEM_AMULET_OF_YENDOR,
 
-    /* ── Armor ────────────────────────────────────────────────────── */
-    ITEM_CLOTH_ARMOR,
-    ITEM_LEATHER_ARMOR,
-    ITEM_MAIL_ARMOR,
-    ITEM_SCALE_ARMOR,
-    ITEM_PLATE_ARMOR,
-
-    /* ── Wands ──────────────────────────────────────────────────── */
-    ITEM_WAND_TELEPORTATION,
-    ITEM_WAND_SLOWNESS,
-    ITEM_WAND_FIREBOLT,
-    ITEM_WAND_REGROWTH,
-    ITEM_WAND_POISON,
-    ITEM_WAND_BLINK,
-    ITEM_WAND_LIGHTNING,
-    ITEM_WAND_AMOK,
-    ITEM_WAND_REACH,
-    ITEM_WAND_FLOCK,
-    ITEM_WAND_MAGIC_MISSILE,
-    ITEM_WAND_DISINTEGRATION,
-    ITEM_WAND_AVALANCHE,
-
-    /* ── Potions ─────────────────────────────────────────────── */
-    ITEM_POTION_HEALING,
-    ITEM_POTION_EXPERIENCE,
-    ITEM_POTION_TOXIC_GAS,
-    ITEM_POTION_PARALYTIC_GAS,
-    ITEM_POTION_LIQUID_FLAME,
-    ITEM_POTION_LEVITATION,
-    ITEM_POTION_STRENGTH,
-    ITEM_POTION_MIND_VISION,
-    ITEM_POTION_PURITY,
-    ITEM_POTION_INVISIBILITY,
-    ITEM_POTION_MIGHT,
-    ITEM_POTION_FROST,
-
-    /* ── Scrolls ────────────────────────────────────────────── */
-    ITEM_SCROLL_IDENTIFY,
-    ITEM_SCROLL_TELEPORTATION,
-    ITEM_SCROLL_REMOVE_CURSE,
-    ITEM_SCROLL_RECHARGING,
-    ITEM_SCROLL_MAGIC_MAPPING,
-    ITEM_SCROLL_CHALLENGE,
-    ITEM_SCROLL_TERROR,
-    ITEM_SCROLL_LULLABY,
-    ITEM_SCROLL_PSIONIC_BLAST,
-    ITEM_SCROLL_MIRROR_IMAGE,
-    ITEM_SCROLL_UPGRADE,
-    ITEM_SCROLL_ENCHANTMENT,
-
-    /* ── Rings ─────────────────────────────────────────────── */
-    ITEM_RING_MENDING,
-    ITEM_RING_DETECTION,
-    ITEM_RING_SHADOWS,
-    ITEM_RING_POWER,
-    ITEM_RING_HERBALISM,
-    ITEM_RING_ACCURACY,
-    ITEM_RING_EVASION,
-    ITEM_RING_SATIETY,
-    ITEM_RING_HASTE,
-    ITEM_RING_ELEMENTS,
-    ITEM_RING_HAGGLER,
-    ITEM_RING_THORNS,
-
-    /* ── Seeds ────────────────────────────────────────────── */
-    ITEM_SEED_FIREBLOOM,
-    ITEM_SEED_ICECAP,
-    ITEM_SEED_SORROWMOSS,
-    ITEM_SEED_DREAMWEED,
-    ITEM_SEED_SUNGRASS,
-    ITEM_SEED_EARTHROOT,
-    ITEM_SEED_FADELEAF,
-    ITEM_SEED_ROTBERRY,
-
-    /* ── Food ────────────────────────────────────────────── */
-    ITEM_RATION,
-    ITEM_PASTY,
-    ITEM_MYSTERY_MEAT,
-
-    /* ── Misc ────────────────────────────────────────────── */
-    ITEM_BOMB,
-    ITEM_HONEYPOT,
-
-    /* ── Currency ────────────────────────────────────────── */
-    ITEM_GOLD,
-    /* ── Keys — not in the random loot pool ──────────────── */
-    ITEM_KEY_IRON,
-    ITEM_KEY_GOLDEN,
-    ITEM_KEY_SKELETON,
-    /* ── Bags — not in the random loot pool ──────────────── */
-    ITEM_BAG_SEED_POUCH,
-    ITEM_BAG_SCROLL_HOLDER,
-    ITEM_BAG_WAND_HOLSTER,
-    ITEM_BAG_KEYRING,
-    /* ── Quest — not in the random loot pool ─────────────── */
-    ITEM_AMULET_OF_YENDOR,
-
-    ITEM_TYPE_COUNT
+   ITEM_TYPE_COUNT
 } ItemType;
 
 /* Sentinel meaning "no item" — used for Player's equip slots
@@ -338,10 +339,11 @@ typedef enum {
    table below is the natural place to hang a `Look look;` field and
    a shuffle table later. */
 typedef struct {
-    const char  *name;
-    ItemCategory cat;
-    uint8_t      sprite_col, sprite_row;  /* cell in items.png (16px grid) */
-    uint8_t      stackable;
+   const char  *name;
+   const char  *description;
+   ItemCategory cat;
+   uint8_t      sprite_col, sprite_row;  /* cell in items.png (16px grid) */
+   uint8_t      stackable;
 } ItemDef;
 
 extern const ItemDef ITEM_DB[ITEM_TYPE_COUNT];
@@ -564,3 +566,5 @@ void item_display_sprite(ItemType type, uint8_t *out_col, uint8_t *out_row);
    themselves, same as before). Writes into caller-owned `buf`
    (`bufsz` bytes) and returns it, snprintf-return-style. */
 const char *item_display_name(const ItemStack *stack, char *buf, size_t bufsz);
+
+const char *item_display_desc(const ItemStack *stack);

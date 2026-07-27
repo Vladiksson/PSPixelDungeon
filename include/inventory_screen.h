@@ -9,6 +9,7 @@
    ══════════════════════════════════════════════════════════  */
 typedef struct {
     int     open;        /* 1 while the inventory screen should be shown/drawn */
+    int     desc_open;   /* 1 while the description screen should be shown/drawn */ //TODO temporar solution, expand for more popups
     int     cursor;      /* selected slot within the active bag's grid, or a CURSOR_* equip sentinel */
     BagType active_bag;  /* which tab is showing — BAG_BACKPACK or a pouch currently on the player */
 } InventoryUI;
@@ -21,6 +22,9 @@ typedef struct {
 
 void inventory_ui_open (InventoryUI *ui);
 void inventory_ui_close(InventoryUI *ui);
+
+void inventory_ui_desc_open(InventoryUI *ui);
+void inventory_ui_desc_close(InventoryUI *ui);
  
 void inventory_ui_move(InventoryUI *ui, int dx, int dy);
 

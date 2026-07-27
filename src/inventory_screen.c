@@ -12,7 +12,6 @@
 
 #define ICON_SIZE 16
 
-
 /* derived */
 
 #define GRID_W   (INV_COLS * INV_SLOT + (INV_COLS - 1) * INV_GAP)
@@ -26,12 +25,12 @@
 #define EQUIP_PANEL_X (INV_GRID_X + GRID_W + PANEL_GAP)
 #define EQUIP_PANEL_Y INV_GRID_Y
 
-#define PANEL_X (INV_GRID_X - INV_SLOT)
+#define PANEL_X (INV_GRID_X - INV_SLOT / 2)
 #define PANEL_Y (PANEL_GAP + INV_GAP * 2)
 #define PANEL_W (SCREEN_W - PANEL_X * 2)
-#define PANEL_H (SCREEN_H - PANEL_Y * 5)
+#define PANEL_H (SCREEN_H - PANEL_Y * 6)
 
-#define NAME_X INV_GRID_X
+#define NAME_X (INV_GRID_X)
 #define NAME_Y (INV_GRID_Y + GRID_H + PANEL_GAP / 2)
 
 #define BAG_NAME_X INV_GRID_X
@@ -40,7 +39,7 @@
 #define BAG_COLS      4     /* seed pouch (8) and the 12-slot bags all divide evenly */
 #define BAG_TAB_SIZE  20
 
-#define BAG_TAB_GAP    INV_GAP
+#define BAG_TAB_GAP       INV_GAP
 #define BAG_TAB_GAP_H    (INV_SLOT - BAG_TAB_SIZE)
 
 #define BAG_TAB_WIDTH           (BAG_TAB_SIZE + INV_SLOT) / 2
@@ -51,7 +50,14 @@
 #define BAG_TABS_X        PANEL_X
 #define BAG_TABS_Y        PANEL_H + BAG_TAB_GAP_H
 
+#define DESC_NAME_X (INV_GRID_X - PANEL_GAP + INV_SLOT * 2)
+#define DESC_NAME_Y (INV_GRID_Y)
 
+#define DESC_ICON_X (INV_GRID_X + 12 )
+#define DESC_ICON_Y (INV_GRID_Y - 3)
+
+#define DESC_X (INV_GRID_X)
+#define DESC_Y (INV_GRID_Y + PANEL_GAP + ICON_SIZE)
 
 /* ── Palette  ──────────── */
 static const SDL_Color COL_CURSOR           = { 0xe8, 0xc5, 0x47, 0xFF }; /* for gold text */
@@ -70,7 +76,10 @@ static const SDL_Color COL_SLOT_GOLD        = { 0x3a, 0x30, 0x24, 0xFF };
    ══════════════════════════════════════════════════════════  */
 void inventory_ui_open (InventoryUI *ui) { ui->open = 1; ui->cursor = 0; ui->active_bag = BAG_BACKPACK; }
 void inventory_ui_close(InventoryUI *ui) { ui->open = 0; }
- 
+
+void inventory_ui_desc_open (InventoryUI *ui) { ui->desc_open = 1; }
+void inventory_ui_desc_close(InventoryUI *ui) { ui->desc_open = 0; }
+
 void inventory_ui_move(InventoryUI *ui, int dx, int dy) {
     int backpack_tab = (ui->active_bag == BAG_BACKPACK);
     int cols       = backpack_tab ? INV_COLS : BAG_COLS;
@@ -166,6 +175,48 @@ static void draw_text(RenderCtx *ctx, int x, int y, SDL_Color c, const char *s) 
         }
     }
     font_draw_text(ctx->renderer, font, x, y, 1, s);
+}
+
+static void draw_wrapped_text(RenderCtx *ctx, int x, int y, SDL_Color color, const char *text, int max_width) {
+    char line[256] = "";
+    char word[128];
+    while (*text) {
+        if (*text == '\n') {
+            if (line[0]) {
+                draw_text(ctx, x, y, color, line);
+                y += 10;
+                line[0] = '\0';
+            }
+            text++;
+            continue;
+        }
+        while (*text == ' ')
+            text++;
+        if (!*text)
+            break;
+        int len = 0;
+        while (*text && *text != ' ' && *text != '\n') {
+            if (len < (int)sizeof(word) - 1)
+                word[len++] = *text;
+            text++;
+        }
+        word[len] = '\0';
+
+        char test[256];
+        if (line[0])
+            snprintf(test, sizeof(test), "%s %s", line, word);
+        else
+            snprintf(test, sizeof(test), "%s", word);
+        if (line[0] && font_text_width(test) > max_width) {
+            draw_text(ctx, x, y, color, line);
+            y += 10;
+            snprintf(line, sizeof(line), "%s", word);
+        } else {
+            snprintf(line, sizeof(line), "%s", test);
+        }
+    }
+    if (line[0])
+        draw_text(ctx, x, y, color, line);
 }
 
 static void draw_icon(RenderCtx *ctx, IconId icon, int x, int y, int size) {
@@ -303,6 +354,22 @@ static void draw_selected_tab(RenderCtx *ctx, const Player *p, BagType active) {
 }
 
 /* ══════════════════════════════════════════════════════════
+   Description screen
+   ══════════════════════════════════════════════════════════  */
+static void render_item_description(RenderCtx *ctx, ItemStack stack) {
+    NinePatch window = chrome_window(ctx->chrome);
+    ninepatch_draw(ctx->renderer, &window, PANEL_X, PANEL_Y, PANEL_W, PANEL_H + PANEL_Y);
+    
+    draw_item_icon(ctx, stack, DESC_ICON_X, DESC_ICON_Y, ICON_SIZE);
+
+    char name[64];
+    item_display_name(&stack, name, sizeof(name));
+
+    draw_text(ctx, DESC_NAME_X, DESC_NAME_Y, COL_CURSOR, name);
+    draw_wrapped_text(ctx, DESC_X, DESC_Y, COL_TEXT, item_display_desc(&stack), PANEL_W - INV_SLOT);
+}
+
+/* ══════════════════════════════════════════════════════════
    Inventory screen
    ══════════════════════════════════════════════════════════  */
 void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
@@ -389,5 +456,7 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
             snprintf(name_buf, sizeof(name_buf), "%s", item_name);
 
         draw_text(ctx, NAME_X, NAME_Y, COL_TEXT, name_buf);
+        if (ui->desc_open)
+            render_item_description(ctx, stack);
     }
 }

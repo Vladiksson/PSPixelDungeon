@@ -60,7 +60,7 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
 
 
     /* STARTING ITEMS */
-    player_add_item(p, ITEM_DAGGER, 1);//TEST
+    player_add_item(p, ITEM_SCROLL_UPGRADE, 1);//TEST
     player_add_item(p, ITEM_BAG_KEYRING, 1);
 }
 
@@ -220,7 +220,7 @@ int player_add_item(Player *p, ItemType type, int quantity) {
     return player_add_stack(p, stack);
 }
 
-int player_remove_item(Player *p, int slot, int quantity) {
+int player_remove_item(Player *p, int slot, int quantity) {//TODO UNUSED FUNCTIONS FROM HERE TO THE NEXT PART
     return bag_remove_item(&p->bags[BAG_BACKPACK], slot, quantity);
 }
 
@@ -228,18 +228,18 @@ int player_find_item(const Player *p, ItemType type) {
     return bag_find_item(&p->bags[BAG_BACKPACK], type);
 }
 
-void player_sort_inventory(Player *p) {
+void player_sort_inventory(Player *p) {//REDO
     bag_sort(&p->bags[BAG_BACKPACK]);
 }
 
 /*═══════════════════════════════════════════════════════════════
     Equipment
 ═══════════════════════════════════════════════════════════════*/
-int player_equip_item(Player *p, int slot) {
-    Bag *backpack = &p->bags[BAG_BACKPACK];
-    if (slot < 0 || slot >= backpack->count) return 0;
+int player_equip_item(Player *p, Bag *bag, int slot) {
+    if (!bag || slot < 0 || slot >= bag->count)
+        return 0;
 
-    ItemStack incoming = backpack->items[slot];
+    ItemStack incoming = bag->items[slot];
     ItemCategory cat = ITEM_DB[incoming.type].cat;
 
     EquipSlot target;
@@ -268,7 +268,7 @@ int player_equip_item(Player *p, int slot) {
 
     /* Take one unit out of the backpack first, so a swap has the
        slot it needs to put the old gear back into. */
-    if (!bag_remove_item(backpack, slot, 1)) return 0;
+    if (!bag_remove_item(bag, slot, 1)) return 0;
 
     if (dst->type != ITEM_NONE) {
         if (!player_add_stack(p, *dst)) {
