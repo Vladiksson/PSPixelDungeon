@@ -1,4 +1,4 @@
-#include "item.h"
+#include "item_db.h"
 /*═══════════════════════════════════════════════════════════════
     Item database
 ═══════════════════════════════════════════════════════════════*/
@@ -340,3 +340,84 @@ const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
 };
  
 #undef CELL
+
+/* Generator.Category's own weight*/
+const float SPAWN_CATEGORY_WEIGHT[ITEMCAT_COUNT] = {
+    [ITEMCAT_WEAPON] = 15,
+    [ITEMCAT_ARMOR]  = 10,
+    [ITEMCAT_WAND]   = 4,
+    [ITEMCAT_POTION] = 50,
+    [ITEMCAT_SCROLL] = 40,
+    [ITEMCAT_RING]   = 2,
+    [ITEMCAT_SEED]   = 5,
+    [ITEMCAT_FOOD]   = 0,
+    [ITEMCAT_MISC]   = 5,
+    [ITEMCAT_GOLD]   = 50,
+};
+ 
+/* Per-item weight within its category, straight from Generator.java's Category.<X>.probs[] arrays.*/
+const float SPAWN_ITEM_WEIGHT[ITEM_TYPE_COUNT] = {
+    /* Weapons */
+    [ITEM_DAGGER]          = 1,  [ITEM_KNUCKLES]        = 1,
+    [ITEM_QUARTERSTAFF]    = 1,  [ITEM_SPEAR]           = 1,
+    [ITEM_MACE]            = 1,  [ITEM_SWORD]           = 1,
+    [ITEM_LONGSWORD]       = 1,  [ITEM_BATTLE_AXE]      = 1,
+    [ITEM_WAR_HAMMER]      = 1,  [ITEM_GLAIVE]          = 1,
+    [ITEM_SHORT_SWORD]     = 0,  [ITEM_DART]            = 0,
+    [ITEM_JAVELIN]         = 1,  [ITEM_INCENDIARY_DART] = 1,
+    [ITEM_CURARE_DART]     = 1,  [ITEM_SHURIKEN]        = 1,
+    [ITEM_BOOMERANG]       = 0,  [ITEM_TAMAHAWK]        = 1,
+ 
+    /* Armor */
+    [ITEM_CLOTH_ARMOR]     = 1,  [ITEM_LEATHER_ARMOR]   = 1,
+    [ITEM_MAIL_ARMOR]      = 1,  [ITEM_SCALE_ARMOR]     = 1,
+    [ITEM_PLATE_ARMOR]     = 1,
+ 
+    /* Wands */
+    [ITEM_WAND_TELEPORTATION]  = 10, [ITEM_WAND_SLOWNESS]  = 10,
+    [ITEM_WAND_FIREBOLT]       = 15, [ITEM_WAND_REGROWTH]  = 6,
+    [ITEM_WAND_POISON]         = 10, [ITEM_WAND_BLINK]     = 11,
+    [ITEM_WAND_LIGHTNING]      = 15, [ITEM_WAND_AMOK]      = 10,
+    [ITEM_WAND_REACH]          = 6,  [ITEM_WAND_FLOCK]     = 10,
+    [ITEM_WAND_MAGIC_MISSILE]  = 0,  /* fixed starting wand, never random */
+    [ITEM_WAND_DISINTEGRATION] = 5,  [ITEM_WAND_AVALANCHE] = 5,
+ 
+    /* Potions */
+    [ITEM_POTION_HEALING]       = 45, [ITEM_POTION_EXPERIENCE]    = 4,
+    [ITEM_POTION_TOXIC_GAS]     = 15, [ITEM_POTION_PARALYTIC_GAS] = 10,
+    [ITEM_POTION_LIQUID_FLAME]  = 15, [ITEM_POTION_LEVITATION]    = 10,
+    [ITEM_POTION_STRENGTH]      = 0,  [ITEM_POTION_MIND_VISION]   = 20,
+    [ITEM_POTION_PURITY]        = 12, [ITEM_POTION_INVISIBILITY]  = 10,
+    [ITEM_POTION_MIGHT]         = 0,  [ITEM_POTION_FROST]         = 10,
+ 
+    /* Scrolls */
+    [ITEM_SCROLL_IDENTIFY]      = 30, [ITEM_SCROLL_TELEPORTATION] = 10,
+    [ITEM_SCROLL_REMOVE_CURSE]  = 15, [ITEM_SCROLL_RECHARGING]    = 10,
+    [ITEM_SCROLL_MAGIC_MAPPING] = 15, [ITEM_SCROLL_CHALLENGE]     = 12,
+    [ITEM_SCROLL_TERROR]        = 8,  [ITEM_SCROLL_LULLABY]       = 8,
+    [ITEM_SCROLL_PSIONIC_BLAST] = 4,  [ITEM_SCROLL_MIRROR_IMAGE]  = 6,
+    [ITEM_SCROLL_UPGRADE]       = 0,  [ITEM_SCROLL_ENCHANTMENT]   = 1,
+ 
+    /* Rings */
+    [ITEM_RING_MENDING]    = 1, [ITEM_RING_DETECTION] = 1,
+    [ITEM_RING_SHADOWS]    = 1, [ITEM_RING_POWER]     = 1,
+    [ITEM_RING_HERBALISM]  = 1, [ITEM_RING_ACCURACY]  = 1,
+    [ITEM_RING_EVASION]    = 1, [ITEM_RING_SATIETY]   = 1,
+    [ITEM_RING_HASTE]      = 1, [ITEM_RING_ELEMENTS]  = 1,
+    [ITEM_RING_HAGGLER]    = 0, [ITEM_RING_THORNS]    = 0,
+ 
+    /* Seeds */
+    [ITEM_SEED_FIREBLOOM]  = 1, [ITEM_SEED_ICECAP]    = 1,
+    [ITEM_SEED_SORROWMOSS] = 1, [ITEM_SEED_DREAMWEED]  = 1,
+    [ITEM_SEED_SUNGRASS]   = 1, [ITEM_SEED_EARTHROOT]  = 1,
+    [ITEM_SEED_FADELEAF]   = 1, [ITEM_SEED_ROTBERRY]   = 0,
+ 
+    /* Food */
+    [ITEM_RATION] = 4, [ITEM_PASTY] = 1, [ITEM_MYSTERY_MEAT] = 0,
+ 
+    /* Misc */
+    [ITEM_BOMB] = 2, [ITEM_HONEYPOT] = 1,
+ 
+    [ITEM_GOLD] = 1,
+};
+ 

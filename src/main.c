@@ -125,6 +125,8 @@ int main(int argc, char *argv[]) {
                 if (btn_pressed(&inp, BTN_A)) {
                     if (inv.cursor < MAX_INVENTORY) {
                         player_equip_item(&player, &player.bags[inv.active_bag], inv.cursor);
+                        Bag *bag = &player.bags[inv.active_bag];
+                        item_identify(&bag->items[inv.cursor]);//TEST
                     } else {
                         switch (inv.cursor) {
                         case CURSOR_WEAPON:
@@ -150,7 +152,9 @@ int main(int argc, char *argv[]) {
                     bag_sort(bag);
 
                     item_identify(&bag->items[inv.cursor]);//TEST
-                    item_upgrade(&bag->items[inv.cursor]);//TEST
+                    if (item_consume(&bag->items[inv.cursor]) == ITEM_USE_CONSUMED) {//TEST
+                            bag_remove_item(bag, inv.cursor, 1);
+                    }
                 }
                 if (btn_pressed(&inp, BTN_R))
                     inventory_ui_next_tab(&inv, &player);

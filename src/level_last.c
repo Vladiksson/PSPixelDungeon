@@ -3,6 +3,7 @@
 #include "level_utils.h"
 #include "level_paint.h"
 #include "level_decorate.h"
+#include "item_spawn.h"
 #include <time.h>
 
 /* ══════════════════════════════════════════════════════════

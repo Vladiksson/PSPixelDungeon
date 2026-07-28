@@ -1,5 +1,7 @@
 #include "level_paint.h"
 #include "level_boss.h"
+#include "item_generator.h"
+#include "item_spawn.h"
 #include <stdbool.h>
 
 
@@ -69,8 +71,6 @@ static int shop_xy2p(Room *room, int x, int y){
     }
 }
 
-//#define SHOP_ITEM_COUNT 15
-
 static int shop_build_inventory(ItemType *items, int depth){
     int n = 0;
 
@@ -79,21 +79,21 @@ static int shop_build_inventory(ItemType *items, int depth){
         items[n++] = rng_int(2) ? ITEM_QUARTERSTAFF : ITEM_SPEAR;
         items[n++] = ITEM_LEATHER_ARMOR;
         items[n++] = ITEM_BAG_SEED_POUCH;
-        // items[n++] = ITEM_WEIGHTSTONE;
+        items[n++] = ITEM_WEIGHT;
         break;
 
     case 10:
         items[n++] = rng_int(2) ? ITEM_SWORD : ITEM_MACE;
         items[n++] = ITEM_MAIL_ARMOR;
         items[n++] = ITEM_BAG_SCROLL_HOLDER;
-        // items[n++] = ITEM_WEIGHTSTONE;
+        items[n++] = ITEM_WEIGHT;
         break;
 
     case 15:
         items[n++] = rng_int(2) ? ITEM_LONGSWORD : ITEM_BATTLE_AXE;
         items[n++] = ITEM_SCALE_ARMOR;
         items[n++] = ITEM_BAG_WAND_HOLSTER;
-        // items[n++] = ITEM_WEIGHTSTONE;
+        items[n++] = ITEM_WEIGHT;
         break;
 
     case 20:
@@ -102,8 +102,8 @@ static int shop_build_inventory(ItemType *items, int depth){
         case 1: items[n++] = ITEM_WAR_HAMMER; break;
         case 2: items[n++] = ITEM_PLATE_ARMOR; break;
         }
-        // items[n++] = ITEM_TORCH;
-        // items[n++] = ITEM_TORCH;
+        items[n++] = ITEM_TORCH;
+        items[n++] = ITEM_TORCH;
         break;
     }
 
@@ -120,7 +120,7 @@ static int shop_build_inventory(ItemType *items, int depth){
     items[n++] = ITEM_RATION;
     items[n++] = ITEM_RATION;
 
-    // items[n++] = ITEM_ANKH;
+    items[n++] = ITEM_ANKH;
 
     return n;
 }
@@ -134,20 +134,16 @@ static void shuffle_items(ItemType *a, int n){//TODO transfer to the item.c
     }
 }
 
-
 static void place_shop_items(Level *lvl, Room *room, int depth){
-
     int per = perimeter_length(room);
 
-    ItemType items[16];          // запас
-
+    ItemType items[16];
     int count = shop_build_inventory(items, depth);
 
     shuffle_items(items, count);
 
     int pos = shop_xy2p(room, room->door_x[0], room->door_y[0]);
     pos += (per - count) / 2;
-
 
     for (int i = 0; i < count; i++) {
 
@@ -162,7 +158,6 @@ static void place_shop_items(Level *lvl, Room *room, int depth){
                 idx = xy_to_idx(x, y);
             } while (--tries > 0 && level_heap_at_idx(lvl, idx) != NULL);
         }
-
         spawn_item_heap(lvl, idx, depth, items[i], HEAP_FOR_SALE);
     }
 }
@@ -178,7 +173,6 @@ static void place_shopkeeper(Level *lvl, Room *room){
 
              TODO ADD MOB  
             mob_spawn(MOB_SHOPKEEPER,x,y);
-
             return;
         }
     }*/

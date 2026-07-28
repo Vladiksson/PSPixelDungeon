@@ -1,12 +1,10 @@
 #include "player.h"
+#include "item_spawn.h"
 
 /*═══════════════════════════════════════════════════════════════
     Animation data
 ═══════════════════════════════════════════════════════════════*/
-/* ── hero animation frame tables ─────────────────────────
-   Column indices refer to the shared 21-column layout every class
-   (and every armor-tier row) follows on the hero sheets — see the
-   comment above AnimState in player.h. */
+/* ── hero animation frame tables ───────────────────────── */
 static const uint8_t F_IDLE[]    = {0,0,0,1,0,0,1,1};
 static const uint8_t F_RUN[]     = {2,3,4,5,6,7};
 static const uint8_t F_DIE[]     = {8,9,10,11,12,11};
@@ -14,8 +12,7 @@ static const uint8_t F_ATTACK[]  = {13,14,15,0};
 static const uint8_t F_OPERATE[] = {16,17,16,17};
 //static const uint8_t F_FLY[]     = {18};
 static const uint8_t F_READ[]    = {19,20,20,20,20,20,20,20,20,19};
-/* fps/loop values are sensible defaults for this frame count, not
-   pulled from any spec — tune freely to taste. */
+
 const AnimClip HERO_CLIPS[ANIM_COUNT] = {
     { F_IDLE,    8,  1,  1 },   // idle
     { F_RUN,     6, 20,  1 },   // run
@@ -156,16 +153,6 @@ static int player_use_key(Player *p, ItemType key) {
     return bag_remove_item(bag, slot, 1);
 }
 
-/* Bring a specialty pouch's contents storage online: first time ever
-   (capacity == 0), set it up from scratch; either way, sweep the
-   backpack for anything loose that this pouch accepts. That sweep is
-   what covers both first-time discovery AND picking the pouch back
-   up after it sat dropped somewhere with new matching items piling
-   up loose in the meantime — mirrors Bag.collect() reaching back
-   into the container it just joined, in the original game. Only
-   ever called right after the pouch's own Item has actually been
-   placed in the backpack (see player_add_stack), so player_has_bag()
-   is already true by the time this runs. */
 static void player_acquire_bag(Player *p, BagType type) {
     if (type <= BAG_BACKPACK || type >= BAG_TYPE_COUNT) return;
 
@@ -193,13 +180,6 @@ int player_add_stack(Player *p, ItemStack stack) {
         return 1;
     }
 
-    /* Route into whichever pouch currently on the player accepts
-       this item type, or the backpack otherwise — same as
-       Item.collect() checking the container for a sub-Bag whose
-       grab() matches, in the original game. A bag Item itself
-       (Seed Pouch, Scroll Holder, Magical Holster, Keyring) is never
-       accepted by another pouch, so it always lands in the backpack,
-       same as any other item. */
     Bag *bag = player_bag_for_item(p, stack.type);
     if (!bag_add_stack(bag, stack)) return 0;
 
@@ -257,11 +237,7 @@ int player_equip_item(Player *p, Bag *bag, int slot) {
 
     ItemStack *dst = equip_slot_ptr(p, target);
 
-    /* A cursed item stays welded to the hand — can't be swapped out
-       to make room for something else. Mirrors EquipableItem.
-       doUnequip()'s refusal, checked on the raw cursed flag (not
-       cursed_known) same as the original: you don't get advance
-       warning, the failed swap *is* how you find out. */
+    /* A cursed item stays welded to the hand */
     if (dst->type != ITEM_NONE && dst->cursed) {
         return 0;
     }
@@ -278,16 +254,9 @@ int player_equip_item(Player *p, Bag *bag, int slot) {
             return 0;
         }
     }
-
     *dst = incoming;
-    dst->quantity = 1; /* equipped gear is always exactly one unit, even
-                           if it came off a stack of stackable weapons */
-
-    /* Equipping is how you find out whether it's cursed — win or
-       lose — see KindOfWeapon.doEquip() setting cursedKnown = true
-       unconditionally, before checking `cursed`. */
+    dst->quantity = 1; /*TODO MB REWRITE??? equipped gear is always exactly one unit, even if it came off a stack of stackable weapons */
     dst->cursed_known = 1;
-
     return 1;
 }
 
@@ -295,8 +264,7 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
     ItemStack *src = equip_slot_ptr(p, slot);
     if (!src || src->type == ITEM_NONE) return 0;
 
-    /* Cursed gear refuses to come off at all — same as the original,
-       checked on the raw cursed flag rather than cursed_known. */
+    /* Cursed gear refuses to come off at all*/
     if (src->cursed) return 0;
 
     ItemStack stack = *src;
@@ -322,7 +290,7 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
     Bags
 ═══════════════════════════════════════════════════════════════*/
 int player_has_bag(const Player *p, BagType type) {
-    if (type == BAG_BACKPACK) return 1; /* always on your person */
+    if (type == BAG_BACKPACK) return 1;
     if (type < 0 || type >= BAG_TYPE_COUNT) return 0;
 
     return bag_find_item(&p->bags[BAG_BACKPACK], bag_item_type(type)) >= 0;
@@ -338,7 +306,7 @@ Bag *player_bag_for_item(Player *p, ItemType item_type) {
             return &p->bags[t];
         }
     }
-    return &p->bags[BAG_BACKPACK]; /* general storage — always available */
+    return &p->bags[BAG_BACKPACK]; 
 }
 
 int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
@@ -385,7 +353,7 @@ int player_pickup(Player *p, Level *lvl) {
 
     ItemStack top = h->items[0];
     if (!player_add_stack(p, top)) {
-        return 0; /* nowhere to put it — leave it on the ground, don't lose it */
+        return 0; /* nowhere to put it, leave it on the ground */
     }
 
     for (int i = 1; i < h->count; i++) {
@@ -416,7 +384,7 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
     uint8_t tile = lvl->map[xy_to_idx(nx, ny)];
     if (!(gTileFlags[tile] & TF_PASSABLE)) return 0;
  
-    /* Open closed doors on contact (PD behaviour) */
+    /* Open closed doors on contact */
     int idx = xy_to_idx(nx, ny);
     switch (tile) {
     case TILE_DOOR:
@@ -436,8 +404,7 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
         return 1;
     }
     
-    /* Only flip on horizontal movement — keep prior facing on vertical-only
-    steps, same convention as the original game. */
+    /* Only flip on horizontal movement, keep prior facing on vertical-only steps */
     if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
 
     p->x = nx;

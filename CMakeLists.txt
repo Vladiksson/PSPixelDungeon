@@ -20,6 +20,7 @@ add_executable(${PROJECT_NAME}
     src/item_db.c
     src/item_spawn.c
     src/item_identify.c
+    src/item_generator.c
     src/inventory_screen.c
     src/font.c
     src/chrome.c

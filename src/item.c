@@ -1,5 +1,6 @@
 #include "item.h"
-#include "level.h"
+#include "item_generator.h"
+#include "item_spawn.h"
 #include "level_utils.h"
 
 /*═══════════════════════════════════════════════════════════════
@@ -57,23 +58,24 @@ void level_spawn_items(Level *lvl, int depth) {
 /* ══════════════════════════════════════════════════════════
    INSTANCE STATE — level / curse / durability
    ══════════════════════════════════════════════════════════ */
-int item_curse_chance_pct(ItemCategory cat) {
-    switch (cat) {
-        case ITEMCAT_WEAPON: return 10;
-        case ITEMCAT_ARMOR:  return 12;
-        case ITEMCAT_WAND:   return 8;
-        case ITEMCAT_RING:   return 8;
-        default:             return 0;
-    }
-}
- 
 int item_max_durability(ItemType type, int level) {
     int base;
     switch (ITEM_DB[type].cat) {
-        case ITEMCAT_WEAPON: base = 24 + level * 8; break;
-        case ITEMCAT_ARMOR:  base = 30 + level * 8; break;
-        case ITEMCAT_WAND:   base = 12 + level * 4; break;
-        case ITEMCAT_RING:   base = 20 + level * 4; break;
+        /* Formulas straight from Weapon/Armor/Wand/Ring.java's
+           maxDurability(lvl) overrides. */
+        case ITEMCAT_WEAPON: base = 5 * (level < 16 ? 16 - level : 1); break;
+        case ITEMCAT_ARMOR:  base = 6 * (level < 16 ? 16 - level : 1); break;
+        case ITEMCAT_WAND:   base = 6 * (level < 16 ? 16 - level : 1); break;
+        case ITEMCAT_RING:
+            /* Ring.java returns Integer.MAX_VALUE for lvl<=1 — an
+               unenchanted (or cursed) ring never wears down.
+               durability is int16_t here, so INT16_MAX stands in for
+               "infinite": at one tick of wear per turn, a level-1
+               ring would need 32,767 turns worn to matter — far
+               beyond any real run, so it's a faithful stand-in for
+               the storage type actually available. */
+            base = (level <= 1) ? INT16_MAX : 100 * (level < 16 ? 16 - level : 1);
+            break;
         default:             base = 1;              break; /* Item.java's own base-class default */
     }
     return base < 1 ? 1 : base;
@@ -83,19 +85,32 @@ void item_stack_init(ItemStack *stack, ItemType type, int quantity) {
     stack->type     = type;
     stack->quantity = quantity;
     stack->level    = 0; 
+    stack->cursed = 0;
  
     ItemCategory cat = ITEM_DB[type].cat;
     stack->level_known = (cat == ITEMCAT_WEAPON || cat == ITEMCAT_ARMOR) ? 1 : 0;
- 
-    /* Stackable kinds share one quantity across the whole stack, so
-       they can't carry a per-unit curse — only single-instance
-       equipables roll one. */
-    int chance = ITEM_DB[type].stackable ? 0 : item_curse_chance_pct(cat);
-    stack->cursed       = (chance > 0 && rng_int(100) < chance) ? 1 : 0;
+    if (!ITEM_DB[type].stackable) {
+        switch (cat) {
+            case ITEMCAT_WEAPON:
+                generate_weapon(stack);
+                break;
+            case ITEMCAT_ARMOR:
+                generate_armor(stack);
+                break;
+            case ITEMCAT_WAND:
+                generate_wand(stack);
+                break;
+            case ITEMCAT_RING:
+                generate_ring(stack);
+                break;
+            default:
+                break;
+        }
+    }
     stack->cursed_known = 0;
- 
     stack->durability = (int16_t)item_max_durability(type, stack->level);
 }
+
  
 void item_fix(ItemStack *stack) {
     stack->durability = (int16_t)item_max_durability(stack->type, stack->level);
@@ -107,24 +122,25 @@ void item_polish(ItemStack *stack) {
 }
  
 void item_upgrade(ItemStack *stack) {
+    if (ITEM_DB[stack->type].stackable)
+        return;
+    stack->level++;
     stack->cursed       = 0;
     stack->cursed_known = 1;
-    stack->level++;
     item_fix(stack);
-}
-void item_upgrade_n(ItemStack *stack, int n) {
-    for (int i = 0; i < n; i++) item_upgrade(stack);
 }
  
 void item_degrade(ItemStack *stack) {
+    if (ITEM_DB[stack->type].stackable)
+        return;
     stack->level--;
     item_fix(stack);
 }
-void item_degrade_n(ItemStack *stack, int n) {
-    for (int i = 0; i < n; i++) item_degrade(stack);
-}
+
  
 ItemUseResult item_use(ItemStack *stack) {
+    if (ITEM_DB[stack->type].stackable)
+        return ITEM_USE_OK;
     if (!(stack->level > 0) || item_is_broken(stack))
         return ITEM_USE_OK;
  
@@ -147,3 +163,12 @@ void item_identify(ItemStack *stack) {
     item_status_know(stack->type);
 }
  
+
+ItemConsumeResult item_consume(ItemStack *stack) { //temporal bullshit variant for using consumable items
+    if (!ITEM_DB[stack->type].stackable)
+        return ITEM_USE_FAIL;
+
+    return ITEM_USE_CONSUMED;
+}
+
+

@@ -60,7 +60,7 @@ typedef enum {
 } EquipSlot;
 
 typedef struct {
-    int x, y;              /* current tile position                     */
+    int       x, y;        /* current tile position                     */
     HeroClass cls;         /* which sprite sheet to draw                */
     Facing    facing;      /* left/right — drives the horizontal flip   */
     AnimState anim;        /* animation currently playing               */

@@ -1,50 +1,6 @@
 #include "item.h"
-#include "level.h"
+#include "item_generator.h"
 #include "level_utils.h"
-/* ══════════════════════════════════════════════════════════
-   RANDOM ITEM SELECTION  —  Generator.random() / Category.prob
-   ══════════════════════════════════════════════════════════ */
-typedef struct { ItemCategory cat; int weight; } CatWeight;
-
-static const CatWeight SPAWN_WEIGHTS[] = {
-    { ITEMCAT_WEAPON, 15 },
-    { ITEMCAT_ARMOR,  10 },
-    { ITEMCAT_POTION, 50 },
-    { ITEMCAT_SCROLL, 40 },
-    { ITEMCAT_WAND,    4 },
-    { ITEMCAT_RING,    2 },
-    { ITEMCAT_SEED,    5 },
-    { ITEMCAT_FOOD,    8 },   /* was 0 in Generator.java */
-    { ITEMCAT_GOLD,   50 },
-    { ITEMCAT_MISC,    5 },
-};
-#define N_SPAWN_CATS (int)(sizeof(SPAWN_WEIGHTS) / sizeof(SPAWN_WEIGHTS[0]))
-
-ItemType random_item_of_category(ItemCategory cat) {
-    ItemType pool[ITEM_TYPE_COUNT];
-    int n = 0;
-    for (int i = 0; i < ITEM_TYPE_COUNT; i++)
-        if (ITEM_DB[i].cat == cat) pool[n++] = (ItemType)i;
-    return (n > 0) ? pool[rng_int(n)] : ITEM_GOLD;
-}
-
-ItemType random_item(void) {
-    int total = 0;
-    for (int i = 0; i < N_SPAWN_CATS; i++) total += SPAWN_WEIGHTS[i].weight;
-
-    int r = rng_int(total);
-    for (int i = 0; i < N_SPAWN_CATS; i++) {
-        if (r < SPAWN_WEIGHTS[i].weight)
-            return random_item_of_category(SPAWN_WEIGHTS[i].cat);
-        r -= SPAWN_WEIGHTS[i].weight;
-    }
-    return ITEM_GOLD;
-}
-
-int gold_amount(int depth) {
-    int d = depth + 1;
-    return rng_range(20 + d * 10, 40 + d * 20);
-}
 
 /* ══════════════════════════════════════════════════════════
    HEAP
@@ -56,9 +12,6 @@ int heap_sprite_cell(const Heap *h, uint8_t *out_col, uint8_t *out_row) {
         case HEAP_NORMAL:
         case HEAP_FOR_SALE:
             if (h->count <= 0) return 0;
-            /* Identify-aware: an unidentified potion/scroll/wand/ring
-               on the ground shows its shuffled alias look here too,
-               not just in the backpack. */
             item_display_sprite(h->items[0].type, out_col, out_row);
             return 1;
  
@@ -103,10 +56,6 @@ Heap *level_heap_at_idx(Level *lvl, int idx) {
     return level_heap_at(lvl, p.x, p.y);
 }
 
-/* Shared by heap_add_item/heap_add_stack below: merge into a matching
-   stackable entry, or take a fresh slot. Neither rolls or resets
-   anything — the two public wrappers decide whether `stack` arrives
-   fresh (heap_add_item) or already-instanced (heap_add_stack). */
 static int heap_insert(Heap *heap, ItemStack stack) {
     if (ITEM_DB[stack.type].stackable) {
         for (int i = 0; i < heap->count; i++) {
@@ -129,12 +78,6 @@ int heap_add_stack(Heap *heap, ItemStack stack) {
 }
  
 int heap_add_item(Heap *heap, ItemType type, int quantity) {
-    /* Was a bare {type, quantity} field assignment, which left
-       level/cursed/durability as whatever garbage sat in this heap
-       slot before (heap tables are reused). Routing through
-       item_stack_init means every freshly-spawned heap item — every
-       spawn_item()/spawn_item_amount_heap() call below included —
-       now gets a properly rolled instance for free. */
     ItemStack stack;
     item_stack_init(&stack, type, quantity);
     return heap_insert(heap, stack);

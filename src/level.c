@@ -4,6 +4,7 @@
 #include "level_decorate.h"
 #include "level_boss.h"
 #include "level_last.h"
+#include "item_spawn.h"
 #include <stdio.h>
 #include <time.h>
 
