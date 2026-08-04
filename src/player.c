@@ -1,5 +1,8 @@
 #include "player.h"
 #include "item_spawn.h"
+#include "level_utils.h"
+#include <math.h>
+#include <stddef.h>
 
 /*═══════════════════════════════════════════════════════════════
     Animation data
@@ -22,14 +25,201 @@ const AnimClip HERO_CLIPS[ANIM_COUNT] = {
     { F_READ,   10, 20,  0 },   // read
     // fly 
 };
- 
+
+/*═══════════════════════════════════════════════════════════════
+    HERO COMBAT 
+═══════════════════════════════════════════════════════════════*/
+static int hero_attack_skill(Char *self, Char *target) {
+    Player *p = (Player *)self;
+
+    float accuracy = 1.0f; /* Ring of Accuracy bonus skipped */
+
+    if (p->ranged_attack && char_distance(self, target) == 1) {
+        accuracy *= 0.5f; /* melee penalty for a ranged weapon up close — fully portable, kept as-is */
+    }
+
+    /* Placeholder for wep.acuracyFactor(this) — scales off enchant
+       level instead of a real per-weapon constant. */
+    float wep_factor = (p->weapon.type != ITEM_NONE)
+        ? 1.0f + 0.1f * item_effective_level(&p->weapon)
+        : 1.0f;
+
+    return (int)(p->base_attack_skill * accuracy * wep_factor);
+}
+
+static int hero_defense_skill(Char *self, Char *enemy) {
+    Player *p = (Player *)self;
+    (void)enemy;
+
+    float evasion = 1.0f; /* Ring of Evasion bonus skipped */
+
+    if (self->paralysed) {
+        evasion *= 0.5f;
+    }
+
+    /* Armor STR-encumbrance penalty skipped */
+    if (p->sub_class == HERO_SUB_FREERUNNER && player_is_busy(p)) {
+        evasion *= 2.0f;
+    }
+
+    return (int)(p->base_defense_skill * evasion);
+}
+
+static int hero_dr(Char *self) {
+    Player *p = (Player *)self;
+
+    /* Placeholder for armor.DR() */
+    if (p->armor.type == ITEM_NONE) return 0;
+    int dr = 2 + item_effective_level(&p->armor) * 2;
+    return dr < 0 ? 0 : dr;
+}
+
+static int hero_damage_roll(Char *self) {
+    Player *p = (Player *)self;
+    int dmg;
+
+    if (p->weapon.type != ITEM_NONE) {
+        /* Placeholder for wep.damageRoll(this) */
+        int top = 3 + item_effective_level(&p->weapon) * 2;
+        dmg = rng_range(1, top > 1 ? top : 1);
+    } else {
+        int str = player_str(p);
+        dmg = (str > 10) ? rng_range(1, str - 9) : 1;
+    }
+
+    return char_buff(self, BUFF_FURY) ? (int)(dmg * 1.5f) : dmg;
+}
+
+static int hero_attack_proc(Char *self, Char *enemy, int damage) {
+    (void)self; (void)enemy;
+    /* Placeholder — the original chains wep.proc(this, enemy, damage)
+       here, then a subclass switch (Gladiator's Combo stacks, a
+       Battlemage charging a wielded wand, a Sniper marking the enemy
+       for bonus damage). */
+    return damage;
+}
+
+static int hero_defense_proc(Char *self, Char *attacker, int damage) {
+    (void)self; (void)attacker;
+    /* Placeholder — the original checks Ring of Thorns (reflects a
+       cut of damage back), an Earthroot-armor buff (flat absorb), and
+       armor.proc(). */
+    return damage;
+}
+
+static void hero_on_damaged(Char *self, int dmg_taken, void *src, DamageSource src_type) {
+    (void)dmg_taken; (void)src; (void)src_type;
+    Player *p = (Player *)self;
+
+    p->resting = 0;
+
+    /* Berserker's Fury: original triggers at HP <= HT * Fury.LEVEL */
+    if (p->sub_class == HERO_SUB_BERSERKER && char_is_alive(self)
+        && self->HP <= self->HT / 2) {
+        char_apply_buff(self, BUFF_FURY, -1.0f);
+    }
+}
+
+static void hero_on_buff_added(Char *self, Buff *buff) {
+    Player *p = (Player *)self;
+
+    switch (buff->type) {
+        case BUFF_BURNING:
+        case BUFF_PARALYSIS:
+        case BUFF_POISON:
+        case BUFF_VERTIGO:
+            p->resting = 0;
+            break;
+        default:
+            break;
+    }
+    /* original also GLog.w()'s a "you are X" message per buff type here */
+}
+
+static const CharVTable *hero_vtable(void) {
+    static CharVTable vt;
+    static int built = 0;
+    if (!built) {
+        vt = CHAR_DEFAULT_VTABLE;
+        vt.attack_skill  = hero_attack_skill;
+        vt.defense_skill = hero_defense_skill;
+        vt.dr            = hero_dr;
+        vt.damage_roll   = hero_damage_roll;
+        vt.attack_proc   = hero_attack_proc;
+        vt.defense_proc  = hero_defense_proc;
+        vt.on_damaged    = hero_on_damaged;
+        vt.on_buff_added = hero_on_buff_added;
+        /* Left at CHAR_DEFAULT_VTABLE's values:
+           - defense_verb/stealth/resistances/immunities: no ring or
+             subclass data to hang an override on yet.
+           - die: no DewVial/Ankh resurrection items or a death/
+             game-over flow yet — HP hits 0, the Char detaches and
+             frees its grid cell, same as any Char, until you build
+             that flow (see char_die_default() in char.h/c).
+           - on_turn: Player is input-driven, not scheduler-driven —
+             main.c calls player_bump()/player_operate()/
+             player_pickup() directly from button presses rather than
+             waiting for the scheduler to ask what the hero wants to
+             do this turn, so on_turn has nothing to do here. One
+             consequence: the original's "a paralysed hero auto-spends
+             turns so Mobs can still act" behaviour isn't ported —
+             paralysis here just blocks new actions (via
+             char_damage()'s existing paralysis-break check and the
+             evasion halving above) rather than auto-passing turns.
+             Real auto-pass would mean restructuring main.c's loop
+             around actor_process() driving the hero, instead of
+             direct input calls — a bigger change than this pass
+             covers. */
+        built = 1;
+    }
+    return &vt;
+}
+
+/*═══════════════════════════════════════════════════════════════
+    Hero stats — STR/leveling
+═══════════════════════════════════════════════════════════════*/
+int player_str(const Player *p) {
+    return p->weakened ? p->STR - 2 : p->STR; /* -2 matches Hero.STR() */
+}
+
+int player_max_exp(const Player *p) {
+    return 5 + p->lvl * 5; /* matches Hero.maxExp() */
+}
+
+static void player_update_awareness(Player *p) {
+    double base = (p->cls == HERO_ROGUE) ? 0.85 : 0.90;
+    int n = 1 + (p->lvl < 9 ? p->lvl : 9);
+    p->awareness = (float)(1.0 - pow(base, n * 0.5));
+}
+
+void player_earn_exp(Player *p, int exp) {
+    p->exp += exp;
+    while (p->exp >= player_max_exp(p)) {
+        p->exp -= player_max_exp(p);
+        p->lvl++;
+        p->base.HT += 5;
+        p->base.HP += 5;
+        p->base_attack_skill++;
+        p->base_defense_skill++;
+        if (p->lvl < 10) player_update_awareness(p);
+        /* original shows a level-up message/sound/badge check here */
+    }
+}
+
+void player_rest(Player *p, int till_healthy) {
+    char_spend(&p->base, PLAYER_TIME_TO_REST);
+    actor_next(&p->base.base);
+    p->resting = till_healthy;
+}
+
 /*═══════════════════════════════════════════════════════════════
     Initialization
 ═══════════════════════════════════════════════════════════════*/
 void player_init(Player *p, const Level *lvl, HeroClass cls){
-    Point ep = idx_to_xy(lvl->entrance);
-    p->x           = ep.x;
-    p->y           = ep.y;
+    char_init(&p->base, hero_vtable(), CHAR_KIND_HERO, lvl->entrance, HERO_STARTING_HP);
+    p->base.name = "you";
+    char_add(&p->base);
+
     p->cls         = cls;
     p->facing      = FACE_RIGHT;
     p->anim        = ANIM_IDLE;
@@ -39,11 +229,6 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
 
     p->gold = 0;
 
-    /* Every bag starts cleared with its type tag set, then the
-       backpack is switched on — it's the one bag the hero always
-       starts with (mirrors Belongings' constructor always building a
-       backpack Bag, while SeedPouch/ScrollHolder/WandHolster/Keyring
-       stay uninitialized until their Item is first picked up). */
     for (int t = 0; t < BAG_TYPE_COUNT; t++) {
         p->bags[t].type = (BagType)t;
         bag_clear(&p->bags[t]);
@@ -55,6 +240,17 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->ring1  = item_stack_none();
     p->ring2  = item_stack_none();
 
+    p->sub_class          = HERO_SUB_NONE;
+    p->STR                = HERO_STARTING_STR;
+    p->weakened            = 0;
+    p->lvl                 = 1;
+    p->exp                 = 0;
+    p->awareness           = HERO_STARTING_AWARENESS;
+    p->base_attack_skill   = HERO_STARTING_ATTACK;
+    p->base_defense_skill  = HERO_STARTING_DEFENSE;
+    p->ranged_attack       = 0;
+    p->resting             = 0;
+    p->attack_target       = NULL;
 
     /* STARTING ITEMS */
     player_add_item(p, ITEM_SCROLL_UPGRADE, 1);//TEST
@@ -76,6 +272,17 @@ void player_play_anim(Player *p, AnimState anim){
     p->anim_done = 0;
 }
 
+static void player_resolve_attack(Player *p) {
+    Char *target = p->attack_target;
+    p->attack_target = NULL;
+    if (!target) return; 
+
+    char_attack(&p->base, target);
+    /* CharAttackResult is discarded here */
+
+    actor_next(&p->base.base);
+}
+
 void player_animate(Player *p, float dt) {
     const AnimClip *clip = &HERO_CLIPS[p->anim];
     if (p->anim_done || clip->fps <= 0) return;
@@ -90,7 +297,7 @@ void player_animate(Player *p, float dt) {
             if (clip->loop) {
                 p->frame = 0;
             } else {
-                p->frame = clip->count - 1; /* hold on the last frame */
+                p->frame = clip->count - 1; 
                 p->anim_done = 1;
                 break;
             }
@@ -99,8 +306,10 @@ void player_animate(Player *p, float dt) {
  
     if (p->anim_done) {
         switch (p->anim) {
-            //case ANIM_RUN:
             case ANIM_ATTACK:
+                player_resolve_attack(p);
+                player_play_anim(p, ANIM_IDLE);
+                break;
             case ANIM_OPERATE:
             case ANIM_READ:
                 player_play_anim(p, ANIM_IDLE);
@@ -126,9 +335,6 @@ int player_is_busy(const Player *p) {
 /*═══════════════════════════════════════════════════════════════
     Inventory helpers 
 ═══════════════════════════════════════════════════════════════*/
-/* Active heap at (x,y), creating an empty HEAP_NORMAL one there if
-   none exists yet. NULL only if the level's heap table is full
-   (MAX_LEVEL_ITEMS). */
 static Heap *heap_at_for_drop(Level *lvl, int x, int y) {
     Heap *h = level_heap_at(lvl, x, y);
     if (h) return h;
@@ -183,9 +389,6 @@ int player_add_stack(Player *p, ItemStack stack) {
     Bag *bag = player_bag_for_item(p, stack.type);
     if (!bag_add_stack(bag, stack)) return 0;
 
-    /* If what just landed in the backpack was a pouch's own Item,
-       bring that pouch's contents online (or top it up, if this is a
-       repeat pickup after being dropped). */
     int granted = bag_type_for_item(stack.type);
     if (granted >= 0) {
         player_acquire_bag(p, (BagType)granted);
@@ -237,19 +440,14 @@ int player_equip_item(Player *p, Bag *bag, int slot) {
 
     ItemStack *dst = equip_slot_ptr(p, target);
 
-    /* A cursed item stays welded to the hand */
     if (dst->type != ITEM_NONE && dst->cursed) {
         return 0;
     }
 
-    /* Take one unit out of the backpack first, so a swap has the
-       slot it needs to put the old gear back into. */
     if (!bag_remove_item(bag, slot, 1)) return 0;
 
     if (dst->type != ITEM_NONE) {
         if (!player_add_stack(p, *dst)) {
-            /* No room for the item being swapped out — put the new
-               one back and bail, matching collect() failing cleanly. */
             player_add_stack(p, incoming);
             return 0;
         }
@@ -264,7 +462,6 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
     ItemStack *src = equip_slot_ptr(p, slot);
     if (!src || src->type == ITEM_NONE) return 0;
 
-    /* Cursed gear refuses to come off at all*/
     if (src->cursed) return 0;
 
     ItemStack stack = *src;
@@ -276,21 +473,23 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
     }
 
     if (lvl) {
-        Heap *h = heap_at_for_drop(lvl, p->x, p->y);
+        Point pos = idx_to_xy(p->base.pos);
+        Heap *h = level_heap_at(lvl, pos.x, pos.y);
+
         if (h && heap_add_stack(h, stack)) {
             *src = item_stack_none();
             return 1;
         }
     }
 
-    return 0; /* nowhere to put it — stays equipped rather than lost */
+    return 0; 
 }
 
 /*═══════════════════════════════════════════════════════════════
     Bags
 ═══════════════════════════════════════════════════════════════*/
 int player_has_bag(const Player *p, BagType type) {
-    if (type == BAG_BACKPACK) return 1;
+    if (type == BAG_BACKPACK) return 1; 
     if (type < 0 || type >= BAG_TYPE_COUNT) return 0;
 
     return bag_find_item(&p->bags[BAG_BACKPACK], bag_item_type(type)) >= 0;
@@ -301,12 +500,12 @@ Bag *player_get_bag(Player *p, BagType type) {
 }
 
 Bag *player_bag_for_item(Player *p, ItemType item_type) {
-    for (int t = BAG_SEED_POUCH; t < BAG_TYPE_COUNT; t++) {
+    for (int t = BAG_KEYRING; t < BAG_TYPE_COUNT; t++) {
         if (player_has_bag(p, (BagType)t) && bag_grabs((BagType)t, item_type)) {
             return &p->bags[t];
         }
     }
-    return &p->bags[BAG_BACKPACK]; 
+    return &p->bags[BAG_BACKPACK];
 }
 
 int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
@@ -326,7 +525,8 @@ int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
 int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
     if (!bag || slot < 0 || slot >= bag->count) return 0;
 
-    Heap *h = heap_at_for_drop(lvl, p->x, p->y);
+    Point pos = idx_to_xy(p->base.pos);
+    Heap *h = heap_at_for_drop(lvl, pos.x, pos.y);
     if (!h) return 0;
 
     ItemStack stack = bag->items[slot];
@@ -339,7 +539,8 @@ int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
     Ground interaction
 ═══════════════════════════════════════════════════════════════*/
 int player_pickup(Player *p, Level *lvl) {
-    Heap *h = level_heap_at(lvl, p->x, p->y);
+    Point pos = idx_to_xy(p->base.pos);
+    Heap *h = level_heap_at(lvl, pos.x, pos.y);
     if (!h) return 0;
 
     if ((h->type == HEAP_LOCKED_CHEST || h->type == HEAP_CRYSTAL_CHEST)&& !player_use_key(p, ITEM_KEY_GOLDEN))
@@ -353,7 +554,7 @@ int player_pickup(Player *p, Level *lvl) {
 
     ItemStack top = h->items[0];
     if (!player_add_stack(p, top)) {
-        return 0; /* nowhere to put it, leave it on the ground */
+        return 0;
     }
 
     for (int i = 1; i < h->count; i++) {
@@ -361,7 +562,7 @@ int player_pickup(Player *p, Level *lvl) {
     }
     h->count--;
     if (h->count == 0) {
-        *h = lvl->heaps[--lvl->num_heaps]; /* keep the heap table compact */
+        *h = lvl->heaps[--lvl->num_heaps];
     }
 
     return 1;
@@ -371,12 +572,30 @@ int player_drop_item(Player *p, Level *lvl, int slot) {//redo as player_drop_fro
     return player_drop_from_bag(p, lvl, &p->bags[BAG_BACKPACK], slot);
 }
 
+int player_operate(Player *p, Level *lvl) {
+    Point pos = idx_to_xy(p->base.pos);
+    Heap *h = level_heap_at(lvl, pos.x, pos.y);
+    if (!h)
+        return 0;
+    if (h->type == HEAP_NORMAL || h->type == HEAP_FOR_SALE)
+        return 0;
+    if ((h->type == HEAP_LOCKED_CHEST || h->type == HEAP_CRYSTAL_CHEST)&& !player_use_key(p, ITEM_KEY_GOLDEN))
+        return 0;
+    player_play_anim(p, ANIM_OPERATE);
+    h->type = HEAP_NORMAL;
+    char_spend(&p->base, PLAYER_TIME_TO_UNLOCK);
+    actor_next(&p->base.base);
+    return 1;
+}
+
 /*═══════════════════════════════════════════════════════════════
     World interaction
 ═══════════════════════════════════════════════════════════════*/
-int player_move(Player *p, Level *lvl, int dx, int dy) {
-    int nx = p->x + dx;
-    int ny = p->y + dy;
+int player_move(Player *p, Level *lvl, int dx, int dy){
+    Point pos = idx_to_xy(p->base.pos);
+
+    int nx = pos.x + dx;
+    int ny = pos.y + dy;
 
     if (!in_bounds(nx, ny)) return 0;
     if (player_is_busy(p)) return 0;
@@ -384,7 +603,6 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
     uint8_t tile = lvl->map[xy_to_idx(nx, ny)];
     if (!(gTileFlags[tile] & TF_PASSABLE)) return 0;
  
-    /* Open closed doors on contact */
     int idx = xy_to_idx(nx, ny);
     switch (tile) {
     case TILE_DOOR:
@@ -395,32 +613,69 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
             return 0;
 
         lvl->map[idx] = TILE_OPEN_DOOR;
+        char_spend(&p->base, PLAYER_TIME_TO_UNLOCK);
+        actor_next(&p->base.base);
         player_play_anim(p, ANIM_OPERATE);
         return 1; 
     case TILE_LOCKED_EXIT:
         //if (!player_use_key(p, ITEM_KEY_SKELETON)) return 0; /*TODO: REMOVE COMMENT AFTER ADDING BOSSES WITH KEY DROPS */
         lvl->map[idx] = TILE_UNLOCKED_EXIT;
+        char_spend(&p->base, PLAYER_TIME_TO_UNLOCK);
+        actor_next(&p->base.base);
         player_play_anim(p, ANIM_OPERATE);
         return 1;
     }
     
-    /* Only flip on horizontal movement, keep prior facing on vertical-only steps */
     if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
 
-    p->x = nx;
-    p->y = ny;
+    char_move(&p->base, lvl, idx);
+
+    char_spend(&p->base, 1.0f / char_speed(&p->base));
+    actor_next(&p->base.base); 
+
     return 1;
 }
 
-int player_operate(Player *p, Level *lvl) {
-    Heap *h = level_heap_at(lvl, p->x, p->y);
-    if (!h)
-        return 0;
-    if (h->type == HEAP_NORMAL || h->type == HEAP_FOR_SALE)
-        return 0;
-    if ((h->type == HEAP_LOCKED_CHEST || h->type == HEAP_CRYSTAL_CHEST)&& !player_use_key(p, ITEM_KEY_GOLDEN))
-        return 0;
-    player_play_anim(p, ANIM_OPERATE);
-    h->type = HEAP_NORMAL;
+static float hero_attack_delay(const Player *p) {
+    (void)p;
+    /* Placeholder for wep.speedFactor(this) */
+    return 1.0f;
+}
+
+static int player_start_attack(Player *p, Char *target) {
+    if (player_is_busy(p)) return 0;
+    if (!char_is_alive(&p->base) || !char_is_alive(target)) return 0;
+    if (char_is_charmed_by(&p->base, target)) return 0; /* mirrors actAttack()'s !isCharmedBy(enemy) guard */
+
+    p->attack_target = target;
+    char_spend(&p->base, hero_attack_delay(p));
+    player_play_anim(p, ANIM_ATTACK);
+
     return 1;
+}
+
+int player_bump(Player *p, Level *lvl, int dx, int dy) {
+    if (player_is_busy(p)) return PLAYER_BUMP_BLOCKED;
+
+    Point pos = idx_to_xy(p->base.pos);
+
+    int nx = pos.x + dx;
+    int ny = pos.y + dy;
+    if (!in_bounds(nx, ny)) return PLAYER_BUMP_BLOCKED;
+
+    if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
+
+    Char *occupant = char_find_at(xy_to_idx(nx, ny));
+    if (occupant && occupant->kind == CHAR_KIND_MOB) {
+        return player_start_attack(p, occupant) ? PLAYER_BUMP_ATTACKED : PLAYER_BUMP_BLOCKED;
+    }
+    if (occupant) {
+        /* Occupied by something that isn't a Mob — a future NPC
+           (CHAR_KIND_NPC), say. No Interact system yet (see
+           HeroAction.java's Interact case), so this just blocks
+           movement rather than attacking OR interacting. */
+        return PLAYER_BUMP_BLOCKED;
+    }
+
+    return player_move(p, lvl, dx, dy) ? PLAYER_BUMP_MOVED : PLAYER_BUMP_BLOCKED;
 }

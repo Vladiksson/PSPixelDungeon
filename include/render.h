@@ -50,6 +50,9 @@ void render_items (RenderCtx *ctx, const Level *lvl, const Camera *cam);
 void render_shadows (RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam);
 void render_fog    (RenderCtx *ctx, const Fog    *fog, const Camera *cam);
 void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
+
+void render_mobs(RenderCtx *ctx, const Camera *cam);
+
 void render_present (RenderCtx *ctx);
 
 /* Draw one tile sprite (0-63) from the active tileset at screen px (px,py) */

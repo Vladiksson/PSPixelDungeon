@@ -2,8 +2,6 @@
 #include "common.h"
 
 /* ── Camera ──────────────────────────────────────────── */
-/* Tracks which tile is at the top-left of the screen.
-   Pixel-level offset for smooth scrolling (future use). */
 typedef struct {
     int tile_x, tile_y;      /* top-left visible tile              */
     int px_off_x, px_off_y;  /* sub-tile pixel offset (0..15)      */

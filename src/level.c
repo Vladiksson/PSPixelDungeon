@@ -124,7 +124,7 @@ static int entrance_has_special_room(Level *lvl, int entrance_idx) {
     Room *e = &lvl->rooms[entrance_idx];
     for (int i = 0; i < e->n_neighbours; i++) {
         Room *r = &lvl->rooms[e->neighbours[i]];
-        if (room_w(r) >= 5 && room_h(r) >= 5)
+        if (room_w(r) >= 6 && room_h(r) >= 6)
             return 1;
     }
     return 0;
@@ -153,16 +153,18 @@ static void place_special_near_entrance(Level *lvl, int entrance_idx, int depth,
 
         if (r->type != ROOM_NULL)
             continue;
-        if (r->n_connected == 0)
-            continue;
 
         int w = room_w(r);
         int h = room_h(r);
 
-        if (w < 5 || h < 5)
+        if (w < 6 || h < 6)
             continue;
 
-        int area = w*h;
+        if (r->n_connected == 0) {
+            room_connect(lvl, entrance_idx, ni);
+        }
+
+        int area = w * h;
 
         if (area > best_area) {
             best_area = area;
@@ -430,6 +432,8 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     rng_state = seed ? seed : (uint32_t)time(NULL);
     memset(lvl, 0, sizeof(*lvl));
     
+    mob_set_pool(&lvl->mob_pool);
+
     LevelGenState gen;
     init_special_rooms(&gen, depth);
 
@@ -583,6 +587,9 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
 
     /* 9 Scatter loot  */
     level_spawn_items(lvl, depth);
+
+    /*10 mobs*/
+    mob_spawn_random_no_target(lvl, MOB_RAT, rng_range(1, MAX_LEVEL_MOBS));
 
     return 0;
 }

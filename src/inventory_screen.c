@@ -28,10 +28,10 @@
 #define PANEL_X (INV_GRID_X - INV_SLOT / 2)
 #define PANEL_Y (PANEL_GAP + INV_GAP * 2)
 #define PANEL_W (SCREEN_W - PANEL_X * 2)
-#define PANEL_H (SCREEN_H - PANEL_Y * 6)
+#define PANEL_H (SCREEN_H - PANEL_Y * 7)
 
 #define NAME_X (INV_GRID_X)
-#define NAME_Y (INV_GRID_Y + GRID_H + PANEL_GAP / 2)
+#define NAME_Y (INV_GRID_Y + GRID_H + 4 )
 
 #define BAG_NAME_X INV_GRID_X
 #define BAG_NAME_Y (INV_GRID_Y - PANEL_GAP)

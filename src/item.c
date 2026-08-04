@@ -61,22 +61,13 @@ void level_spawn_items(Level *lvl, int depth) {
 int item_max_durability(ItemType type, int level) {
     int base;
     switch (ITEM_DB[type].cat) {
-        /* Formulas straight from Weapon/Armor/Wand/Ring.java's
-           maxDurability(lvl) overrides. */
         case ITEMCAT_WEAPON: base = 5 * (level < 16 ? 16 - level : 1); break;
         case ITEMCAT_ARMOR:  base = 6 * (level < 16 ? 16 - level : 1); break;
         case ITEMCAT_WAND:   base = 6 * (level < 16 ? 16 - level : 1); break;
         case ITEMCAT_RING:
-            /* Ring.java returns Integer.MAX_VALUE for lvl<=1 — an
-               unenchanted (or cursed) ring never wears down.
-               durability is int16_t here, so INT16_MAX stands in for
-               "infinite": at one tick of wear per turn, a level-1
-               ring would need 32,767 turns worn to matter — far
-               beyond any real run, so it's a faithful stand-in for
-               the storage type actually available. */
             base = (level <= 1) ? INT16_MAX : 100 * (level < 16 ? 16 - level : 1);
             break;
-        default:             base = 1;              break; /* Item.java's own base-class default */
+        default:             base = 1;              break; 
     }
     return base < 1 ? 1 : base;
 }
@@ -164,7 +155,7 @@ void item_identify(ItemStack *stack) {
 }
  
 
-ItemConsumeResult item_consume(ItemStack *stack) { //temporal bullshit variant for using consumable items
+ItemConsumeResult item_consume(ItemStack *stack) { //temporary bullshit variant for using consumable items
     if (!ITEM_DB[stack->type].stackable)
         return ITEM_USE_FAIL;
 

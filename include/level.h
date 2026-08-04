@@ -1,5 +1,6 @@
 #pragma once
 #include "item.h"
+#include "mob.h"
 
 /* ── Room constants ──────────────────────────────────── */
 #define MAX_ROOMS       64
@@ -89,7 +90,7 @@ typedef enum {
     FEELING_GRASS
 } LevelFeeling;
 
-typedef struct {
+typedef struct Level {
     uint8_t      map[LEVEL_SIZE];
     int          entrance;
     int          exit;
@@ -102,6 +103,8 @@ typedef struct {
     int          num_items_to_spawn;
     Heap         heaps[MAX_LEVEL_ITEMS];
     int          num_heaps;
+
+    MobPool mob_pool;
 } Level;
 
 typedef struct {

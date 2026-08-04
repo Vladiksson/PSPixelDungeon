@@ -1,4 +1,5 @@
 #include "render.h"
+#include "mob.h" //redo temporar solution for the test
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
@@ -357,15 +358,11 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
             SDL_Rect rect = { scr.x, scr.y, TILE_SIZE, TILE_SIZE };
 
             if (fog->visited[idx]) {
-                /* VISITED = 0xCC111111 (ARGB)
-                   SDL2 colour order is RGBA:
-                   R=0x11 G=0x11 B=0x11 A=0xCC                    */
-                SDL_SetRenderDrawColor(ctx->renderer,
-                                       0x11, 0x11, 0x11, 0xCC);
+                /* VISITED = 0xCC111111 (ARGB) */
+                SDL_SetRenderDrawColor(ctx->renderer, 0x11, 0x11, 0x11, 0xCC);
             } else {
-                /* INVISIBLE = 0xFF000000 — solid black             */
-                SDL_SetRenderDrawColor(ctx->renderer,
-                                       0x00, 0x00, 0x00, 0xFF);
+                /* INVISIBLE = 0xFF000000 — solid black */
+                SDL_SetRenderDrawColor(ctx->renderer, 0x00, 0x00, 0x00, 0xFF);
             }
 
             SDL_RenderFillRect(ctx->renderer, &rect);
@@ -378,11 +375,7 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
 
  
 /* ── hero source-rect lookup ──────────────────────────
-   Column = which frame of the current animation. Row = armor tier.
-   Tiers aren't tracked on Player yet, so this is pinned to row 0 (the
-   sheet's base/no-armor row) — bump HERO_ARMOR_TIER, or make it a
-   real field on Player, once armor visuals are wired up. */
- 
+   Column = which frame of the current animation. Row = armor tier. */
 static SDL_Rect hero_frame_rect(const Player *p) {
     const AnimClip *clip = &HERO_CLIPS[p->anim];
     uint8_t col = clip->frames[p->frame % clip->count];
@@ -399,8 +392,9 @@ static SDL_Rect hero_frame_rect(const Player *p) {
 void render_player(RenderCtx *ctx, const Player *p, const Camera *cam){
     SDL_Texture *tex = ctx->heroes[p->cls];
     if (!tex) return;
- 
-    Point scr = camera_tile_to_screen(cam, p->x, p->y);
+    
+    Point pos = idx_to_xy(p->base.pos);
+    Point scr = camera_tile_to_screen(cam, pos.x, pos.y);
 
     SDL_Rect dst = {
         scr.x - (HERO_W - TILE_SIZE) / 2,
@@ -413,6 +407,65 @@ void render_player(RenderCtx *ctx, const Player *p, const Camera *cam){
     SDL_RendererFlip flip = (p->facing == FACE_LEFT) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
     SDL_RenderCopyEx(ctx->renderer, tex, &src, &dst, 0.0, NULL, flip);
 }
+
+
+
+
+
+/* ── render_mobs  REDO TEMPORAR BULLSHIT───────────────────── */
+void render_mobs(RenderCtx *ctx, const Camera *cam) {
+    for (int i = 0; i < mob_count(); i++) {
+        Mob *m = mob_at_index(i);
+        if (!m)
+            continue;
+
+        if (!char_is_alive(&m->base))
+            continue;
+
+        Point pos = idx_to_xy(m->base.pos);
+
+        /* outside camera */
+        if (pos.x < cam->tile_x || pos.x > cam->tile_x + VIEW_COLS ||
+            pos.y < cam->tile_y || pos.y > cam->tile_y + VIEW_ROWS)
+            continue;
+
+        Point scr = camera_tile_to_screen(cam, pos.x, pos.y);
+
+        /* Outer shadow ring */
+        SDL_Rect shadow = { scr.x + 1, scr.y + 1, TILE_SIZE - 2, TILE_SIZE - 2 };
+        SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 180);
+        SDL_RenderFillRect(ctx->renderer, &shadow);
+
+        /* Placeholder body */
+        SDL_Rect body = { scr.x + 3, scr.y + 3, TILE_SIZE - 6, TILE_SIZE - 6 };
+
+        switch (m->kind) {
+        case MOB_RAT:
+            SDL_SetRenderDrawColor(ctx->renderer, 160, 160, 160, 255);
+            break;
+
+        case MOB_GNOLL:
+            SDL_SetRenderDrawColor(ctx->renderer, 180, 120, 40, 255);
+            break;
+
+        default:
+            SDL_SetRenderDrawColor(ctx->renderer, 255, 0, 255, 255);
+            break;
+        }
+
+        SDL_RenderFillRect(ctx->renderer, &body);
+
+        /* White highlight */
+        SDL_Rect dot = { scr.x + 5, scr.y + 5, 3, 3 };
+        SDL_SetRenderDrawColor(ctx->renderer, 255, 255, 255, 255);
+        SDL_RenderFillRect(ctx->renderer, &dot);
+    }
+}
+
+
+
+
+
 
 /* ── render_present ───────────────────────────────── */
 void render_present(RenderCtx *ctx) {
