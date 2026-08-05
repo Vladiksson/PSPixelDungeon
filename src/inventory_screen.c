@@ -3,62 +3,71 @@
 #include "icons.h"
 #include <stdio.h>
 
-/* ── Layout ───────────────────────────────────────────── */
+/* ── Inventory ───────────────────────────────────────────── */
 #define INV_COLS   5
 #define INV_ROWS   4
 
-#define INV_SLOT   28
-#define INV_GAP     1
+#define BAG_COLS   4
 
-#define ICON_SIZE 16
+#define INV_SLOT   30
+#define INV_GAP     1
 
 /* derived */
 
 #define GRID_W   (INV_COLS * INV_SLOT + (INV_COLS - 1) * INV_GAP)
 #define GRID_H   (INV_ROWS * INV_SLOT + (INV_ROWS - 1) * INV_GAP)
 
-#define PANEL_GAP (INV_SLOT / 2)
+#define PANEL_GAP (INV_SLOT / 3)
+/* Main panel */
+#define PANEL_W  (GRID_W + PANEL_GAP * 3 + INV_SLOT)
+#define PANEL_H  (GRID_H + PANEL_GAP * 4)
+#define PANEL_X ((SCREEN_W - PANEL_W) / 2)
+#define PANEL_Y ((SCREEN_H - PANEL_H) / 2 - PANEL_GAP) 
 
-#define INV_GRID_X ((SCREEN_W - GRID_W - PANEL_GAP - INV_SLOT) / 2)
-#define INV_GRID_Y (SCREEN_H - GRID_H * 2)
+#define INV_GRID_X (PANEL_X + PANEL_GAP     )
+#define INV_GRID_Y (PANEL_Y + PANEL_GAP * 2 ) 
 
 #define EQUIP_PANEL_X (INV_GRID_X + GRID_W + PANEL_GAP)
 #define EQUIP_PANEL_Y INV_GRID_Y
-
-#define PANEL_X (INV_GRID_X - INV_SLOT / 2)
-#define PANEL_Y (PANEL_GAP + INV_GAP * 2)
-#define PANEL_W (SCREEN_W - PANEL_X * 2)
-#define PANEL_H (SCREEN_H - PANEL_Y * 7)
-
+/* Labels */
 #define NAME_X (INV_GRID_X)
-#define NAME_Y (INV_GRID_Y + GRID_H + 4 )
+#define NAME_Y (INV_GRID_Y + GRID_H + INV_GAP * 4)
 
 #define BAG_NAME_X INV_GRID_X
 #define BAG_NAME_Y (INV_GRID_Y - PANEL_GAP)
 
-#define BAG_COLS      4     /* seed pouch (8) and the 12-slot bags all divide evenly */
-#define BAG_TAB_SIZE  20
+/* Bag tabs */
+#define BAG_TAB_SIZE  (INV_SLOT * 2 / 3)
 
 #define BAG_TAB_GAP       INV_GAP
-#define BAG_TAB_GAP_H    (INV_SLOT - BAG_TAB_SIZE)
+#define BAG_TAB_GAP_H     8 //difference between unselected and selected tab's textures 
 
 #define BAG_TAB_WIDTH           (BAG_TAB_SIZE + INV_SLOT) / 2
-#define BAG_TAB_STEP            (BAG_TAB_SIZE + 5 * BAG_TAB_GAP)
+#define BAG_TAB_STEP            BAG_TAB_WIDTH
 #define BAG_TAB_ICON_OFFSET_X   5 * BAG_TAB_GAP
 #define BAG_TAB_ICON_OFFSET_Y   BAG_TAB_GAP
 
 #define BAG_TABS_X        PANEL_X
-#define BAG_TABS_Y        PANEL_H + BAG_TAB_GAP_H
+#define BAG_TABS_Y       (PANEL_Y + PANEL_H - BAG_TAB_GAP_H) 
 
-#define DESC_NAME_X (INV_GRID_X - PANEL_GAP + INV_SLOT * 2)
-#define DESC_NAME_Y (INV_GRID_Y)
+/* Description panel */
+#define DESC_PANEL_X (PANEL_X - PANEL_GAP / 4)
+#define DESC_PANEL_Y (PANEL_Y - PANEL_GAP / 2)
+#define DESC_PANEL_W (PANEL_W + PANEL_GAP / 2)
+#define DESC_PANEL_H (PANEL_H + PANEL_Y)
 
-#define DESC_ICON_X (INV_GRID_X + 12 )
-#define DESC_ICON_Y (INV_GRID_Y - 3)
+#define DESC_NAME_X  (DESC_PANEL_X + DESC_PANEL_W / 4) 
+#define DESC_NAME_Y  (DESC_PANEL_Y + PANEL_GAP)
 
-#define DESC_X (INV_GRID_X)
-#define DESC_Y (INV_GRID_Y + PANEL_GAP + ICON_SIZE)
+#define DESC_ICON_X (DESC_PANEL_X + PANEL_GAP * 2)
+#define DESC_ICON_Y (DESC_PANEL_Y + PANEL_GAP * 2)
 
+#define DESC_X (DESC_PANEL_X + PANEL_GAP)
+#define DESC_Y (DESC_PANEL_Y + PANEL_GAP * 5)
+
+#define DESC_LENGTH (DESC_PANEL_W - PANEL_GAP * 2)
+
+#define ICON_SIZE  16
 /* ── Palette  ──────────── */
 static const SDL_Color COL_CURSOR           = { 0xe8, 0xc5, 0x47, 0xFF }; /* for gold text */
 static const SDL_Color COL_TEXT             = { 0xd8, 0xcd, 0xb8, 0xFF }; 
@@ -97,13 +106,13 @@ void inventory_ui_move(InventoryUI *ui, int dx, int dy) {
         col += dx;
         row += dy;
         if (col < 0)
-            col = cols - 1;
-        if (col >= cols)
             col = 0;
+        if (col >= cols)
+            col = cols - 1;
         if (row < 0)
-            row = rows - 1;
-        if (row >= rows)
             row = 0;
+        if (row >= rows)
+            row = rows - 1;
         ui->cursor = row * cols + col;
     } else {
         if (dy < 0 && ui->cursor > CURSOR_WEAPON)
@@ -358,7 +367,7 @@ static void draw_selected_tab(RenderCtx *ctx, const Player *p, BagType active) {
    ══════════════════════════════════════════════════════════  */
 static void render_item_description(RenderCtx *ctx, ItemStack stack) {
     NinePatch window = chrome_window(ctx->chrome);
-    ninepatch_draw(ctx->renderer, &window, PANEL_X, PANEL_Y, PANEL_W, PANEL_H + PANEL_Y);
+    ninepatch_draw(ctx->renderer, &window, DESC_PANEL_X, DESC_PANEL_Y, DESC_PANEL_W, DESC_PANEL_H);
     
     draw_item_icon(ctx, stack, DESC_ICON_X, DESC_ICON_Y, ICON_SIZE);
 
@@ -366,7 +375,7 @@ static void render_item_description(RenderCtx *ctx, ItemStack stack) {
     item_display_name(&stack, name, sizeof(name));
 
     draw_text(ctx, DESC_NAME_X, DESC_NAME_Y, COL_CURSOR, name);
-    draw_wrapped_text(ctx, DESC_X, DESC_Y, COL_TEXT, item_display_desc(&stack), PANEL_W - INV_SLOT);
+    draw_wrapped_text(ctx, DESC_X, DESC_Y, COL_TEXT, item_display_desc(&stack), DESC_LENGTH);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -389,7 +398,6 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
     int slot_count    = backpack_tab ? MAX_INVENTORY : bag_capacity_for_type(shown);
     const Bag *bag    = &p->bags[shown];
     
-
     draw_unselected_tab(ctx, p, shown);
 
     NinePatch tab_set = chrome_tab_set(ctx->chrome);
@@ -397,11 +405,8 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
 
     draw_selected_tab(ctx, p, shown);
     
-    draw_text(ctx, BAG_NAME_X, BAG_NAME_Y, COL_TEXT, backpack_tab ? "EBAnuY RoT SRANOGO OLEGA" : bag_name(shown));
+    draw_text(ctx, BAG_NAME_X, BAG_NAME_Y, COL_TEXT, bag_name(shown));
 
-    /* Active bag's grid — the backpack is bags[BAG_BACKPACK], same
-       storage as every other tab now, just with its own established
-       5x4 layout plus the dedicated gold-display cell. */
     for (int i = 0; i < slot_count; i++) {
         int col = i % grid_cols;
         int row = i / grid_cols;
@@ -418,14 +423,10 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
         draw_slot(ctx, x, y, INV_SLOT, stack, i == ui->cursor);
     }
 
-    /* Equip panel — always visible regardless of which tab is active,
-       same as the equipped-item slots always showing at the top of
-       WndBag's grid no matter which bag it's displaying. */
     draw_equip_slot(ctx, EQUIP_PANEL_X, EQUIP_PANEL_Y + 0 * (INV_SLOT + INV_GAP), INV_SLOT, p->weapon, SPRITE_WEAPON, ui->cursor == CURSOR_WEAPON);
     draw_equip_slot(ctx, EQUIP_PANEL_X, EQUIP_PANEL_Y + 1 * (INV_SLOT + INV_GAP), INV_SLOT, p->armor,  SPRITE_ARMOR,  ui->cursor == CURSOR_ARMOR );
     draw_equip_slot(ctx, EQUIP_PANEL_X, EQUIP_PANEL_Y + 2 * (INV_SLOT + INV_GAP), INV_SLOT, p->ring1,  SPRITE_RING,   ui->cursor == CURSOR_RING1 );
     draw_equip_slot(ctx, EQUIP_PANEL_X, EQUIP_PANEL_Y + 3 * (INV_SLOT + INV_GAP), INV_SLOT, p->ring2,  SPRITE_RING,   ui->cursor == CURSOR_RING2 );
-
     
     ItemStack stack = item_stack_none();
  

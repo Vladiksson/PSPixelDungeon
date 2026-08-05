@@ -54,10 +54,6 @@ int bag_grabs(BagType bag_type, ItemType item_type) {
         case BAG_SCROLL_HOLDER: return cat == ITEMCAT_SCROLL;
         case BAG_WAND_HOLSTER:  return cat == ITEMCAT_WAND;
         case BAG_KEYRING:       return cat == ITEMCAT_KEY;
-        /* General storage: anything except gold, which is never an
-           ItemStack (tracked as Player.gold) — this now includes bag
-           Items themselves, since a pouch sits in the backpack as a
-           real, droppable item. */
         case BAG_BACKPACK:      return cat != ITEMCAT_GOLD;
         default:                return 0;
     }
@@ -123,7 +119,7 @@ static void bag_remove_slot(Bag *bag, int slot) {
 
 int bag_remove_item(Bag *bag, int slot, int quantity) {
     if (slot < 0 || slot >= bag->count || quantity <= 0) return 0;
-    if (bag->items[slot].quantity < quantity)             return 0;
+    if (bag->items[slot].quantity < quantity)            return 0;
 
     bag->items[slot].quantity -= quantity;
 

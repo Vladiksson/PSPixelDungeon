@@ -19,59 +19,60 @@
 #include "font.h"
 
 /* ── PSP kernel module metadata ────────────────────────── */
-/*PSP_MODULE_INFO("PixelDungeonPSP", PSP_MODULE_USER, 1, 0);*/
-/*PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);*/
-PSP_HEAP_SIZE_KB(16384); // 16 MB safe
+PSP_HEAP_SIZE_KB(16384); // 16 MB, in other case sdl gonna eat all of ram, shitty temporary solution
 
 
 /* ── Asset path ───────────────────────────────────────── */
 #define ASSETS_DIR "assets"
  
-/* ── Movement repeat ────────────────────────────────────
-   First press moves immediately.
-   After REPEAT_DELAY_MS, moves every REPEAT_RATE_MS.   */
+/* ── Movement repeat ──────────────────────────────────── */
 #define REPEAT_DELAY_MS  220
-#define REPEAT_RATE_MS   (REPEAT_DELAY_MS / 2) //WAS 80
+#define REPEAT_RATE_MS   (REPEAT_DELAY_MS / 2) 
+typedef struct {
+    uint32_t next_ms;
+    int held;
+    int dx;
+    int dy;
+    int waiting_release;
+} MoveRepeat;
  
-typedef struct { uint32_t next_ms; int held; } MoveRepeat;
- 
-static int move_repeat_update(MoveRepeat *mr, InputState *inp, uint32_t now, Player *p, Level *lvl, Camera *cam, Button btn, int dx, int dy) {
-    if (btn_pressed(inp, btn)) {
+static int move_repeat_update(MoveRepeat *mr, uint32_t now, Player *p, Level *lvl, Camera *cam, int dx, int dy) {
+    if (dx == 0 && dy == 0) {
+        mr->held = 0;
+        mr->dx = 0;
+        mr->dy = 0;
+        mr->waiting_release = 0;
+        return 0;
+    }
+    if (!mr->held) {
         int result = player_bump(p, lvl, dx, dy);
-        if (result) {
-            if (result == PLAYER_BUMP_MOVED) {
-                Point pos = idx_to_xy(p->base.pos);
-                camera_center_on(cam, pos.x, pos.y);
-            }
-            mr->held = btn;
-            mr->next_ms = now + REPEAT_DELAY_MS;
-            return result;
-        }
+        mr->held = 1;
+        mr->dx = dx;
+        mr->dy = dy;
 
-        mr->held = btn;
+        if (dx != 0 && dy != 0)
+            mr->waiting_release = 1;
+
         mr->next_ms = now + REPEAT_DELAY_MS;
 
-    } else if (mr->held == (int)btn && btn_held(inp, btn) && now >= mr->next_ms) {
-        int result = player_bump(p, lvl, dx, dy);
-        if (result) {
-            if (result == PLAYER_BUMP_MOVED) {
-                Point pos = idx_to_xy(p->base.pos);
-                camera_center_on(cam, pos.x, pos.y);
-            }
-            mr->next_ms = now + REPEAT_RATE_MS;
-            return result;
+        if (result == PLAYER_BUMP_MOVED) {
+            Point pos = idx_to_xy(p->base.pos);
+            camera_center_on(cam, pos.x, pos.y);
         }
-
+        return result;
+    }
+    if (now >= mr->next_ms) {
+        int result = player_bump(p, lvl, dx, dy);
         mr->next_ms = now + REPEAT_RATE_MS;
 
-    } else if (!btn_held(inp, btn) && mr->held == (int)btn) {
-        mr->held = 0;
+        if (result == PLAYER_BUMP_MOVED) {
+            Point pos = idx_to_xy(p->base.pos);
+            camera_center_on(cam, pos.x, pos.y);
+        }
+        return result;
     }
-
     return 0;
 }
-
-
 
 /* ── Main ─────────────────────────────────────────────── */
 int main(int argc, char *argv[]) {
@@ -103,7 +104,7 @@ int main(int argc, char *argv[]) {
     InputState inp;
     input_init(&inp);
     
-    MoveRepeat mr = {0, 0};
+    MoveRepeat mr = {0};
     
     uint32_t last = SDL_GetTicks();
     /* ── Game loop ──────────────────────────────────── */
@@ -111,12 +112,15 @@ int main(int argc, char *argv[]) {
         uint32_t now = SDL_GetTicks();
         float dt = (now - last) / 1000.0f;
         last = now;
+        if (dt > 0.1f) 
+            dt = 0.1f;
+
         input_update(&inp);
 
         actor_process();
         mob_restore_targets(&player.base);
         
-        Point pos = idx_to_xy(player.base.pos);
+        pos = idx_to_xy(player.base.pos);
         if (btn_pressed(&inp, BTN_SELECT)) {
             if (inv.open)
                 inventory_ui_close(&inv);
@@ -124,7 +128,7 @@ int main(int argc, char *argv[]) {
                 inventory_ui_open(&inv);
         }
         if (inv.open) {
-            if (!inv.desc_open) {
+            if (!inv.desc_open && !inv.pending_ring) {
                 if (btn_pressed(&inp, BTN_UP))
                     inventory_ui_move(&inv, 0, -1);
                 if (btn_pressed(&inp, BTN_DOWN))
@@ -133,11 +137,16 @@ int main(int argc, char *argv[]) {
                     inventory_ui_move(&inv, -1, 0);
                 if (btn_pressed(&inp, BTN_RIGHT))
                     inventory_ui_move(&inv, 1, 0);
-                if (btn_pressed(&inp, BTN_A)) {
+                if (btn_pressed(&inp, BTN_CROSS)) {
                     if (inv.cursor < MAX_INVENTORY) {
-                        player_equip_item(&player, &player.bags[inv.active_bag], inv.cursor);
                         Bag *bag = &player.bags[inv.active_bag];
                         item_identify(&bag->items[inv.cursor]);//TEST
+
+                        int res = player_equip_item(&player, &player.bags[inv.active_bag], inv.cursor);
+
+                        if (res == 2) {
+                            inv.pending_ring = inv.cursor + 1;
+                        }
                     } else {
                         switch (inv.cursor) {
                         case CURSOR_WEAPON:
@@ -155,12 +164,10 @@ int main(int argc, char *argv[]) {
                         }
                     }
                 }
-                if (btn_pressed(&inp, BTN_Y))
+                if (btn_pressed(&inp, BTN_SQUARE))
                     player_drop_from_bag(&player, lvl, &player.bags[inv.active_bag], inv.cursor);
-                if (btn_pressed(&inp, BTN_X)) {
+                if (btn_pressed(&inp, BTN_TRIANGLE)) {
                     Bag *bag = &player.bags[inv.active_bag];
-
-                    bag_sort(bag);
 
                     item_identify(&bag->items[inv.cursor]);//TEST
                     if (item_consume(&bag->items[inv.cursor]) == ITEM_USE_CONSUMED) {//TEST
@@ -172,26 +179,55 @@ int main(int argc, char *argv[]) {
                 if (btn_pressed(&inp, BTN_L))
                     inventory_ui_prev_tab(&inv, &player);
             }
-            if (btn_pressed(&inp, BTN_B)){
-                    if (inv.desc_open)
-                        inventory_ui_desc_close(&inv);
-                    else
+            if (inv.pending_ring){
+                if (btn_pressed(&inp, BTN_L)) {
+                    player_equip_ring(&player, &player.bags[inv.active_bag], inv.pending_ring - 1, EQUIP_RING1);
+                    inv.pending_ring = 0;
+                }
+                if (btn_pressed(&inp, BTN_R)) {
+                    player_equip_ring(&player, &player.bags[inv.active_bag], inv.pending_ring - 1, EQUIP_RING2);
+                    inv.pending_ring = 0;
+                }
+            }
+            if (btn_pressed(&inp, BTN_CIRCLE)) {
+                if (inv.pending_ring) { inv.pending_ring = 0; }
+                if (inv.desc_open) {
+                    inventory_ui_desc_close(&inv);
+                } else if (inv.cursor < MAX_INVENTORY) {
+                    Bag *bag = &player.bags[inv.active_bag];
+
+                    if (bag->items[inv.cursor].type != ITEM_NONE)
                         inventory_ui_desc_open(&inv);
-            }    
+                } else {
+                    ItemStack *item = NULL;
+
+                    switch (inv.cursor) {
+                    case CURSOR_WEAPON:
+                        item = &player.weapon;
+                        break;
+                    case CURSOR_ARMOR:
+                        item = &player.armor;
+                        break;
+                    case CURSOR_RING1:
+                        item = &player.ring1;
+                        break;
+                    case CURSOR_RING2:
+                        item = &player.ring2;
+                        break;
+                    }
+
+                    if (item && item->type != ITEM_NONE)
+                        inventory_ui_desc_open(&inv);
+                }
+            }  
         } else {
             /* Player movement — d-pad */
-            int moved = 0;
-            int r;
-
-            r = move_repeat_update(&mr, &inp, now, &player, lvl, &cam, BTN_UP,    0, -1); if (r) moved = r;
-            r = move_repeat_update(&mr, &inp, now, &player, lvl, &cam, BTN_DOWN,  0, +1); if (r) moved = r;
-            r = move_repeat_update(&mr, &inp, now, &player, lvl, &cam, BTN_LEFT, -1,  0); if (r) moved = r;
-            r = move_repeat_update(&mr, &inp, now, &player, lvl, &cam, BTN_RIGHT,+1,  0); if (r) moved = r;
-
+            int dx, dy;
+            input_get_move(&inp, &dx, &dy);
+            int moved = move_repeat_update(&mr, now, &player, lvl, &cam, dx, dy);
             if (moved == PLAYER_BUMP_MOVED) {
                 pos = idx_to_xy(player.base.pos);
-                if (player.anim == ANIM_IDLE)
-                    player_play_anim(&player, ANIM_RUN);
+                player_set_moving(&player, 1);
 
                 if (!player_operate(&player, lvl))
                     player_pickup(&player, lvl); /* TODO: route this to a message log / HUD once one exists */
@@ -211,13 +247,9 @@ int main(int argc, char *argv[]) {
                 dungeon_on_player_move(&dungeon, &player);
 
             } else if (moved == PLAYER_BUMP_ATTACKED) {
-                /* ANIM_ATTACK is already playing (player_bump() ->
-                   player_start_attack() kicked it off); the actual
-                   damage resolves in player_animate() once it
-                   finishes — nothing else to do here this frame. */
+                /* Attack already started; player_animate() will resolve it. */
             } else {
-                if (player.anim == ANIM_RUN)
-                    player_play_anim(&player, ANIM_IDLE);
+                player_set_moving(&player, 0);
             }
         }
         

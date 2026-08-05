@@ -5,11 +5,12 @@
 #include "bag.h"
 
 /* ══════════════════════════════════════════════════════════
-   INVENTORY SCREEN — a first-pass PSP-side backpack/equip UI.
+   INVENTORY SCREEN backpack/equip UI.
    ══════════════════════════════════════════════════════════  */
 typedef struct {
     int     open;        /* 1 while the inventory screen should be shown/drawn */
     int     desc_open;   /* 1 while the description screen should be shown/drawn */ //TODO temporar solution, expand for more popups
+    int     pending_ring;
     int     cursor;      /* selected slot within the active bag's grid, or a CURSOR_* equip sentinel */
     BagType active_bag;  /* which tab is showing — BAG_BACKPACK or a pouch currently on the player */
 } InventoryUI;

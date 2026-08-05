@@ -87,7 +87,6 @@ typedef enum {
 
 typedef struct {
    Char base;
-   //int  x, y;        /*REDO    current tile position. */
    HeroClass cls;         /* which sprite sheet to draw                */
    Facing    facing;      /* left/right — drives the horizontal flip   */
    AnimState anim;        /* animation currently playing               */
@@ -144,6 +143,7 @@ void player_play_anim(Player *p, AnimState anim);
 int player_operate(Player *p, Level *lvl);
 
 int player_is_busy(const Player *p);
+void player_set_moving(Player *p, int moving);
 
 int player_add_item(Player *p, ItemType type, int quantity);
 int player_add_stack(Player *p, ItemStack stack);
@@ -154,15 +154,18 @@ int player_pickup(Player *p, Level *lvl);
 
 int player_drop_item(Player *p, Level *lvl, int slot);
 
-int player_remove_item(Player *p, int slot, int quantity);
-
 int player_equip_item(Player *p, Bag *bag, int slot);
 
 int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 
-void player_sort_inventory(Player *p);
 
-int player_find_item(const Player *p, ItemType type);
+int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target);
+
+void player_sort_inventory(Player *p);
+/*
+int player_remove_item(Player *p, int slot, int quantity);
+
+int player_find_item(const Player *p, ItemType type); */
 
 /* ── Bags ─────────────────────────────────────────────────────*/
 int player_has_bag(const Player *p, BagType type);

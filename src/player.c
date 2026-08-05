@@ -332,6 +332,20 @@ int player_is_busy(const Player *p) {
         return 0;
     }
 }
+
+void player_set_moving(Player *p, int moving) {
+    if (player_is_busy(p))
+        return;
+
+    if (moving) {
+        if (p->anim != ANIM_RUN)
+            player_play_anim(p, ANIM_RUN);
+    } else {
+        if (p->anim == ANIM_RUN)
+            player_play_anim(p, ANIM_IDLE);
+    }
+}
+
 /*═══════════════════════════════════════════════════════════════
     Inventory helpers 
 ═══════════════════════════════════════════════════════════════*/
@@ -380,6 +394,11 @@ static void player_acquire_bag(Player *p, BagType type) {
 /*═══════════════════════════════════════════════════════════════
     Inventory management
 ═══════════════════════════════════════════════════════════════*/
+void player_sort_inventory(Player *p) {
+    for (int t = 0; t < BAG_TYPE_COUNT; t++)
+        bag_sort(&p->bags[t]);
+}
+
 int player_add_stack(Player *p, ItemStack stack) {
     if (stack.type == ITEM_GOLD) {
         p->gold += stack.quantity;
@@ -394,6 +413,7 @@ int player_add_stack(Player *p, ItemStack stack) {
         player_acquire_bag(p, (BagType)granted);
     }
 
+    player_sort_inventory(p);
     return 1;
 }
 
@@ -403,17 +423,15 @@ int player_add_item(Player *p, ItemType type, int quantity) {
     return player_add_stack(p, stack);
 }
 
-int player_remove_item(Player *p, int slot, int quantity) {//TODO UNUSED FUNCTIONS FROM HERE TO THE NEXT PART
+/* //TODO UNUSED FUNCTIONS FROM HERE TO THE NEXT PART
+int player_remove_item(Player *p, int slot, int quantity) {
     return bag_remove_item(&p->bags[BAG_BACKPACK], slot, quantity);
 }
 
 int player_find_item(const Player *p, ItemType type) {
     return bag_find_item(&p->bags[BAG_BACKPACK], type);
 }
-
-void player_sort_inventory(Player *p) {//REDO
-    bag_sort(&p->bags[BAG_BACKPACK]);
-}
+*/
 
 /*═══════════════════════════════════════════════════════════════
     Equipment
@@ -431,11 +449,14 @@ int player_equip_item(Player *p, Bag *bag, int slot) {
     } else if (cat == ITEMCAT_ARMOR) {
         target = EQUIP_ARMOR;
     } else if (cat == ITEMCAT_RING) {
-        target = (p->ring1.type == ITEM_NONE) ? EQUIP_RING1
-               : (p->ring2.type == ITEM_NONE) ? EQUIP_RING2
-               : EQUIP_RING1;
+        if (p->ring1.type == ITEM_NONE)
+            target = EQUIP_RING1;
+        else if (p->ring2.type == ITEM_NONE)
+            target = EQUIP_RING2;
+        else
+            return 2; // redo
     } else {
-        return 0; /* not an equipable category */
+        return 0;
     }
 
     ItemStack *dst = equip_slot_ptr(p, target);
@@ -444,7 +465,8 @@ int player_equip_item(Player *p, Bag *bag, int slot) {
         return 0;
     }
 
-    if (!bag_remove_item(bag, slot, 1)) return 0;
+    if (!bag_remove_item(bag, slot, 1)) 
+        return 0;
 
     if (dst->type != ITEM_NONE) {
         if (!player_add_stack(p, *dst)) {
@@ -455,6 +477,8 @@ int player_equip_item(Player *p, Bag *bag, int slot) {
     *dst = incoming;
     dst->quantity = 1; /*TODO MB REWRITE??? equipped gear is always exactly one unit, even if it came off a stack of stackable weapons */
     dst->cursed_known = 1;
+
+    player_sort_inventory(p);
     return 1;
 }
 
@@ -469,6 +493,7 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
 
     if (player_add_stack(p, stack)) {
         *src = item_stack_none();
+        player_sort_inventory(p);
         return 1;
     }
 
@@ -478,6 +503,7 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
 
         if (h && heap_add_stack(h, stack)) {
             *src = item_stack_none();
+            player_sort_inventory(p);
             return 1;
         }
     }
@@ -485,6 +511,31 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
     return 0; 
 }
 
+int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target) {
+    if (!bag || slot < 0 || slot >= bag->count)
+        return 0;
+
+    ItemStack *dst = equip_slot_ptr(p, target);
+
+    if (dst->type != ITEM_NONE && dst->cursed)
+        return 0;
+
+    ItemStack incoming = bag->items[slot];
+
+    if (!bag_remove_item(bag, slot, 1))
+        return 0;
+
+    if (dst->type != ITEM_NONE)
+        player_add_stack(p, *dst);
+
+    *dst = incoming;
+    dst->quantity = 1;
+    dst->cursed_known = 1;
+
+    player_sort_inventory(p);
+
+    return 1;
+}
 /*═══════════════════════════════════════════════════════════════
     Bags
 ═══════════════════════════════════════════════════════════════*/
