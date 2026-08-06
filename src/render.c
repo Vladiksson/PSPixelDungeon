@@ -1,62 +1,34 @@
 #include "render.h"
 #include "mob.h" //redo temporar solution for the test
+#include "assets_embedded.h"
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
-/* ── path builder ─────────────────────────────────── */
-static void asset_path(char *buf, size_t sz, const char *dir, const char *f) {
-    snprintf(buf, sz, "%s/%s", dir, f);
-}
-
 /* ── PNG init ─────────────────────────────────────── */
 static int ensure_png(void) {
-    int got = IMG_Init(IMG_INIT_PNG);
-    if (!(got & IMG_INIT_PNG)) { return 0;}
-    return 1;
+    return (IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) != 0;
 }
 
-/* ── texture loader ───────────────────────────────── */
-static SDL_Texture *load_tex(SDL_Renderer *r, const char *dir, const char *f) {
-    char path[512];
-    asset_path(path, sizeof(path), dir, f);
-    SDL_Surface *s = IMG_Load(path);
+static SDL_Texture *load_tex(SDL_Renderer *r, const char *f) {
+    EmbeddedAsset a = asset_find(f);
+    if (!a.data)
+        return NULL;
+    SDL_RWops *rw = SDL_RWFromConstMem(a.data, (int)a.size);
+    if (!rw)
+        return NULL;
+    SDL_Surface *s = IMG_Load_RW(rw, 1); /* 1 = SDL_image closes rw for us */
     if (!s) 
         return NULL;
     SDL_Texture *t = SDL_CreateTextureFromSurface(r, s);
-    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
     SDL_FreeSurface(s);
+    if (!t)
+        return NULL;
+    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
     return t;
 }
 
-/* ── water shore bitmask — exact Level.java getWaterTile() ─
-   NEIGHBOURS4 = {-WIDTH,+1,+WIDTH,-1} = {top,right,bottom,left}
-   Bit fires when neighbour is UNSTITCHABLE (wall/solid).         */
-static int tile_unstitchable(uint8_t t){
-    return (gTileFlags[t] & TF_UNSTITCHABLE) != 0;
-}
-static int water_sprite(const Level *lvl, int tx, int ty) {
-    int top   = tile_unstitchable(get_tile_safe(lvl, tx,   ty-1));
-    int right = tile_unstitchable(get_tile_safe(lvl, tx+1, ty  ));
-    int bot   = tile_unstitchable(get_tile_safe(lvl, tx,   ty+1));
-    int left  = tile_unstitchable(get_tile_safe(lvl, tx-1, ty  ));
-    return TILE_WATER_TILES + (top | (right<<1) | (bot<<2) | (left<<3));
-}
-
 /* ── render_init ──────────────────────────────────── */
-static int init_font(BitmapFont *font, SDL_Renderer *renderer, const char *dir){
-    memset(font, 0, sizeof(*font));
-    font->sheet_h = 8;
-
-    const char *font_files[] = ASSET_FONTS1X_BY_PAGE;
-    for (int i = 0; i < 3; i++) {
-        font->tex[i] = load_tex(renderer, dir, font_files[i]);
-        if (!font->tex[i])
-            return 0;
-    }
-    return 1;
-}
-
-int render_init(RenderCtx *ctx, const char *assets_dir) {
+int render_init(RenderCtx *ctx) {
     memset(ctx, 0, sizeof(*ctx));
     if (SDL_Init(SDL_INIT_VIDEO) != 0) { 
         return -1; 
@@ -84,7 +56,6 @@ int render_init(RenderCtx *ctx, const char *assets_dir) {
         return -1;
     }
 
-    if (!assets_dir) return -1;
     if (!ensure_png()) return -1;
     
     /*tiles and water*/
@@ -92,68 +63,86 @@ int render_init(RenderCtx *ctx, const char *assets_dir) {
     const char *water_files[] = ASSET_WATER_BY_THEME;
 
     for (int i=0; i<TILESET_COUNT; i++) {
-        ctx->tilesets[i] = load_tex(ctx->renderer, assets_dir, tile_files[i]);
-        ctx->water[i]    = load_tex(ctx->renderer, assets_dir, water_files[i]);
+        ctx->tilesets[i] = load_tex(ctx->renderer, tile_files[i]);
+        ctx->water[i]    = load_tex(ctx->renderer, water_files[i]);
     }
 
     /*hero*/
     const char *hero_files[] = ASSET_HERO_BY_CLASS;
     for (int i=0; i<HERO_CLASS_COUNT; i++) {
-        ctx->heroes[i] = load_tex(ctx->renderer, assets_dir, hero_files[i]);
+        ctx->heroes[i] = load_tex(ctx->renderer, hero_files[i]);
     }
     /*items*/
-    ctx->items = load_tex(ctx->renderer, assets_dir, ASSET_ITEMS);
+    ctx->items = load_tex(ctx->renderer, ASSET_ITEMS);
     /*fonts*/
-    init_font(&ctx->font, ctx->renderer, assets_dir);
+    memset(&ctx->font, 0, sizeof(ctx->font));
+    ctx->font.sheet_h = 8;
+
+    const char *font_files[] = ASSET_FONTS1X_BY_PAGE;
+    for (int i = 0; i < 3; i++) {
+        ctx->font.tex[i] = load_tex(ctx->renderer, font_files[i]);
+        if (!ctx->font.tex[i]) {
+            return -1;
+        }
+    }
     /*chrome ui*/
-    ctx->chrome = load_tex(ctx->renderer, assets_dir, ASSET_CHROME);
+    ctx->chrome = load_tex(ctx->renderer, ASSET_CHROME);
     /*icons*/
-    ctx->icons = load_tex(ctx->renderer, assets_dir, ASSET_ICONS);
+    ctx->icons = load_tex(ctx->renderer, ASSET_ICONS);
 
     return 0;
 }
 
 /* ── render_free ──────────────────────────────────── */
-static void font_free(BitmapFont *font) {
-    for (int i = 0; i < 3; i++) {
-        if (font->tex[i])
-            SDL_DestroyTexture(font->tex[i]);
-    }
-
-    memset(font, 0, sizeof(*font));
-}
-
 void render_free(RenderCtx *ctx) {
-    for (int i=0; i<TILESET_COUNT; i++) {
-        if (ctx->tilesets[i]) SDL_DestroyTexture(ctx->tilesets[i]);
-        if (ctx->water[i])    SDL_DestroyTexture(ctx->water[i]);
+    for (int i = 0; i < 3; i++) {
+        if (ctx->font.tex[i]) {
+            SDL_DestroyTexture(ctx->font.tex[i]);
+            ctx->font.tex[i] = NULL;
+        }
     }
-    for (int i=0; i<HERO_CLASS_COUNT; i++) {
-        if (ctx->heroes[i]) SDL_DestroyTexture(ctx->heroes[i]);
+    memset(&ctx->font, 0, sizeof(ctx->font));
+
+    for (int i = 0; i < TILESET_COUNT; i++) {
+        if (ctx->tilesets[i]) {
+            SDL_DestroyTexture(ctx->tilesets[i]);
+            ctx->tilesets[i] = NULL;
+        }
+        if (ctx->water[i]) {
+            SDL_DestroyTexture(ctx->water[i]);
+            ctx->water[i] = NULL;
+        }
     }
-    if (ctx->items) SDL_DestroyTexture(ctx->items);
-
-    font_free(&ctx->font);
-
-    if (ctx->chrome) SDL_DestroyTexture(ctx->chrome);
-    if (ctx->icons) SDL_DestroyTexture(ctx->icons);
-
+    for (int i = 0; i < HERO_CLASS_COUNT; i++) {
+        if (ctx->heroes[i]) {
+            SDL_DestroyTexture(ctx->heroes[i]);
+            ctx->heroes[i] = NULL;
+        }
+    }
+    if (ctx->items) {
+        SDL_DestroyTexture(ctx->items);
+        ctx->items = NULL;
+    }
+    if (ctx->chrome) {
+        SDL_DestroyTexture(ctx->chrome);
+        ctx->chrome = NULL;
+    }
+    if (ctx->icons) {
+        SDL_DestroyTexture(ctx->icons);
+        ctx->icons = NULL;
+    }
     if (ctx->renderer) {
         SDL_DestroyRenderer(ctx->renderer);
         ctx->renderer = NULL;
     }
-
     if (ctx->window) {
         SDL_DestroyWindow(ctx->window);
         ctx->window = NULL;
     }
-
-    IMG_Quit();
-    SDL_Quit();
 }
 
-/* ── render_tile ──────────────────────────────────── */
-void render_tile(RenderCtx *ctx, int sprite_idx, int px, int py) {
+/* ── render_frame ──────────────────────  */
+static void render_tile(RenderCtx *ctx, int sprite_idx, int px, int py) {
     SDL_Rect dst = {px, py, TILE_SIZE, TILE_SIZE};
     SDL_Texture *tex = ctx->tilesets[(int)ctx->active_theme];
     if (!tex)
@@ -167,6 +156,17 @@ void render_tile(RenderCtx *ctx, int sprite_idx, int px, int py) {
     SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
 }
 
+static int tile_unstitchable(uint8_t t){
+    return (gTileFlags[t] & TF_UNSTITCHABLE) != 0;
+}
+static int water_sprite(const Level *lvl, int tx, int ty) { //mirror Level.java getWaterTile()
+    int top   = tile_unstitchable(get_tile_safe(lvl, tx,   ty-1));
+    int right = tile_unstitchable(get_tile_safe(lvl, tx+1, ty  ));
+    int bot   = tile_unstitchable(get_tile_safe(lvl, tx,   ty+1));
+    int left  = tile_unstitchable(get_tile_safe(lvl, tx-1, ty  ));
+    return TILE_WATER_TILES + (top | (right<<1) | (bot<<2) | (left<<3));
+}
+
 static void render_water_fill(RenderCtx *ctx, int tx, int ty, int px, int py) {
     SDL_Rect dst = {px, py, TILE_SIZE, TILE_SIZE};
     SDL_Texture *tex = ctx->water[(int)ctx->active_theme];
@@ -177,7 +177,6 @@ static void render_water_fill(RenderCtx *ctx, int tx, int ty, int px, int py) {
     SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
 }
 
-/* ── render_frame — draws tiles, does NOT present ── */
 void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     ctx->active_theme = lvl->theme;
     SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 255);
@@ -221,20 +220,11 @@ void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     }
 }
 
-/* Neighbour helper — returns 1 if tile (nx,ny) is a wall, 0 otherwise */
+/* ── render_shadow ──────────────────────────────────── */
 static int wall_at(const Level *lvl, int nx, int ny) {
     return in_bounds(nx, ny) && ((gTileFlags[lvl->map[xy_to_idx(nx, ny)]] & TF_SHADOW) != 0);
 }
 
-/* ── Stepped gradient shadow ──────────────────────────────────
-   Draws STEPS rectangles of decreasing alpha along one edge.
-
-   axis    0 = horizontal strip  (N shadow from top / S from bottom)
-           1 = vertical   strip  (W shadow from left / E from right)
-   flip    0 = start from the near edge  (N/W walls)
-           1 = start from the far  edge  (S/E walls)
-   max_a   alpha at the wall face (fades to 0 over TILE_SIZE*5/8 px)
-   ─────────────────────────────────────────────────────────────── */
 static void edge_shadow(SDL_Renderer *r, int px, int py, int axis, int flip, int max_a) {
     const int STEPS = 5;
     int span  = TILE_SIZE / 4;
@@ -364,18 +354,14 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
                 /* INVISIBLE = 0xFF000000 — solid black */
                 SDL_SetRenderDrawColor(ctx->renderer, 0x00, 0x00, 0x00, 0xFF);
             }
-
             SDL_RenderFillRect(ctx->renderer, &rect);
         }
     }
-
-    /* Restore opaque drawing for everything that follows */
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
 }
 
  
-/* ── hero source-rect lookup ──────────────────────────
-   Column = which frame of the current animation. Row = armor tier. */
+/* ── render_player ────────────────────────────────── */
 static SDL_Rect hero_frame_rect(const Player *p) {
     const AnimClip *clip = &HERO_CLIPS[p->anim];
     uint8_t col = clip->frames[p->frame % clip->count];
@@ -388,7 +374,6 @@ static SDL_Rect hero_frame_rect(const Player *p) {
     return src;
 }
 
-/* ── render_player ────────────────────────────────── */
 void render_player(RenderCtx *ctx, const Player *p, const Camera *cam){
     SDL_Texture *tex = ctx->heroes[p->cls];
     if (!tex) return;

@@ -2,6 +2,7 @@
 #include <pspdebug.h>
 #include <pspsysmem.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 #include <stdio.h>
 
 #include "common.h"
@@ -21,38 +22,22 @@
 /* ── PSP kernel module metadata ────────────────────────── */
 PSP_HEAP_SIZE_KB(16384); // 16 MB, in other case sdl gonna eat all of ram, shitty temporary solution
 
-
-/* ── Asset path ───────────────────────────────────────── */
-#define ASSETS_DIR "assets"
- 
 /* ── Movement repeat ──────────────────────────────────── */
 #define REPEAT_DELAY_MS  220
 #define REPEAT_RATE_MS   (REPEAT_DELAY_MS / 2) 
 typedef struct {
     uint32_t next_ms;
     int held;
-    int dx;
-    int dy;
-    int waiting_release;
 } MoveRepeat;
  
 static int move_repeat_update(MoveRepeat *mr, uint32_t now, Player *p, Level *lvl, Camera *cam, int dx, int dy) {
     if (dx == 0 && dy == 0) {
         mr->held = 0;
-        mr->dx = 0;
-        mr->dy = 0;
-        mr->waiting_release = 0;
         return 0;
     }
     if (!mr->held) {
         int result = player_bump(p, lvl, dx, dy);
         mr->held = 1;
-        mr->dx = dx;
-        mr->dy = dy;
-
-        if (dx != 0 && dy != 0)
-            mr->waiting_release = 1;
-
         mr->next_ms = now + REPEAT_DELAY_MS;
 
         if (result == PLAYER_BUMP_MOVED) {
@@ -99,7 +84,10 @@ int main(int argc, char *argv[]) {
     camera_center_on(&cam, pos.x, pos.y);
 
     RenderCtx rctx;
-    render_init(&rctx, ASSETS_DIR);
+    if (render_init(&rctx) != 0) {
+        SDL_Quit();
+        return -1;
+    }
  
     InputState inp;
     input_init(&inp);
@@ -116,11 +104,7 @@ int main(int argc, char *argv[]) {
             dt = 0.1f;
 
         input_update(&inp);
-
-        actor_process();
-        mob_restore_targets(&player.base);
         
-        pos = idx_to_xy(player.base.pos);
         if (btn_pressed(&inp, BTN_SELECT)) {
             if (inv.open)
                 inventory_ui_close(&inv);
@@ -138,7 +122,7 @@ int main(int argc, char *argv[]) {
                 if (btn_pressed(&inp, BTN_RIGHT))
                     inventory_ui_move(&inv, 1, 0);
                 if (btn_pressed(&inp, BTN_CROSS)) {
-                    if (inv.cursor < MAX_INVENTORY) {
+                    if (inv.cursor >= 0 && inv.cursor < MAX_INVENTORY) {
                         Bag *bag = &player.bags[inv.active_bag];
                         item_identify(&bag->items[inv.cursor]);//TEST
 
@@ -193,7 +177,7 @@ int main(int argc, char *argv[]) {
                 if (inv.pending_ring) { inv.pending_ring = 0; }
                 if (inv.desc_open) {
                     inventory_ui_desc_close(&inv);
-                } else if (inv.cursor < MAX_INVENTORY) {
+                } else if (inv.cursor >= 0 && inv.cursor < MAX_INVENTORY) {
                     Bag *bag = &player.bags[inv.active_bag];
 
                     if (bag->items[inv.cursor].type != ITEM_NONE)
@@ -252,7 +236,11 @@ int main(int argc, char *argv[]) {
                 player_set_moving(&player, 0);
             }
         }
-        
+        pos = idx_to_xy(player.base.pos);
+
+        actor_process();
+        mob_restore_targets(&player.base);
+
         fog_update(fog, lvl, pos.x, pos.y);
         player_animate(&player, dt);
         /* Draw: tiles → items → mobs →fog → player → present */
@@ -272,6 +260,7 @@ int main(int argc, char *argv[]) {
     }
 
     render_free(&rctx);
+    IMG_Quit();
     SDL_Quit();
     return 0;
 }

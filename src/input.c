@@ -37,16 +37,6 @@ void input_update(InputState *inp) {
 }
 
 void input_get_move(InputState *inp, int *dx, int *dy) {
-    *dx = 0;
-    *dy = 0;
-
-    if (btn_held(inp, BTN_LEFT))
-        *dx = -1;
-    else if (btn_held(inp, BTN_RIGHT))
-        *dx = 1;
-
-    if (btn_held(inp, BTN_UP))
-        *dy = -1;
-    else if (btn_held(inp, BTN_DOWN))
-        *dy = 1;
+    *dx = btn_held(inp, BTN_RIGHT) - btn_held(inp, BTN_LEFT);
+    *dy = btn_held(inp, BTN_DOWN)  - btn_held(inp, BTN_UP);
 }
