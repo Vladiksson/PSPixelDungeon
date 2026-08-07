@@ -1,6 +1,6 @@
 #include "item.h"
 #include "item_generator.h"
-#include "level_utils.h"
+#include "rng.h"
 
 void generate_ring(ItemStack *stack) {
     int lvl = rng_range(1,3);

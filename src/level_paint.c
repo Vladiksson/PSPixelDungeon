@@ -1,5 +1,4 @@
 #include "level_paint.h"
-#include "level_boss.h"
 #include "item_generator.h"
 #include "item_spawn.h"
 #include <stdbool.h>
@@ -1372,8 +1371,7 @@ static uint8_t tunnel_tile(const Level *lvl){
         : TILE_EMPTY;
 }
 static void paint_tunnel_room(Level *lvl, Room *r) {
-    uint8_t floor = (lvl->feeling == FEELING_CHASM)
-        ? TILE_EMPTY_SP : TILE_EMPTY;   
+    uint8_t floor = tunnel_tile(lvl);
     int cx, cy;
     room_center(r, &cx, &cy);
 
@@ -1655,28 +1653,62 @@ void paint_grass(Level *lvl, const uint8_t *grass) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   CHASMS painter (for chasms feeling)
+   CHASMS painter
    ══════════════════════════════════════════════════════════ */
-void paint_chasms(Level *lvl){
-    for (int i = 0; i < LEVEL_SIZE; i++) {
-        if (lvl->map[i] == TILE_WALL)
-            lvl->map[i] = TILE_CHASM;
+void paint_chasms_feeling(Level *lvl){
+    if (lvl->feeling == FEELING_CHASM){
+        for (int i = 0; i < LEVEL_SIZE; i++) {
+            if (lvl->map[i] == TILE_WALL)
+                lvl->map[i] = TILE_CHASM;
+        }
+
+        for (int i = 0; i < lvl->num_rooms; i++) {
+            Room *r = &lvl->rooms[i];
+
+            if (r->type == ROOM_TUNNEL || r->type == ROOM_PASSAGE){//mb add ROOM_NULL too????
+                continue;
+            }
+
+            for (int x = r->left; x <= r->right; x++) {
+                set_tile(lvl, x, r->top, TILE_WALL);
+                set_tile(lvl, x, r->bottom, TILE_WALL);
+            }
+            for (int y = r->top; y <= r->bottom; y++) {
+                set_tile(lvl, r->left,  y, TILE_WALL);
+                set_tile(lvl, r->right, y, TILE_WALL);
+            }
+        }
     }
+}
 
-    for (int i = 0; i < lvl->num_rooms; i++) {
-        Room *r = &lvl->rooms[i];
+void paint_chasms(Level *lvl){
+    for (int y = 1; y < LEVEL_H; y++) {
+        for (int x = 0; x < LEVEL_W; x++) {
 
-        if (r->type == ROOM_TUNNEL || r->type == ROOM_PASSAGE){//mb add ROOM_NULL too????
-            continue;
-        }
+            int cur   = y * LEVEL_W + x;
+            int above = (y - 1) * LEVEL_W + x;
 
-        for (int x = r->left; x <= r->right; x++) {
-            set_tile(lvl, x, r->top, TILE_WALL);
-            set_tile(lvl, x, r->bottom, TILE_WALL);
-        }
-        for (int y = r->top; y <= r->bottom; y++) {
-            set_tile(lvl, r->left,  y, TILE_WALL);
-            set_tile(lvl, r->right, y, TILE_WALL);
+            if (lvl->map[cur] != TILE_CHASM)
+                continue;
+
+            switch (lvl->map[above]) {
+                case TILE_WALL:
+                    lvl->map[cur] = TILE_CHASM_WALL;
+                    break;
+
+                case TILE_EMPTY:
+                case TILE_EMBERS: //stupid fix for altar (i really hate this room...)
+                    lvl->map[cur] = TILE_CHASM_FLOOR;
+                    break;
+
+                case TILE_EMPTY_SP:
+                    lvl->map[cur] = TILE_CHASM_FLOOR_SP;
+                    break;
+
+                case TILE_WATER:
+                    lvl->map[cur] = TILE_CHASM_WATER;
+                    break;
+            }
         }
     }
 }

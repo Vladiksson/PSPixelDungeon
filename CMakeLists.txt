@@ -9,6 +9,7 @@ add_executable(${PROJECT_NAME}
     src/level_decorate.c
     src/level_boss.c
     src/level_last.c
+    src/level_rooms.c
     src/tiles.c
     src/render.c
     src/input.c
@@ -29,6 +30,8 @@ add_executable(${PROJECT_NAME}
     src/actor.c
     src/char.c
     src/mob.c
+    src/rng.c
+    src/common.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O2 -G0 -Wall)

@@ -67,7 +67,6 @@
 
 #define DESC_LENGTH (DESC_PANEL_W - PANEL_GAP * 2)
 
-#define ICON_SIZE  16
 /* ── Palette  ──────────── */
 static const SDL_Color COL_CURSOR           = { 0xe8, 0xc5, 0x47, 0xFF }; /* for gold text */
 static const SDL_Color COL_TEXT             = { 0xd8, 0xcd, 0xb8, 0xFF }; 

@@ -3,15 +3,6 @@
 #include "bag.h"
 #include "char.h"
 
-#define HERO_W 12
-#define HERO_H 15
-#define TILESET_HERO_COLS    21
-#define TILESET_HERO_ROWS     7
-#define TILESET_HERO_W       12
-#define TILESET_HERO_H       15
-
-#define HERO_ARMOR_TIER 6 // TEST, REMOVE AFTER ADDING ARMOR TIER
-
 /* ── Hero starting stats ────────────────────────────────── */
 #define HERO_STARTING_HP         20000 //test, original was 20
 #define HERO_STARTING_STR        10

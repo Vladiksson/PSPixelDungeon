@@ -1,5 +1,5 @@
 #include "item.h"
-#include "level_utils.h"
+#include "rng.h"
 #include <stdio.h>   /* snprintf — item_display_name */
 /* ══════════════════════════════════════════════════════════
    IDENTIFY — per-TYPE "known" tracking + shuffled unidentified look

@@ -1,11 +1,9 @@
-#include "level.h"
 #include "level_last.h"
-#include "level_utils.h"
 #include "level_paint.h"
 #include "level_decorate.h"
 #include "item_spawn.h"
 #include <time.h>
-
+#include <math.h>
 /* ══════════════════════════════════════════════════════════
    LAST SHOP  —  LastShopLevel.java
    ══════════════════════════════════════════════════════════ */
@@ -26,7 +24,7 @@ static int try_last_shop(Level *lvl, int depth, int quest_completed) {
     } while (lvl->num_rooms < 8);
     build_neighbours(lvl);
 
-    int min_dist = isqrt(lvl->num_rooms);
+    int min_dist = (int)sqrt((double)lvl->num_rooms);
     int entrance_r = -1, exit_r = -1, outer = 0, plen;
     int path[MAX_ROOMS];
     do {

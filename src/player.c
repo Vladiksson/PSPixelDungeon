@@ -1,6 +1,6 @@
 #include "player.h"
 #include "item_spawn.h"
-#include "level_utils.h"
+#include "rng.h"
 #include <math.h>
 #include <stddef.h>
 
@@ -652,7 +652,7 @@ int player_move(Player *p, Level *lvl, int dx, int dy){
     if (player_is_busy(p)) return 0;
 
     uint8_t tile = lvl->map[xy_to_idx(nx, ny)];
-    if (!(gTileFlags[tile] & TF_PASSABLE)) return 0;
+    
  
     int idx = xy_to_idx(nx, ny);
     switch (tile) {
@@ -676,7 +676,9 @@ int player_move(Player *p, Level *lvl, int dx, int dy){
         player_play_anim(p, ANIM_OPERATE);
         return 1;
     }
-    
+    if (!(gTileFlags[tile] & TF_PASSABLE)) return 0;
+
+
     if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
 
     char_move(&p->base, lvl, idx);

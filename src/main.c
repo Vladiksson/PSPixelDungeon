@@ -5,19 +5,10 @@
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
-#include "common.h"
-#include "level.h"
-#include "camera.h"
 #include "render.h"
 #include "input.h"
-#include "player.h"
-#include "actor.h"
-#include "mob.h"
-#include "fov.h"
 #include "dungeon.h"
-#include "item.h"
-#include "inventory_screen.h" 
-#include "font.h"
+#include "inventory_screen.h" //REDO TEMPORARY
 
 /* ── PSP kernel module metadata ────────────────────────── */
 PSP_HEAP_SIZE_KB(16384); // 16 MB, in other case sdl gonna eat all of ram, shitty temporary solution
@@ -62,6 +53,12 @@ static int move_repeat_update(MoveRepeat *mr, uint32_t now, Player *p, Level *lv
 /* ── Main ─────────────────────────────────────────────── */
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
+
+    gTileSize = TILE_SIZE_MIN;
+    gHeroW = HERO_W_MIN;
+    gHeroH = HERO_H_MIN;
+    TileSize_Update();
+
     Terrain_InitFlags(); 
 
     static Dungeon dungeon;
@@ -205,6 +202,19 @@ int main(int argc, char *argv[]) {
                 }
             }  
         } else {
+            if (btn_pressed(&inp, BTN_L)) {
+                if (gTileSize == TILE_SIZE_MIN) {
+                    gTileSize = TILE_SIZE_MAX;
+                    gHeroW = HERO_W_MAX;
+                    gHeroH = HERO_H_MAX;
+                } else {
+                    gTileSize = TILE_SIZE_MIN;
+                    gHeroW = HERO_W_MIN;
+                    gHeroH = HERO_H_MIN;
+                }
+                TileSize_Update();
+                camera_center_on(&cam, pos.x, pos.y);
+            }
             /* Player movement — d-pad */
             int dx, dy;
             input_get_move(&inp, &dx, &dy);

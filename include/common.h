@@ -7,13 +7,18 @@
 #define SCREEN_W   480
 #define SCREEN_H   272
 
-/* ── Tile / view constants ───────────────────────────── */
-#define TILE_SIZE  16
-#define LEVEL_W    32       
-#define LEVEL_H    32      
+/* ── Tile / view ───────────────────────────── */
+#define TILE_SIZE_MIN 16
+#define TILE_SIZE_MAX 32
+#define LEVEL_W    32
+#define LEVEL_H    32
 #define LEVEL_SIZE (LEVEL_W * LEVEL_H)
-#define VIEW_COLS  (SCREEN_W / TILE_SIZE)   /* 30 */
-#define VIEW_ROWS  (SCREEN_H / TILE_SIZE)   /* 17 */
+
+extern int gTileSize;
+extern int gViewCols;
+extern int gViewRows;
+
+void TileSize_Update(void);
 
 /* ── Tileset constants ───────────────────────────────── */
 #define TILESET_COLS    16
@@ -22,6 +27,23 @@
 #define TILESET_TILE_H  16
 #define TILESET_COUNT    5
 
+/* ── HERO constants ───────────────────────────────── */
+#define HERO_W_MIN 12
+#define HERO_H_MIN 15
+#define HERO_W_MAX 24
+#define HERO_H_MAX 30
+#define TILESET_HERO_COLS    21
+#define TILESET_HERO_ROWS     7
+#define TILESET_HERO_W       12
+#define TILESET_HERO_H       15
+
+#define HERO_ARMOR_TIER 6 // TEST, REMOVE AFTER ADDING ARMOR TIER
+
+extern int gHeroW;
+extern int gHeroH;
+
+/* ── ITEM ICON ───────────────────────────────── */
+#define ICON_SIZE  16
 /* ── Terrain tile IDs — exact mirror of Terrain.java ─── */
 typedef enum {
     TILE_CHASM                  =  0,
@@ -76,17 +98,18 @@ typedef enum {
 } TileType;
 
 typedef enum {
-    TF_PASSABLE      = 0x0001,
-    TF_LOS_BLOCKING  = 0x0002,
-    TF_FLAMABLE      = 0x0004,
-    TF_SECRET        = 0x0008,
-    TF_SOLID         = 0x0010,
-    TF_AVOID         = 0x0020,
-    TF_LIQUID        = 0x0040,
-    TF_PIT           = 0x0080,
-    TF_UNSTITCHABLE  = 0x0100,
-    TF_SHADOW        = 0x0200, //NOT ORIGINAL
-    TF_OPEN_FLOOR    = 0x0400, //NOT ORIGINAL
+    TF_PASSABLE        = 0x0001,
+    TF_LOS_BLOCKING    = 0x0002,
+    TF_FLAMABLE        = 0x0004,
+    TF_SECRET          = 0x0008,
+    TF_SOLID           = 0x0010,
+    TF_AVOID           = 0x0020,
+    TF_LIQUID          = 0x0040,
+    TF_PIT             = 0x0080,
+    TF_UNSTITCHABLE    = 0x0100,
+    TF_SHADOW          = 0x0200, //NOT ORIGINAL
+    TF_OPEN_FLOOR      = 0x0400, //NOT ORIGINAL
+    TF_RECEIVES_SHADOW = 0x0800, //NOT ORIGINAL
 } TileFlags;
 
 extern uint16_t gTileFlags[256];

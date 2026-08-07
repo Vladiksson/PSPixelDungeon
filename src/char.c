@@ -1,8 +1,7 @@
 #include "char.h"
-#include <string.h>
 #include "level.h"
-#include "level_utils.h"
-
+#include "rng.h"
+#include <string.h>
 /* ══════════════════════════════════════════════════════════
    Level-derived geometry — adjacency/distance/random-neighbour,
    built from xy_to_idx()/idx_to_xy()/in_bounds() (confirmed in use

@@ -1,10 +1,9 @@
 #include "level_boss.h"
-#include "level_utils.h"
 #include "level_paint.h"
 #include "level_decorate.h"
 #include "item_spawn.h"
 #include <time.h>
-
+#include <math.h>
 /* ══════════════════════════════════════════════════════════
    BOSS LEVEL GENERATION
    Ports build() + decorate() from SewerBossLevel.java, PrisonBossLevel.java, CavesBossLevel.java,
@@ -33,9 +32,6 @@
        its call site.
    ══════════════════════════════════════════════════════════ */
 
-int level_is_boss_depth(int depth) {
-    return depth >= 0 && (depth + 1) % 5 == 0;
-}
 
 /* Random PASSABLE point strictly inside room r, excluding
    `exclude_idx` (pass -1 to not exclude anything). Mirrors
@@ -79,7 +75,7 @@ static int try_sewers_boss(Level *lvl, int depth) {
 
     /* entrance >= 4x4; exit >= 6x6, not touching the top edge;
        at least sqrt(num_rooms) hops apart */
-    int min_dist = isqrt(lvl->num_rooms);
+    int min_dist = (int)sqrt((double)lvl->num_rooms);
     int entrance_r = -1, exit_r = -1, outer = 0, distance;
     do {
         int inner = 0;

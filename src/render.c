@@ -143,7 +143,7 @@ void render_free(RenderCtx *ctx) {
 
 /* ── render_frame ──────────────────────  */
 static void render_tile(RenderCtx *ctx, int sprite_idx, int px, int py) {
-    SDL_Rect dst = {px, py, TILE_SIZE, TILE_SIZE};
+    SDL_Rect dst = {px, py, gTileSize, gTileSize};
     SDL_Texture *tex = ctx->tilesets[(int)ctx->active_theme];
     if (!tex)
         return;
@@ -168,12 +168,12 @@ static int water_sprite(const Level *lvl, int tx, int ty) { //mirror Level.java 
 }
 
 static void render_water_fill(RenderCtx *ctx, int tx, int ty, int px, int py) {
-    SDL_Rect dst = {px, py, TILE_SIZE, TILE_SIZE};
+    SDL_Rect dst = {px, py, gTileSize, gTileSize};
     SDL_Texture *tex = ctx->water[(int)ctx->active_theme];
     if (!tex) 
         return;
 
-    SDL_Rect src = {(tx*TILE_SIZE)%32, (ty*TILE_SIZE)%32, TILE_SIZE, TILE_SIZE};
+    SDL_Rect src = {(tx*gTileSize)%32, (ty*gTileSize)%32, gTileSize, gTileSize};
     SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
 }
 
@@ -182,12 +182,15 @@ void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 255);
     SDL_RenderClear(ctx->renderer);
 
-    for (int ty = cam->tile_y; ty <= cam->tile_y + VIEW_ROWS; ty++) {
-        for (int tx = cam->tile_x; tx <= cam->tile_x + VIEW_COLS; tx++) {
+    for (int ty = cam->tile_y; ty <= cam->tile_y + gViewRows; ty++) {
+        for (int tx = cam->tile_x; tx <= cam->tile_x + gViewCols; tx++) {
             if (!in_bounds(tx, ty)) continue;
             uint8_t tile = lvl->map[xy_to_idx(tx, ty)];
             Point   scr  = camera_tile_to_screen(cam, tx, ty);
-            if (tile == TILE_WATER) {
+            if (tile == TILE_CHASM_WATER) {
+                render_water_fill(ctx, tx, ty, scr.x, scr.y);
+                render_tile(ctx, TILE_CHASM_WATER, scr.x, scr.y);
+            } else if (tile == TILE_WATER) {
                 render_water_fill(ctx, tx, ty, scr.x, scr.y);
                 render_tile(ctx, water_sprite(lvl, tx, ty), scr.x, scr.y);
             } else {
@@ -205,16 +208,16 @@ void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     for (int i = 0; i < lvl->num_heaps; i++) {
         const Heap *h = &lvl->heaps[i];
         if (!h->active) continue;
-        if (h->x < cam->tile_x || h->x > cam->tile_x + VIEW_COLS ||
-            h->y < cam->tile_y || h->y > cam->tile_y + VIEW_ROWS) continue;
+        if (h->x < cam->tile_x || h->x > cam->tile_x + gViewCols ||
+            h->y < cam->tile_y || h->y > cam->tile_y + gViewRows) continue;
  
         uint8_t col, row;
         if (!heap_sprite_cell(h, &col, &row)) continue;
  
         Point scr = camera_tile_to_screen(cam, h->x, h->y);
  
-        SDL_Rect src = { col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE };
-        SDL_Rect dst = { scr.x, scr.y, TILE_SIZE, TILE_SIZE };
+        SDL_Rect src = { col * ICON_SIZE, row * ICON_SIZE, ICON_SIZE, ICON_SIZE };
+        SDL_Rect dst = { scr.x, scr.y, gTileSize, gTileSize };
  
         SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
     }
@@ -227,7 +230,7 @@ static int wall_at(const Level *lvl, int nx, int ny) {
 
 static void edge_shadow(SDL_Renderer *r, int px, int py, int axis, int flip, int max_a) {
     const int STEPS = 5;
-    int span  = TILE_SIZE / 4;
+    int span  = gTileSize / 4;
     int chunk = span / STEPS;
     if (chunk < 1) chunk = 1;
 
@@ -239,11 +242,11 @@ static void edge_shadow(SDL_Renderer *r, int px, int py, int axis, int flip, int
         int off = i * chunk;
         SDL_Rect rect;
         if (axis == 0) {
-            int y = flip ? (py + TILE_SIZE - off - chunk) : (py + off);
-            rect = (SDL_Rect){ px, y, TILE_SIZE, chunk };
+            int y = flip ? (py + gTileSize - off - chunk) : (py + off);
+            rect = (SDL_Rect){ px, y, gTileSize, chunk };
         } else {
-            int x = flip ? (px + TILE_SIZE - off - chunk) : (px + off);
-            rect = (SDL_Rect){ x, py, chunk, TILE_SIZE };
+            int x = flip ? (px + gTileSize - off - chunk) : (px + off);
+            rect = (SDL_Rect){ x, py, chunk, gTileSize };
         }
         SDL_RenderFillRect(r, &rect);
     }
@@ -252,16 +255,13 @@ static void edge_shadow(SDL_Renderer *r, int px, int py, int axis, int flip, int
 void render_shadows(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam) {
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
 
-    for (int ty = cam->tile_y; ty <= cam->tile_y + VIEW_ROWS; ty++) {
-        for (int tx = cam->tile_x; tx <= cam->tile_x + VIEW_COLS; tx++) {
+    for (int ty = cam->tile_y; ty <= cam->tile_y + gViewRows; ty++) {
+        for (int tx = cam->tile_x; tx <= cam->tile_x + gViewCols; tx++) {
             if (!in_bounds(tx, ty)) continue;
             int idx = xy_to_idx(tx, ty);
 
-            /* Only shadow tiles the player has at least visited */
             if (!fog->visited[idx]) continue;
-
-            /* Only passable (floor-like) tiles get the shadow overlay */
-            if (!(gTileFlags[lvl->map[idx]] & TF_PASSABLE)) continue;
+            if (!(gTileFlags[lvl->map[idx]] & TF_RECEIVES_SHADOW)) continue;
 
             Point scr = camera_tile_to_screen(cam, tx, ty);
 
@@ -289,7 +289,7 @@ void render_shadows(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Came
             /* A diagonal wall with no matching cardinal wall means
                this tile sits at an "inside corner" — darken that
                quadrant to simulate AO in the tight corner.         */
-            int half = TILE_SIZE / 2;
+            int half = gTileSize / 2;
 
             if (wNW && !wN && !wW) {  /* inside NW corner */
                 SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 70);
@@ -323,7 +323,7 @@ void render_shadows(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Came
                 if (a > 72) a = 72;
                 SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, a);
                 SDL_RenderFillRect(ctx->renderer,
-                    &(SDL_Rect){ scr.x, scr.y, TILE_SIZE, TILE_SIZE });
+                    &(SDL_Rect){ scr.x, scr.y, gTileSize, gTileSize });
             }
         }
     }
@@ -335,8 +335,8 @@ void render_shadows(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Came
 void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
 
-    for (int ty = cam->tile_y; ty <= cam->tile_y + VIEW_ROWS; ty++) {
-        for (int tx = cam->tile_x; tx <= cam->tile_x + VIEW_COLS; tx++) {
+    for (int ty = cam->tile_y; ty <= cam->tile_y + gViewRows; ty++) {
+        for (int tx = cam->tile_x; tx <= cam->tile_x + gViewCols; tx++) {
             if (!in_bounds(tx, ty)) continue;
 
             int idx = xy_to_idx(tx, ty);
@@ -345,7 +345,7 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
             if (fog->visible[idx]) continue;
 
             Point    scr  = camera_tile_to_screen(cam, tx, ty);
-            SDL_Rect rect = { scr.x, scr.y, TILE_SIZE, TILE_SIZE };
+            SDL_Rect rect = { scr.x, scr.y, gTileSize, gTileSize };
 
             if (fog->visited[idx]) {
                 /* VISITED = 0xCC111111 (ARGB) */
@@ -382,10 +382,10 @@ void render_player(RenderCtx *ctx, const Player *p, const Camera *cam){
     Point scr = camera_tile_to_screen(cam, pos.x, pos.y);
 
     SDL_Rect dst = {
-        scr.x - (HERO_W - TILE_SIZE) / 2,
-        scr.y - (HERO_H - TILE_SIZE),
-        HERO_W,
-        HERO_H
+        scr.x - (gHeroW - gTileSize) / 2,
+        scr.y - (gHeroH - gTileSize),
+        gHeroW,
+        gHeroH
     };
 
     SDL_Rect src = hero_frame_rect(p);
@@ -410,19 +410,19 @@ void render_mobs(RenderCtx *ctx, const Camera *cam) {
         Point pos = idx_to_xy(m->base.pos);
 
         /* outside camera */
-        if (pos.x < cam->tile_x || pos.x > cam->tile_x + VIEW_COLS ||
-            pos.y < cam->tile_y || pos.y > cam->tile_y + VIEW_ROWS)
+        if (pos.x < cam->tile_x || pos.x > cam->tile_x + gViewCols ||
+            pos.y < cam->tile_y || pos.y > cam->tile_y + gViewRows)
             continue;
 
         Point scr = camera_tile_to_screen(cam, pos.x, pos.y);
 
         /* Outer shadow ring */
-        SDL_Rect shadow = { scr.x + 1, scr.y + 1, TILE_SIZE - 2, TILE_SIZE - 2 };
+        SDL_Rect shadow = { scr.x + 1, scr.y + 1, gTileSize - 2, gTileSize - 2 };
         SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 180);
         SDL_RenderFillRect(ctx->renderer, &shadow);
 
         /* Placeholder body */
-        SDL_Rect body = { scr.x + 3, scr.y + 3, TILE_SIZE - 6, TILE_SIZE - 6 };
+        SDL_Rect body = { scr.x + 3, scr.y + 3, gTileSize - 6, gTileSize - 6 };
 
         switch (m->kind) {
         case MOB_RAT:

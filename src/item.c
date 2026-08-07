@@ -1,7 +1,7 @@
 #include "item.h"
 #include "item_generator.h"
 #include "item_spawn.h"
-#include "level_utils.h"
+#include "rng.h"
 
 /*═══════════════════════════════════════════════════════════════
     Level item pool

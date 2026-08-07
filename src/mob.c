@@ -1,7 +1,6 @@
 #include "mob.h"
 #include "player.h"
-#include "level.h"
-#include "level_utils.h"
+#include "rng.h"
 #include <stdlib.h>
 
 /* TEST*/
