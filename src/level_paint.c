@@ -1693,6 +1693,9 @@ void paint_chasms(Level *lvl){
 
             switch (lvl->map[above]) {
                 case TILE_WALL:
+                case TILE_WALL_DECO:
+                case TILE_DOOR:
+                case TILE_OPEN_DOOR:
                     lvl->map[cur] = TILE_CHASM_WALL;
                     break;
 

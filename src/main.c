@@ -55,8 +55,6 @@ int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
 
     gTileSize = TILE_SIZE_MIN;
-    gHeroW = HERO_W_MIN;
-    gHeroH = HERO_H_MIN;
     TileSize_Update();
 
     Terrain_InitFlags(); 
@@ -205,12 +203,8 @@ int main(int argc, char *argv[]) {
             if (btn_pressed(&inp, BTN_L)) {
                 if (gTileSize == TILE_SIZE_MIN) {
                     gTileSize = TILE_SIZE_MAX;
-                    gHeroW = HERO_W_MAX;
-                    gHeroH = HERO_H_MAX;
                 } else {
                     gTileSize = TILE_SIZE_MIN;
-                    gHeroW = HERO_W_MIN;
-                    gHeroH = HERO_H_MIN;
                 }
                 TileSize_Update();
                 camera_center_on(&cam, pos.x, pos.y);
@@ -253,13 +247,12 @@ int main(int argc, char *argv[]) {
 
         fog_update(fog, lvl, pos.x, pos.y);
         player_animate(&player, dt);
-        /* Draw: tiles → items → mobs →fog → player → present */
+        mob_animate_all(dt);
+        /* Draw: tiles → items → shadow → mobs →fog → player → present */
         render_frame(&rctx, lvl, &cam);
         render_items(&rctx, lvl, &cam);
-
-        render_mobs(&rctx, &cam);
-
         render_shadows(&rctx, lvl, fog, &cam);
+        render_mobs(&rctx, &cam);
         render_fog(&rctx, fog, &cam);
         render_player(&rctx, &player, &cam);
         if (inv.open)

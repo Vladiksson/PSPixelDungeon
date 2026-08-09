@@ -2,6 +2,7 @@
 #include "camera.h"
 #include "assets.h"
 #include "player.h"
+#include "mob.h"
 #include "fov.h"
 #include "font.h"
 #include "icons.h"
@@ -13,6 +14,8 @@ typedef struct {
    SDL_Texture  *tilesets[TILESET_COUNT];
    SDL_Texture  *water[TILESET_COUNT];
    SDL_Texture  *heroes[HERO_CLASS_COUNT];
+   SDL_Texture  *mob_tex[MOBTEX_COUNT];
+   int           mob_tex_cols[MOBTEX_COUNT];
    SDL_Texture  *items;
    BitmapFont    font;
    SDL_Texture  *chrome;

@@ -8,6 +8,3 @@ void TileSize_Update(void){
     gViewCols = SCREEN_W / gTileSize;
     gViewRows = SCREEN_H / gTileSize;
 }
-
-int gHeroW;
-int gHeroH;

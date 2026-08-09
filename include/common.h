@@ -28,19 +28,12 @@ void TileSize_Update(void);
 #define TILESET_COUNT    5
 
 /* ── HERO constants ───────────────────────────────── */
-#define HERO_W_MIN 12
-#define HERO_H_MIN 15
-#define HERO_W_MAX 24
-#define HERO_H_MAX 30
 #define TILESET_HERO_COLS    21
 #define TILESET_HERO_ROWS     7
 #define TILESET_HERO_W       12
 #define TILESET_HERO_H       15
 
 #define HERO_ARMOR_TIER 6 // TEST, REMOVE AFTER ADDING ARMOR TIER
-
-extern int gHeroW;
-extern int gHeroH;
 
 /* ── ITEM ICON ───────────────────────────────── */
 #define ICON_SIZE  16
@@ -98,18 +91,18 @@ typedef enum {
 } TileType;
 
 typedef enum {
-    TF_PASSABLE        = 0x0001,
-    TF_LOS_BLOCKING    = 0x0002,
-    TF_FLAMABLE        = 0x0004,
-    TF_SECRET          = 0x0008,
-    TF_SOLID           = 0x0010,
-    TF_AVOID           = 0x0020,
-    TF_LIQUID          = 0x0040,
-    TF_PIT             = 0x0080,
-    TF_UNSTITCHABLE    = 0x0100,
-    TF_SHADOW          = 0x0200, //NOT ORIGINAL
-    TF_OPEN_FLOOR      = 0x0400, //NOT ORIGINAL
-    TF_RECEIVES_SHADOW = 0x0800, //NOT ORIGINAL
+    TF_PASSABLE        = 1 << 0,
+    TF_LOS_BLOCKING    = 1 << 1,
+    TF_FLAMABLE        = 1 << 2,
+    TF_SECRET          = 1 << 3,
+    TF_SOLID           = 1 << 4,
+    TF_AVOID           = 1 << 5,
+    TF_LIQUID          = 1 << 6,
+    TF_PIT             = 1 << 7,
+    TF_UNSTITCHABLE    = 1 << 8,
+    TF_SHADOW          = 1 << 9,
+    TF_OPEN_FLOOR      = 1 << 10,
+    TF_RECEIVES_SHADOW = 1 << 11,
 } TileFlags;
 
 extern uint16_t gTileFlags[256];

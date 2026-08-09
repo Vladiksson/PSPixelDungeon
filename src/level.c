@@ -160,14 +160,14 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     }
     if (wgen>0) { patch_generate(wseed,wgen,wp); paint_water(lvl,wp); }
     if (ggen>0) { patch_generate(gseed,ggen,gp); paint_grass(lvl,gp); }
-
-    decor(lvl);
     paint_chasms(lvl);
+    decor(lvl);
+    
     /* 9 Scatter loot  */
     level_spawn_items(lvl, depth);
 
     /*10 mobs*/
-    mob_spawn_random_no_target(lvl, MOB_RAT, rng_range(1, MAX_LEVEL_MOBS)); //TEST
+    mob_spawn_random_no_target(lvl, MOB_CRAB, rng_range(1, MAX_LEVEL_MOBS)); //TEST
 
     return 0;
 }

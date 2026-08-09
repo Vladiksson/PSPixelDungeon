@@ -3,22 +3,6 @@
 #include "rng.h"
 #include <stdlib.h>
 
-/* TEST*/
-const MobStats MOB_DB[MOB_KIND_COUNT] = {
-    [MOB_RAT] = {
-        .name = "rat", .ht = 5,
-        .attack_skill = 8, .defense_skill = 5, .dr = 0,
-        .dmg_min = 1, .dmg_max = 3,
-        .view_distance = 6, .xp_reward = 1, .base_speed = 1.0f,
-    },
-    [MOB_GNOLL] = {
-        .name = "gnoll", .ht = 12,
-        .attack_skill = 14, .defense_skill = 8, .dr = 1,
-        .dmg_min = 1, .dmg_max = 6,
-        .view_distance = 8, .xp_reward = 3, .base_speed = 1.0f,
-    },
-};
-
 /*═══════════════════════════════════════════════════════════════
     Storage
 ═══════════════════════════════════════════════════════════════*/
@@ -63,6 +47,8 @@ static void mob_on_damaged(Char *self, int dmg_taken, void *src, DamageSource sr
 static void mob_die(Char *self, void *src, DamageSource src_type) {
     Mob *m = (Mob *)self;
 
+    mob_play_anim(m, MOB_ANIM_DIE);
+
     if (src_type == DMGSRC_CHAR && char_is_hero((Char *)src)) {
         player_earn_exp((Player *)src, MOB_DB[m->kind].xp_reward);
     }
@@ -72,8 +58,92 @@ static void mob_die(Char *self, void *src, DamageSource src_type) {
 }
 
 /*═══════════════════════════════════════════════════════════════
+    Animation
+═══════════════════════════════════════════════════════════════*/
+static void mob_resolve_attack(Mob *m) {
+    Char *target = m->target;
+    if (!target)
+        return;
+    if (!char_is_alive(target)) {
+        m->target = NULL;
+        return;
+    }
+    char_attack(&m->base, target);
+}
+
+void mob_play_anim(Mob *m, MobAnimState anim) {
+    if (m->anim == anim)
+        return;
+
+    m->anim = anim;
+    m->frame = 0;
+    m->frame_clock = 0.0f;
+    m->anim_done = 0;
+}
+
+void mob_animate_all(float dt) {
+    if (!active_mob_pool)
+        return;
+    for (int i = 0; i < active_mob_pool->count; i++) {
+        Mob *m = &active_mob_pool->mobs[i];
+
+        if (!char_is_alive(&m->base) && m->anim_done)
+            continue;
+
+        const AnimClip *clip = &MOB_SPRITES[m->kind].clips[m->anim];
+
+        if (m->anim_done || clip->fps <= 0 || clip->count <= 0)
+            continue;
+
+        m->frame_clock += dt;
+        float step = 1.0f / (float)clip->fps;
+        while (m->frame_clock >= step) {
+            m->frame_clock -= step;
+            m->frame++;
+
+            if (m->frame >= clip->count) {
+                if (clip->loop) {
+                    m->frame = 0;
+                } else {
+                    m->frame = clip->count - 1;
+                    m->anim_done = 1;
+                    break;
+                }
+            }
+        }
+        if (m->anim_done) {
+            switch (m->anim) {
+                case MOB_ANIM_ATTACK:
+                    mob_resolve_attack(m);
+                    mob_play_anim(m, MOB_ANIM_IDLE);
+                    break;
+                case MOB_ANIM_RUN:
+                    mob_play_anim(m, MOB_ANIM_IDLE);
+                    break;
+                case MOB_ANIM_DIE:
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+}
+
+/*═══════════════════════════════════════════════════════════════
    stupid AI, fully redo
 ═══════════════════════════════════════════════════════════════*/
+static int mob_is_busy(const Mob *m) {
+    switch (m->anim) {
+        case MOB_ANIM_ATTACK:
+        case MOB_ANIM_DIE:
+            return !m->anim_done;
+
+        default:
+            return 0;
+    }
+}
+
 static int mob_try_step(Mob *m, Level *lvl, int dx, int dy) {
     if (dx == 0 && dy == 0) return 0;
 
@@ -87,7 +157,11 @@ static int mob_try_step(Mob *m, Level *lvl, int dx, int dy) {
     if (char_find_at(npos) != NULL) return 0;
 
     char_move(&m->base, lvl, npos);
-    return m->base.pos == npos;
+    if (m->base.pos != npos) return 0;
+
+    if (dx != 0) m->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
+    mob_play_anim(m, MOB_ANIM_RUN);
+    return 1;
 }
 
 /* one step toward `target` per call*/
@@ -126,10 +200,15 @@ static int mob_on_turn(Char *self) {
         actor_next(&self->base);
         return 0;
     }
-
+    if (mob_is_busy(m)) {
+        char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+        actor_next(&self->base);
+        return 0;
+    }
     if (m->target && !char_is_alive(m->target)) {
         m->target = NULL;
     }
+    mob_play_anim(m, MOB_ANIM_IDLE);
 
     /* State transitions */
     if (m->state == MOB_ASLEEP || m->state == MOB_WANDERING) {
@@ -138,23 +217,23 @@ static int mob_on_turn(Char *self) {
         }
     } else if (m->state == MOB_HUNTING) {
         if (!m->target || char_distance(self, m->target) > self->view_distance * 2) {
-            /* lost track — some slack (2x view distance) so it
-               doesn't give up the instant the target is one step
-               outside view range */
             m->state = MOB_WANDERING;
         }
     }
 
     switch (m->state) {
         case MOB_ASLEEP:
-            break; /* sits until woken — by proximity above, or by being hit (mob_on_damaged) */
+            break;
 
         case MOB_HUNTING:
             if (char_distance(self, m->target) <= 1) {
-                char_attack(self, m->target);
-                /* CharAttackResult discarded — no combat log yet,
-                   same TODO-style gap as player.c's own attack
-                   resolution. */
+                Point mp = idx_to_xy(self->pos);
+                Point tp = idx_to_xy(m->target->pos);
+
+                if (tp.x != mp.x)
+                    m->facing = (tp.x < mp.x) ? FACE_LEFT : FACE_RIGHT;
+
+                mob_play_anim(m, MOB_ANIM_ATTACK);
             } else {
                 mob_step_toward(m, lvl, m->target);
             }
@@ -165,7 +244,6 @@ static int mob_on_turn(Char *self) {
             mob_wander(m, lvl);
             break;
     }
-
     char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
     actor_next(&self->base);
     return 0;
@@ -206,10 +284,17 @@ Mob *mob_spawn(MobKind kind, int pos, Char *target) {
     m->base.name          = stats->name;
     m->base.base_speed    = stats->base_speed;
     m->base.view_distance = stats->view_distance;
+    m->base.flying        = stats->flying;
 
     m->kind   = kind;
-    m->state  = MOB_ASLEEP;
+    m->state  = stats->initial_state;
     m->target = target;
+
+    m->facing      = FACE_RIGHT;
+    m->anim        = MOB_ANIM_IDLE;
+    m->frame       = 0;
+    m->frame_clock = 0.0f;
+    m->anim_done   = 0;
 
     if (!char_add(&m->base)) return NULL; 
 

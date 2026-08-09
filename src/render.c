@@ -1,5 +1,4 @@
 #include "render.h"
-#include "mob.h" //redo temporar solution for the test
 #include "assets_embedded.h"
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
@@ -72,6 +71,27 @@ int render_init(RenderCtx *ctx) {
     for (int i=0; i<HERO_CLASS_COUNT; i++) {
         ctx->heroes[i] = load_tex(ctx->renderer, hero_files[i]);
     }
+    /*mobs*/
+    const char *mob_files[] = ASSET_MOB_TEX_BY_ID;
+    for (int i = 0; i < MOBTEX_COUNT; i++) {
+        ctx->mob_tex[i] = load_tex(ctx->renderer, mob_files[i]);
+        ctx->mob_tex_cols[i] = 1; /* safe fallback if the load below finds nothing */
+        if (!ctx->mob_tex[i]) continue;
+
+        int tex_w = 0;
+        SDL_QueryTexture(ctx->mob_tex[i], NULL, NULL, &tex_w, NULL);
+        /* cols = sheet width / frame width. Frame width comes from
+           MOB_SPRITES, keyed by MobKind rather than MobTexId, so find
+           any kind that uses this texture and read its frame_w — every
+           kind sharing a texture shares its frame size by construction
+           (they're literally the same sheet). */
+        for (int k = 0; k < MOB_KIND_COUNT; k++) {
+            if (MOB_TEX_FOR_KIND[k] != (MobTexId)i) continue;
+            int fw = MOB_SPRITES[k].frame_w;
+            if (fw > 0 && tex_w > 0) ctx->mob_tex_cols[i] = tex_w / fw;
+            break;
+        }
+    }
     /*items*/
     ctx->items = load_tex(ctx->renderer, ASSET_ITEMS);
     /*fonts*/
@@ -117,6 +137,12 @@ void render_free(RenderCtx *ctx) {
         if (ctx->heroes[i]) {
             SDL_DestroyTexture(ctx->heroes[i]);
             ctx->heroes[i] = NULL;
+        }
+    }
+    for (int i = 0; i < MOBTEX_COUNT; i++) {
+        if (ctx->mob_tex[i]) {
+            SDL_DestroyTexture(ctx->mob_tex[i]);
+            ctx->mob_tex[i] = NULL;
         }
     }
     if (ctx->items) {
@@ -374,18 +400,21 @@ static SDL_Rect hero_frame_rect(const Player *p) {
     return src;
 }
 
-void render_player(RenderCtx *ctx, const Player *p, const Camera *cam){
+void render_player(RenderCtx *ctx, const Player *p, const Camera *cam) {
     SDL_Texture *tex = ctx->heroes[p->cls];
     if (!tex) return;
-    
+
+    int draw_w = TILESET_HERO_W * gTileSize / TILE_SIZE_MIN;
+    int draw_h = TILESET_HERO_H * gTileSize / TILE_SIZE_MIN;
+
     Point pos = idx_to_xy(p->base.pos);
     Point scr = camera_tile_to_screen(cam, pos.x, pos.y);
 
     SDL_Rect dst = {
-        scr.x - (gHeroW - gTileSize) / 2,
-        scr.y - (gHeroH - gTileSize),
-        gHeroW,
-        gHeroH
+        scr.x - (draw_w - gTileSize) / 2,
+        scr.y - (draw_h - gTileSize),
+        draw_w,
+        draw_h
     };
 
     SDL_Rect src = hero_frame_rect(p);
@@ -396,15 +425,31 @@ void render_player(RenderCtx *ctx, const Player *p, const Camera *cam){
 
 
 
+/* ── render_mobs ─────────────────────────────────────────── */
+static SDL_Rect mob_frame_rect(RenderCtx *ctx, const Mob *m, MobTexId tex_id) {
+    const MobSpriteInfo *info = &MOB_SPRITES[m->kind];
+    const AnimClip *clip = &info->clips[m->anim];
+    uint8_t idx = clip->frames[m->frame % clip->count];
 
-/* ── render_mobs  REDO TEMPORAR BULLSHIT───────────────────── */
+    int cols = ctx->mob_tex_cols[tex_id];
+    if (cols <= 0) cols = 1;
+
+    SDL_Rect src = {
+        (idx % cols) * info->frame_w,
+        (idx / cols) * info->frame_h,
+        info->frame_w,
+        info->frame_h
+    };
+    return src;
+}
+
 void render_mobs(RenderCtx *ctx, const Camera *cam) {
     for (int i = 0; i < mob_count(); i++) {
         Mob *m = mob_at_index(i);
         if (!m)
             continue;
 
-        if (!char_is_alive(&m->base))
+        if (!char_is_alive(&m->base) && m->anim_done)
             continue;
 
         Point pos = idx_to_xy(m->base.pos);
@@ -414,36 +459,27 @@ void render_mobs(RenderCtx *ctx, const Camera *cam) {
             pos.y < cam->tile_y || pos.y > cam->tile_y + gViewRows)
             continue;
 
+        MobTexId tex_id = MOB_TEX_FOR_KIND[m->kind];
+        SDL_Texture *tex = ctx->mob_tex[tex_id];
+        if (!tex)
+            continue;
+
+        const MobSpriteInfo *info = &MOB_SPRITES[m->kind];
+
+        int draw_w = info->frame_w * gTileSize / TILE_SIZE_MIN;
+        int draw_h = info->frame_h * gTileSize / TILE_SIZE_MIN;
+
         Point scr = camera_tile_to_screen(cam, pos.x, pos.y);
+        SDL_Rect dst = {
+            scr.x - (draw_w - gTileSize) / 2,
+            scr.y - (draw_h - gTileSize),
+            draw_w,
+            draw_h
+        };
 
-        /* Outer shadow ring */
-        SDL_Rect shadow = { scr.x + 1, scr.y + 1, gTileSize - 2, gTileSize - 2 };
-        SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 180);
-        SDL_RenderFillRect(ctx->renderer, &shadow);
-
-        /* Placeholder body */
-        SDL_Rect body = { scr.x + 3, scr.y + 3, gTileSize - 6, gTileSize - 6 };
-
-        switch (m->kind) {
-        case MOB_RAT:
-            SDL_SetRenderDrawColor(ctx->renderer, 160, 160, 160, 255);
-            break;
-
-        case MOB_GNOLL:
-            SDL_SetRenderDrawColor(ctx->renderer, 180, 120, 40, 255);
-            break;
-
-        default:
-            SDL_SetRenderDrawColor(ctx->renderer, 255, 0, 255, 255);
-            break;
-        }
-
-        SDL_RenderFillRect(ctx->renderer, &body);
-
-        /* White highlight */
-        SDL_Rect dot = { scr.x + 5, scr.y + 5, 3, 3 };
-        SDL_SetRenderDrawColor(ctx->renderer, 255, 255, 255, 255);
-        SDL_RenderFillRect(ctx->renderer, &dot);
+        SDL_Rect src = mob_frame_rect(ctx, m, tex_id);
+        SDL_RendererFlip flip = (m->facing == FACE_LEFT) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+        SDL_RenderCopyEx(ctx->renderer, tex, &src, &dst, 0.0, NULL, flip);
     }
 }
 

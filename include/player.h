@@ -4,8 +4,8 @@
 #include "char.h"
 
 /* ── Hero starting stats ────────────────────────────────── */
-#define HERO_STARTING_HP         20000 //test, original was 20
-#define HERO_STARTING_STR        10
+#define HERO_STARTING_HP         2000000 //test, original was 20
+#define HERO_STARTING_STR        1000000 //test, original was 10
 #define HERO_STARTING_ATTACK     10
 #define HERO_STARTING_DEFENSE     5
 #define HERO_STARTING_AWARENESS  0.1f
@@ -34,29 +34,19 @@ typedef enum {
    HERO_SUB_WARDEN,       /* Huntress */
    HERO_SUB_COUNT
 } HeroSubClass;
- 
-typedef enum {
-   FACE_RIGHT = 0,
-   FACE_LEFT  = 1
-} Facing;
- 
+
 /* ── Animation state ──────────────────────────────────*/
 typedef enum {
    ANIM_IDLE = 0,
    ANIM_RUN,
    ANIM_ATTACK,
+   ANIM_ZAP,
    ANIM_DIE,
    ANIM_OPERATE,
+   ANIM_FLY,
    ANIM_READ,
    ANIM_COUNT
 } AnimState;
- 
-typedef struct {
-   const uint8_t *frames; /* column indices into the sheet, in play order */
-   int count;             /* number of entries in frames[]                */
-   int fps;               /* playback speed, frames per second            */
-   int loop;              /* 1 = repeat, 0 = play once and hold last frame */
-} AnimClip;
  
 extern const AnimClip HERO_CLIPS[ANIM_COUNT];
 

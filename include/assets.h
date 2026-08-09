@@ -77,6 +77,28 @@
 #define ASSET_BEE       "bee.png"
 #define ASSET_MIMIC     "mimic.png"
 
+/* One entry per distinct mob spritesheet — several MobKinds share one
+   (elite variants reuse their base mob's sheet at higher frame indices
+   rather than shipping separate art; see mob_sprites.c). Order doesn't
+   matter, this just needs to line up 1:1 with ASSET_MOB_TEX_BY_ID below. */
+typedef enum {
+    MOBTEX_RAT = 0, MOBTEX_GNOLL, MOBTEX_CRAB, MOBTEX_SWARM, MOBTEX_SKELETON,
+    MOBTEX_SHAMAN, MOBTEX_THIEF, MOBTEX_TENGU, MOBTEX_BAT, MOBTEX_BRUTE,
+    MOBTEX_SPINNER, MOBTEX_DM300, MOBTEX_WRAITH, MOBTEX_ELEMENTAL, MOBTEX_MONK,
+    MOBTEX_WARLOCK, MOBTEX_GOLEM, MOBTEX_UNDEAD, MOBTEX_KING, MOBTEX_STATUE,
+    MOBTEX_PIRANHA, MOBTEX_EYE, MOBTEX_SUCCUBUS, MOBTEX_SCORPIO, MOBTEX_ROTTING,
+    MOBTEX_BURNING, MOBTEX_YOG, MOBTEX_LARVA, MOBTEX_GOO, MOBTEX_MIMIC,
+    MOBTEX_COUNT
+} MobTexId;
+
+#define ASSET_MOB_TEX_BY_ID { \
+    ASSET_RAT, ASSET_GNOLL, ASSET_CRAB, ASSET_SWARM, ASSET_SKELETON, \
+    ASSET_SHAMAN, ASSET_THIEF, ASSET_TENGU, ASSET_BAT, ASSET_BRUTE, \
+    ASSET_SPINNER, ASSET_DM300, ASSET_WRAITH, ASSET_ELEMENTAL, ASSET_MONK, \
+    ASSET_WARLOCK, ASSET_GOLEM, ASSET_UNDEAD, ASSET_KING, ASSET_STATUE, \
+    ASSET_PIRANHA, ASSET_EYE, ASSET_SUCCUBUS, ASSET_SCORPIO, ASSET_ROTTING, \
+    ASSET_BURNING, ASSET_YOG, ASSET_LARVA, ASSET_GOO, ASSET_MIMIC }
+
 /* ── Items ────────────────────────────────────────────── */
 #define ASSET_ITEMS     "items.png"
 #define ASSET_PLANTS    "plants.png"

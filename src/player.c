@@ -13,17 +13,18 @@ static const uint8_t F_RUN[]     = {2,3,4,5,6,7};
 static const uint8_t F_DIE[]     = {8,9,10,11,12,11};
 static const uint8_t F_ATTACK[]  = {13,14,15,0};
 static const uint8_t F_OPERATE[] = {16,17,16,17};
-//static const uint8_t F_FLY[]     = {18};
+static const uint8_t F_FLY[]     = {18};
 static const uint8_t F_READ[]    = {19,20,20,20,20,20,20,20,20,19};
 
 const AnimClip HERO_CLIPS[ANIM_COUNT] = {
     { F_IDLE,    8,  1,  1 },   // idle
-    { F_RUN,     6, 20,  1 },   // run
+    { F_RUN,     6, 20,  1 },   // run (THERE WAS SPRINT FUNCTION IN ORIGINAL WHICH CHANGE 20-> ~32)
     { F_ATTACK,  4, 15,  0 },   // attack
+    { F_ATTACK,  4, 15,  0 },   // ZAP
     { F_DIE,     6, 20,  0 },   // die
     { F_OPERATE, 4,  8,  0 },   // operate
+    { F_FLY,     1,  1,  1 },   // fly 
     { F_READ,   10, 20,  0 },   // read
-    // fly 
 };
 
 /*═══════════════════════════════════════════════════════════════
@@ -675,6 +676,10 @@ int player_move(Player *p, Level *lvl, int dx, int dy){
         actor_next(&p->base.base);
         player_play_anim(p, ANIM_OPERATE);
         return 1;
+    case TILE_HIGH_GRASS:
+        lvl->map[idx] = TILE_GRASS;
+        //TODO SPAWN SEEDS + ITEM_DEWDROP 
+        //IS IT HAS ANIMATION???
     }
     if (!(gTileFlags[tile] & TF_PASSABLE)) return 0;
 

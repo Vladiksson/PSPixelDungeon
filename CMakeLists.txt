@@ -30,6 +30,7 @@ add_executable(${PROJECT_NAME}
     src/actor.c
     src/char.c
     src/mob.c
+    src/mob_db.c
     src/rng.c
     src/common.c
 )
