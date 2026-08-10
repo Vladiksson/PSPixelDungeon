@@ -105,58 +105,49 @@ int render_init(RenderCtx *ctx) {
             return -1;
         }
     }
-    /*chrome ui*/
-    ctx->chrome = load_tex(ctx->renderer, ASSET_CHROME);
-    /*icons*/
-    ctx->icons = load_tex(ctx->renderer, ASSET_ICONS);
+    /*ui*/
+    ctx->ui.chrome = load_tex(ctx->renderer, ASSET_CHROME);
+    ctx->ui.status = load_tex(ctx->renderer, ASSET_STATUS); 
+    ctx->ui.hp_bar = load_tex(ctx->renderer, ASSET_HP_BAR);
+    ctx->ui.xp_bar = load_tex(ctx->renderer, ASSET_XP_BAR);
+    ctx->ui.icons  = load_tex(ctx->renderer, ASSET_ICONS);
 
     return 0;
 }
 
 /* ── render_free ──────────────────────────────────── */
+static void destroy_tex(SDL_Texture **tex) {
+    if (*tex) {
+        SDL_DestroyTexture(*tex);
+        *tex = NULL;
+    }
+}
+static void ui_free(UITextures *ui) {
+    destroy_tex(&ui->chrome);
+    destroy_tex(&ui->status);
+    destroy_tex(&ui->hp_bar);
+    destroy_tex(&ui->xp_bar);
+    destroy_tex(&ui->icons);
+}
 void render_free(RenderCtx *ctx) {
     for (int i = 0; i < 3; i++) {
-        if (ctx->font.tex[i]) {
-            SDL_DestroyTexture(ctx->font.tex[i]);
-            ctx->font.tex[i] = NULL;
-        }
+        destroy_tex(&ctx->font.tex[i]);
     }
     memset(&ctx->font, 0, sizeof(ctx->font));
 
     for (int i = 0; i < TILESET_COUNT; i++) {
-        if (ctx->tilesets[i]) {
-            SDL_DestroyTexture(ctx->tilesets[i]);
-            ctx->tilesets[i] = NULL;
-        }
-        if (ctx->water[i]) {
-            SDL_DestroyTexture(ctx->water[i]);
-            ctx->water[i] = NULL;
-        }
+        destroy_tex(&ctx->tilesets[i]);
+        destroy_tex(&ctx->water[i]);
     }
     for (int i = 0; i < HERO_CLASS_COUNT; i++) {
-        if (ctx->heroes[i]) {
-            SDL_DestroyTexture(ctx->heroes[i]);
-            ctx->heroes[i] = NULL;
-        }
+        destroy_tex(&ctx->heroes[i]);
     }
     for (int i = 0; i < MOBTEX_COUNT; i++) {
-        if (ctx->mob_tex[i]) {
-            SDL_DestroyTexture(ctx->mob_tex[i]);
-            ctx->mob_tex[i] = NULL;
-        }
+        destroy_tex(&ctx->mob_tex[i]);
     }
-    if (ctx->items) {
-        SDL_DestroyTexture(ctx->items);
-        ctx->items = NULL;
-    }
-    if (ctx->chrome) {
-        SDL_DestroyTexture(ctx->chrome);
-        ctx->chrome = NULL;
-    }
-    if (ctx->icons) {
-        SDL_DestroyTexture(ctx->icons);
-        ctx->icons = NULL;
-    }
+    destroy_tex(&ctx->items);
+    ui_free(&ctx->ui);
+
     if (ctx->renderer) {
         SDL_DestroyRenderer(ctx->renderer);
         ctx->renderer = NULL;

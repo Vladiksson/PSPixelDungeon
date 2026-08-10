@@ -1,4 +1,4 @@
-#include "chrome.h"
+#include "ui_ninepatch.h"
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
@@ -23,8 +23,7 @@ void ninepatch_draw(SDL_Renderer *r, const NinePatch *p, int x, int y, int w, in
         {src.x+L,        src.y+src.h-B,  src.w-L-R,     B},
         {src.x+src.w-R,  src.y+src.h-B,  R,             B},
     };
-
-        SDL_Rect d[9] = {
+    SDL_Rect d[9] = {
         {x,          y,          L,          T},
         {x+L,        y,          w-L-R,      T},
         {x+w-R,      y,          R,          T},
@@ -138,5 +137,16 @@ NinePatch chrome_tab_unselected(SDL_Texture *tex) {
         .top = 7,
         .right = 4,
         .bottom = 6
+    };
+}
+
+NinePatch status_panel(SDL_Texture *tex) {
+    return (NinePatch){
+        .tex = tex,
+        .src = {0, 0, 128, 64},
+        .left = 80, 
+        .top = 0,
+        .right = 40, 
+        .bottom = 0
     };
 }

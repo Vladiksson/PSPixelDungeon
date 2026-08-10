@@ -106,10 +106,9 @@ static const GlyphInfo FONT_GLYPHS[95] = {
 };
 
 #define FONT_FIRST_CHAR '!'
-#define FONT_LAST_CHAR  0x7F  /* DEL -- the 95th glyph, see font.h */
-#define FONT_SPACE_WIDTH 3  /* measured the same way watabou's own
-                                BitmapText.java measures it -- see font.h */
-#define FONT_GLYPH_GAP    1  /* the 1px gap the sheet packs between glyphs */
+#define FONT_LAST_CHAR  0x7F
+#define FONT_SPACE_WIDTH 3
+#define FONT_GLYPH_GAP    1
 
 static const GlyphInfo *glyph_for(char c) {
     unsigned char uc = (unsigned char)c;
@@ -129,7 +128,7 @@ int font_text_width(const char *s) {
     return w > 0 ? w - FONT_GLYPH_GAP : 0; /* no trailing gap after the last glyph */
 }
 
-int font_draw_text(SDL_Renderer *r, const BitmapFont *f, int x, int y, int scale, const char *s) {
+int font_draw_text(SDL_Renderer *r, const BitmapFont *f, int x, int y, float scale, const char *s) {
     int cursor = x;
     for (const char *c = s; *c; c++) {
         if (*c == ' ') { cursor += (FONT_SPACE_WIDTH + FONT_GLYPH_GAP) * scale; continue; }
@@ -145,7 +144,7 @@ int font_draw_text(SDL_Renderer *r, const BitmapFont *f, int x, int y, int scale
             SDL_RenderCopy(r, f->tex[page], &src, &dst);
         }
 
-        cursor += (g->w + FONT_GLYPH_GAP) * scale;
+        cursor += (g->w) * scale;
     }
     return font_text_width(s) * scale;
 }

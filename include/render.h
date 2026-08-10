@@ -5,7 +5,15 @@
 #include "mob.h"
 #include "fov.h"
 #include "font.h"
-#include "icons.h"
+#include "ui_icons.h"
+
+typedef struct {
+   SDL_Texture *chrome;
+   SDL_Texture *status;
+   SDL_Texture *hp_bar;
+   SDL_Texture *xp_bar;
+   SDL_Texture *icons;
+} UITextures;
 
 typedef struct {
    SDL_Window   *window;
@@ -13,14 +21,17 @@ typedef struct {
 
    SDL_Texture  *tilesets[TILESET_COUNT];
    SDL_Texture  *water[TILESET_COUNT];
+   
    SDL_Texture  *heroes[HERO_CLASS_COUNT];
+
    SDL_Texture  *mob_tex[MOBTEX_COUNT];
    int           mob_tex_cols[MOBTEX_COUNT];
+
    SDL_Texture  *items;
+
    BitmapFont    font;
-   SDL_Texture  *chrome;
-   SDL_Texture  *icons;
-   
+   UITextures    ui;
+
    DungeonTheme  active_theme;
 } RenderCtx;
 

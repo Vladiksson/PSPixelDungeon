@@ -21,3 +21,5 @@ NinePatch chrome_scroll(SDL_Texture *tex);
 NinePatch chrome_tab_set(SDL_Texture *tex);
 NinePatch chrome_tab_selected(SDL_Texture *tex);
 NinePatch chrome_tab_unselected(SDL_Texture *tex);
+
+NinePatch status_panel(SDL_Texture *tex);

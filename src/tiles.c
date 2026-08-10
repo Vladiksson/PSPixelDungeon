@@ -1,5 +1,13 @@
 #include "common.h"
 
+int gTileSize = TILE_SIZE_MIN;
+int gViewCols;
+int gViewRows;
+
+void TileSize_Update(void){
+    gViewCols = SCREEN_W / gTileSize;
+    gViewRows = SCREEN_H / gTileSize;
+}
 
 uint16_t gTileFlags[256];
 

@@ -46,8 +46,16 @@ static int char_random_neighbour(int pos) {
 #define CHAR_GRID_LEN (LEVEL_W * LEVEL_H)
 static Char *g_chars_by_pos[CHAR_GRID_LEN];
 
-static void char_grid_occupy(Char *c, int pos) {
-    if (pos >= 0 && pos < CHAR_GRID_LEN) g_chars_by_pos[pos] = c;
+static int char_grid_occupy(Char *c, int pos){
+    if (!c)
+        return 0;
+    if (pos < 0 || pos >= CHAR_GRID_LEN)
+        return 0;
+    if (g_chars_by_pos[pos] != NULL &&
+        g_chars_by_pos[pos] != c)
+        return 0;
+    g_chars_by_pos[pos] = c;
+    return 1;
 }
 static void char_grid_free(int pos) {
     if (pos >= 0 && pos < CHAR_GRID_LEN) g_chars_by_pos[pos] = NULL;
@@ -292,9 +300,9 @@ int char_is_alive(const Char *self) {
 }
 
 void char_destroy(Char *self) {
-    self->HP = 0;
-    actor_remove(&self->base); /* triggers char_on_remove via the trampoline -> detaches all buffs */
     char_grid_free(self->pos);
+    self->HP = 0;
+    actor_remove(&self->base);
 }
 
 void char_die_default(Char *self, void *src, DamageSource src_type) {

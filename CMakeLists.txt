@@ -22,17 +22,17 @@ add_executable(${PROJECT_NAME}
     src/item_spawn.c
     src/item_identify.c
     src/item_generator.c
-    src/inventory_screen.c
     src/font.c
-    src/chrome.c
     src/bag.c
-    src/icons.c
     src/actor.c
     src/char.c
     src/mob.c
     src/mob_db.c
     src/rng.c
-    src/common.c
+    src/ui_inventory.c
+    src/ui_ninepatch.c
+    src/ui_icons.c
+    src/ui_hud.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O2 -G0 -Wall)

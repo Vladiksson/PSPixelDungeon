@@ -1,5 +1,5 @@
 #pragma once
-#include <SDL2/SDL.h>
+#include "ui_ninepatch.h"
 #include "player.h"
 #include "render.h"
 #include "bag.h"

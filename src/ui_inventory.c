@@ -1,6 +1,5 @@
-#include "inventory_screen.h"
-#include "chrome.h"
-#include "icons.h"
+#include "ui_inventory.h"
+#include "ui_icons.h"
 #include <stdio.h>
 
 /* ── Inventory ───────────────────────────────────────────── */
@@ -54,15 +53,15 @@
 #define DESC_PANEL_X (PANEL_X - PANEL_GAP / 4)
 #define DESC_PANEL_Y (PANEL_Y - PANEL_GAP / 2)
 #define DESC_PANEL_W (PANEL_W + PANEL_GAP / 2)
-#define DESC_PANEL_H (PANEL_H + PANEL_Y)
+#define DESC_PANEL_H (PANEL_H + BAG_TAB_SIZE)
 
-#define DESC_NAME_X  (DESC_PANEL_X + DESC_PANEL_W / 4) 
-#define DESC_NAME_Y  (DESC_PANEL_Y + PANEL_GAP)
+#define DESC_NAME_X  (DESC_PANEL_X + (DESC_PANEL_W * 5 / 16)) 
+#define DESC_NAME_Y  (DESC_PANEL_Y + (PANEL_GAP * 3 / 2))
 
-#define DESC_ICON_X (DESC_PANEL_X + PANEL_GAP * 2)
+#define DESC_ICON_X (DESC_PANEL_X + (PANEL_GAP * 7 / 2))
 #define DESC_ICON_Y (DESC_PANEL_Y + PANEL_GAP * 2)
 
-#define DESC_X (DESC_PANEL_X + PANEL_GAP)
+#define DESC_X (DESC_PANEL_X + PANEL_GAP * 3)
 #define DESC_Y (DESC_PANEL_Y + PANEL_GAP * 5)
 
 #define DESC_LENGTH (DESC_PANEL_W - PANEL_GAP * 2)
@@ -182,7 +181,7 @@ static void draw_text(RenderCtx *ctx, int x, int y, SDL_Color c, const char *s) 
             SDL_SetTextureAlphaMod(font->tex[i], 255);
         }
     }
-    font_draw_text(ctx->renderer, font, x, y, 1, s);
+    font_draw_text(ctx->renderer, font, x, y, FONT_SCALING, s);
 }
 
 static void draw_wrapped_text(RenderCtx *ctx, int x, int y, SDL_Color color, const char *text, int max_width) {
@@ -233,7 +232,7 @@ static void draw_icon(RenderCtx *ctx, IconId icon, int x, int y, int size) {
 
     SDL_Rect src = { sx, sy, sw, sh };
     SDL_Rect dst = { x + (size - sw) / 2, y + (size - sh) / 2, sw, sh };
-    SDL_RenderCopy(ctx->renderer, ctx->icons, &src, &dst);
+    SDL_RenderCopy(ctx->renderer, ctx->ui.icons, &src, &dst);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -341,7 +340,7 @@ static void draw_unselected_tab(RenderCtx *ctx, const Player *p, BagType active)
 
         int x, y;
         bag_tab_pos(t, &x, &y);
-        NinePatch tab_set = chrome_tab_unselected(ctx->chrome);
+        NinePatch tab_set = chrome_tab_unselected(ctx->ui.chrome);
         ninepatch_draw(ctx->renderer, &tab_set, x, y, BAG_TAB_WIDTH, BAG_TAB_SIZE);
 
         bag_tab_icon_pos(t, &x, &y);
@@ -354,7 +353,7 @@ static void draw_selected_tab(RenderCtx *ctx, const Player *p, BagType active) {
     int x, y;
     bag_tab_pos(t, &x, &y);
 
-    NinePatch tab_set = chrome_tab_selected(ctx->chrome);
+    NinePatch tab_set = chrome_tab_selected(ctx->ui.chrome);
     ninepatch_draw(ctx->renderer, &tab_set, x, y, BAG_TAB_WIDTH, BAG_TAB_SIZE);
 
     bag_tab_icon_pos(t, &x, &y);
@@ -365,7 +364,7 @@ static void draw_selected_tab(RenderCtx *ctx, const Player *p, BagType active) {
    Description screen
    ══════════════════════════════════════════════════════════  */
 static void render_item_description(RenderCtx *ctx, ItemStack stack) {
-    NinePatch window = chrome_window(ctx->chrome);
+    NinePatch window = chrome_window(ctx->ui.chrome);
     ninepatch_draw(ctx->renderer, &window, DESC_PANEL_X, DESC_PANEL_Y, DESC_PANEL_W, DESC_PANEL_H);
     
     draw_item_icon(ctx, stack, DESC_ICON_X, DESC_ICON_Y, ICON_SIZE);
@@ -399,7 +398,7 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
     
     draw_unselected_tab(ctx, p, shown);
 
-    NinePatch tab_set = chrome_tab_set(ctx->chrome);
+    NinePatch tab_set = chrome_tab_set(ctx->ui.chrome);
     ninepatch_draw(ctx->renderer, &tab_set, PANEL_X, PANEL_Y, PANEL_W, PANEL_H);
 
     draw_selected_tab(ctx, p, shown);

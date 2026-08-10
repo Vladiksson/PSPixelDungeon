@@ -8,7 +8,8 @@
 #include "render.h"
 #include "input.h"
 #include "dungeon.h"
-#include "inventory_screen.h" //REDO TEMPORARY
+#include "ui_inventory.h" //REDO TEMPORARY
+#include "ui_hud.h" //REDO TEMPORARY
 
 /* ── PSP kernel module metadata ────────────────────────── */
 PSP_HEAP_SIZE_KB(16384); // 16 MB, in other case sdl gonna eat all of ram, shitty temporary solution
@@ -68,7 +69,7 @@ int main(int argc, char *argv[]) {
     mob_set_pool(&lvl->mob_pool);
 
     Player player;
-    player_init(&player, lvl, 1);
+    player_init(&player, lvl, 0);
 
     Point pos = idx_to_xy(player.base.pos);
 
@@ -255,6 +256,9 @@ int main(int argc, char *argv[]) {
         render_mobs(&rctx, &cam);
         render_fog(&rctx, fog, &cam);
         render_player(&rctx, &player, &cam);
+
+        render_hud(&rctx, &player, &dungeon);
+
         if (inv.open)
             render_inventory(&rctx, &player, &inv);
         render_present(&rctx);
