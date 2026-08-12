@@ -167,7 +167,7 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     level_spawn_items(lvl, depth);
 
     /*10 mobs*/
-    mob_spawn_random_no_target(lvl, MOB_CRAB, rng_range(1, MAX_LEVEL_MOBS)); //TEST
+    mob_spawn_initial(lvl, depth);
 
     return 0;
 }

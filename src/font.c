@@ -2,11 +2,6 @@
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
-/* '!' (33) through DEL/0x7F (127) — see the layout note in font.h
-   for how these were measured and identified. Generated straight
-   from font1x.png, not hand-typed, so there's no transcription-
-   error risk. 95 entries: standard '!'-'~' (94) plus the special
-   95th glyph at the end (see FONT_GLYPH_SPECIAL in font.h). */
 static const GlyphInfo FONT_GLYPHS[95] = {
     /* '!' */ {  1,  3, 3 },
     /* '"' */ {  1,  7, 5 },
@@ -116,35 +111,56 @@ static const GlyphInfo *glyph_for(char c) {
     return &FONT_GLYPHS[uc - FONT_FIRST_CHAR];
 }
 
-
 int font_text_width(const char *s) {
     int w = 0;
     for (const char *c = s; *c; c++) {
         if (*c == ' ') { w += FONT_SPACE_WIDTH + FONT_GLYPH_GAP; continue; }
         const GlyphInfo *g = glyph_for(*c);
-        if (!g) continue; /* unmapped character: skipped, no advance */
+        if (!g) continue;
         w += g->w + FONT_GLYPH_GAP;
     }
-    return w > 0 ? w - FONT_GLYPH_GAP : 0; /* no trailing gap after the last glyph */
+    return w > 0 ? w - FONT_GLYPH_GAP : 0;
 }
 
-int font_draw_text(SDL_Renderer *r, const BitmapFont *f, int x, int y, float scale, const char *s) {
+int font_draw_text(SDL_Renderer *r, const BitmapFont *f, int x, int y, float scale, SDL_Color color, const char *s) {
+    for (int i = 0; i < 3; i++) {
+        if (!f->tex[i])
+            continue;
+        SDL_SetTextureColorMod(f->tex[i], color.r, color.g, color.b);
+        SDL_SetTextureAlphaMod(f->tex[i], color.a);
+    }
     int cursor = x;
     for (const char *c = s; *c; c++) {
-        if (*c == ' ') { cursor += (FONT_SPACE_WIDTH + FONT_GLYPH_GAP) * scale; continue; }
+        if (*c == ' ') { 
+            cursor += (FONT_SPACE_WIDTH + FONT_GLYPH_GAP) * scale;
+            continue;
+        }
         const GlyphInfo *g = glyph_for(*c);
         if (!g) continue;
 
-        SDL_Rect src = { g->x, 0, g->w, f->sheet_h };
-        SDL_Rect dst = { cursor, y, g->w * scale, f->sheet_h * scale };
-        
         int page = g->page - 1;
-
         if (page >= 0 && page < 3 && f->tex[page]) {
+            SDL_Rect src = {
+                g->x,
+                0,
+                g->w,
+                f->sheet_h
+            };
+            SDL_Rect dst = {
+                cursor,
+                y,
+                (int)(g->w * scale),
+                (int)(f->sheet_h * scale)
+            };
             SDL_RenderCopy(r, f->tex[page], &src, &dst);
         }
-
-        cursor += (g->w) * scale;
+        cursor += (g->w + FONT_GLYPH_GAP) * scale;
+    }
+    for (int i = 0; i < 3; i++) {
+        if (!f->tex[i])
+            continue;
+        SDL_SetTextureColorMod(f->tex[i], 255, 255, 255);
+        SDL_SetTextureAlphaMod(f->tex[i], 255);
     }
     return font_text_width(s) * scale;
 }

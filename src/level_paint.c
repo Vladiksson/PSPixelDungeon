@@ -1599,7 +1599,7 @@ void patch_generate(float seed, int n_gen, uint8_t *out) {
         memset(next,0,LEVEL_SIZE);
         for (int y=1; y<LEVEL_H-1; y++) {
             for (int x=1; x<LEVEL_W-1; x++) {
-                int p=x+y*LEVEL_W;
+                int p = xy_to_idx (x, y);
                 int nb=curr[p-LEVEL_W-1]+curr[p-LEVEL_W]+curr[p-LEVEL_W+1]
                        +curr[p-1]                        +curr[p+1]
                        +curr[p+LEVEL_W-1]+curr[p+LEVEL_W]+curr[p+LEVEL_W+1];
@@ -1685,8 +1685,8 @@ void paint_chasms(Level *lvl){
     for (int y = 1; y < LEVEL_H; y++) {
         for (int x = 0; x < LEVEL_W; x++) {
 
-            int cur   = y * LEVEL_W + x;
-            int above = (y - 1) * LEVEL_W + x;
+            int cur   = xy_to_idx (x, y);
+            int above = xy_to_idx (x, y - 1);
 
             if (lvl->map[cur] != TILE_CHASM)
                 continue;

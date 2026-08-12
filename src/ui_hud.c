@@ -1,11 +1,11 @@
 #include "ui_hud.h"
+#include "ui_ninepatch.h"
 #include "common.h"
-#include "font.h"
 //TODO BUFFS
 void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d){
     /* ── Status panel ───────────────────────────────────── */
     NinePatch status = status_panel(ctx->ui.status);
-    ninepatch_draw(ctx->renderer, &status, 0, 0, 480, 64);
+    ninepatch_draw(ctx->renderer, &status, 0, 0, 480, 96); //SCREEN_W, TEXTURE HIGH * SCALE
 
     /* ── HP bar ──────────────────────────────────────────── */
     if (ctx->ui.hp_bar && p && p->base.HT > 0) {
@@ -18,10 +18,10 @@ void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d){
 
         float hp_ratio = (float)hp / (float)max_hp;
 
-        const int bar_x = 30;
-        const int bar_y = 3;
-        const int bar_w = 64; //original texture size
-        const int bar_h = 4;
+        const int bar_x = 45;
+        const int bar_y = 4;
+        const int bar_w = 70; //original texture size 64X4
+        const int bar_h = 6;
 
         int tex_w = 0;
         int tex_h = 0;
@@ -110,15 +110,15 @@ void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d){
                 TILESET_HERO_W, 
                 TILESET_HERO_H 
             }; 
-            const int icon_h = TILESET_HERO_H; 
-            const int icon_w = TILESET_HERO_W; 
+            const int icon_h = TILESET_HERO_H * 2; 
+            const int icon_w = TILESET_HERO_W * 2; 
             SDL_Rect dst = { 
                 9, 
                 9, 
                 icon_w, 
                 icon_h 
             }; 
-            SDL_RenderCopy( ctx->renderer, hero_tex, &src, &dst ); 
+            SDL_RenderCopy(ctx->renderer, hero_tex, &src, &dst ); 
         } 
     }
     /* ── player lvl ──────────────────────────────────────────── */
@@ -127,15 +127,15 @@ void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d){
 
     int dx = 0;
     if(p->lvl > 9) 
-        dx = 2;
-    font_draw_text(ctx->renderer, &ctx->font, 25 - dx, 25, 1, current_lvl);
+        dx = 4;
+    font_draw_text(ctx->renderer, &ctx->font, 38 - dx, 37, 1.39, COL_WHITE, current_lvl);
     /* ── dungeon lvl ──────────────────────────────────────────── */
     char current_floor[16];
     snprintf(current_floor, sizeof(current_floor), "%d", d->current_depth + 1);
     int dt = 0;
     if(d->current_depth + 1 > 9) 
-        dt = 3;
-    font_draw_text(ctx->renderer, &ctx->font, 449 - dt, 6, 1, current_floor);
+        dt = 7;
+    font_draw_text(ctx->renderer, &ctx->font, 435 - dt, 9, 1.5, COL_WHITE, current_floor);
     /* ── keys counter ──────────────────────────────────────────── */
     //TODO rewrite after locking keys to its current floor
     const Bag *keyring = &p->bags[BAG_KEYRING];
@@ -146,5 +146,5 @@ void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d){
     char key_count[16];
     snprintf(key_count, sizeof(key_count), "%d", keys);
 
-    font_draw_text(ctx->renderer, &ctx->font, 466, 6, 1, key_count); 
+    font_draw_text(ctx->renderer, &ctx->font, 459, 9, 1.5, COL_WHITE, key_count); 
 }

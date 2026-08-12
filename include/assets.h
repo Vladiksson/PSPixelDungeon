@@ -77,10 +77,6 @@
 #define ASSET_BEE       "bee.png"
 #define ASSET_MIMIC     "mimic.png"
 
-/* One entry per distinct mob spritesheet — several MobKinds share one
-   (elite variants reuse their base mob's sheet at higher frame indices
-   rather than shipping separate art; see mob_sprites.c). Order doesn't
-   matter, this just needs to line up 1:1 with ASSET_MOB_TEX_BY_ID below. */
 typedef enum {
     MOBTEX_RAT = 0, MOBTEX_GNOLL, MOBTEX_CRAB, MOBTEX_SWARM, MOBTEX_SKELETON,
     MOBTEX_SHAMAN, MOBTEX_THIEF, MOBTEX_TENGU, MOBTEX_BAT, MOBTEX_BRUTE,
@@ -104,7 +100,6 @@ typedef enum {
 #define ASSET_PLANTS    "plants.png"
 
 /* ── Dungeon tile sheets (one per theme) ──────────────── */
-/* Index matches DungeonTheme enum: SEWERS=0 … HALLS=4    */
 #define ASSET_TILES_SEWERS  "tiles0.png"
 #define ASSET_TILES_PRISON  "tiles1.png"
 #define ASSET_TILES_CAVES   "tiles2.png"
@@ -117,8 +112,6 @@ typedef enum {
     ASSET_TILES_CITY,   ASSET_TILES_HALLS }
 
 /* ── Water surface sheets (one per theme) ─────────────── */
-/* NOTE: tiles*.png rows 48-63 are SHORE/TRANSITION edges. */
-/* The actual water fill texture is a separate tiling PNG. */
 #define ASSET_WATER_SEWERS  "water0.png"
 #define ASSET_WATER_PRISON  "water1.png"
 #define ASSET_WATER_CAVES   "water2.png"

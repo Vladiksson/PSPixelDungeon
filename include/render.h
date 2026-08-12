@@ -1,11 +1,8 @@
 #pragma once
 #include "camera.h"
-#include "assets.h"
 #include "player.h"
-#include "mob.h"
 #include "fov.h"
 #include "font.h"
-#include "ui_icons.h"
 
 typedef struct {
    SDL_Texture *chrome;

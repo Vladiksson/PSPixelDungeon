@@ -62,11 +62,11 @@ void actor_next(Actor *a) {
    ══════════════════════════════════════════════════════════ */
 static int actor_add_at(Actor *a, float time) {
     for (int i = 0; i < all_count; i++) {
-        if (all[i] == a) return 1; /* already registered — matches HashSet's implicit no-op on re-add */
+        if (all[i] == a) return 1;
     }
     if (all_count >= MAX_ACTORS) return 0;
 
-    a->time += time; /* += , not = — mirrors the original exactly, so a pre-offset time (e.g. the hero's -FLT_MIN nudge) survives */
+    a->time += time;
 
     if (a->id > 0 && a->id <= MAX_ACTORS) {
         ids[a->id] = a;
@@ -108,7 +108,7 @@ int actor_add_delayed(Actor *a, float delay) {
     return actor_add_at(a, now + delay);
 }
 
-void actor_remove(Actor *a) {
+static void actor_detach(Actor *a, int notify) {
     if (current == a)
         current = NULL;
 
@@ -122,11 +122,19 @@ void actor_remove(Actor *a) {
         }
     }
 
-    if (a->vt->on_remove) a->vt->on_remove(a);
+    if (notify && a->vt->on_remove) a->vt->on_remove(a);
 
     if (a->id > 0 && a->id <= MAX_ACTORS) {
         ids[a->id] = NULL;
     }
+}
+
+void actor_remove(Actor *a) {
+    actor_detach(a, 1);
+}
+
+void actor_unregister(Actor *a) {
+    actor_detach(a, 0);
 }
 
 Actor *actor_find_by_id(int id) {

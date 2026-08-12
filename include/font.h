@@ -19,6 +19,4 @@ typedef struct {
 
 int font_text_width(const char *s);
 
-int font_draw_text(SDL_Renderer *r, const BitmapFont *f, int x, int y, float scale, const char *s);
-
-#define FONT_SCALING 1.1
+int font_draw_text(SDL_Renderer *r, const BitmapFont *f, int x, int y, float scale, SDL_Color color, const char *s);

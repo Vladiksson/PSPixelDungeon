@@ -27,6 +27,8 @@ Mob *mob_spawn(MobKind kind, int pos, Char *target);
 int mob_spawn_random(Level *lvl, MobKind kind, int count, Char *target);
 int mob_spawn_random_no_target(Level *lvl, MobKind kind, int count);
 
+void mob_spawn_initial(Level *lvl, int depth);
+
 void mob_unload_all(void);
 void mob_clear_all(void);
 

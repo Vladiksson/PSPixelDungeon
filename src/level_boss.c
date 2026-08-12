@@ -2,52 +2,23 @@
 #include "level_paint.h"
 #include "level_decorate.h"
 #include "item_spawn.h"
+#include "mob.h"
+#include "mob_bestiary.h"
 #include <time.h>
 #include <math.h>
-/* ══════════════════════════════════════════════════════════
-   BOSS LEVEL GENERATION
-   Ports build() + decorate() from SewerBossLevel.java, PrisonBossLevel.java, CavesBossLevel.java,
-   CityBossLevel.java, HallsBossLevel.java.
 
-   Deliberately NOT ported:
-     - createItems()'s Bones.get() call on all five - there's no
-       "previous character's remains" system in this port yet.
-     - The press()/drop() overrides that seal the arena door (or,
-       for Sewers/Halls, hide the entrance) when the hero walks
-       in, and re-open it once the boss's dropped key lands on
-       the ground. That's entirely combat/mob-state driven and
-       there's no mob or combat system yet to wire it to. Once
-       one exists: on player entry into the arena, seal the
-       relevant tile(s); on the boss's key item touching the
-       ground, restore them. The geometry (arena door tile, boss
-       room bounds) is all computed below, just not stored
-       anywhere for a future caller - add fields to Level if/when
-       that gets wired up.
-     - Sewer boss's placeTraps()/nTraps(): inherited from
-       RegularLevel in the original, which wasn't provided, so
-       there's nothing authoritative to port - skipped entirely.
-       Prison boss DOES override placeTraps() (ported below), but
-       nTraps() itself is the same inherited/unavailable method,
-       so its trap count is a placeholder - see the comment at
-       its call site.
-   ══════════════════════════════════════════════════════════ */
-
-
-/* Random PASSABLE point strictly inside room r, excluding
-   `exclude_idx` (pass -1 to not exclude anything). Mirrors
-   Room.random() plus the passable-retry loops the boss levels
-   use for key/sign placement. Capped at 100 tries - the Java
-   versions loop forever, but a persistently-full room shouldn't
-   ever hang the PSP. */
-static int room_random_passable_point(const Level *lvl, const Room *r, int exclude_idx) {
+static int random_passable_in_box(const Level *lvl, int left, int top, int right, int bottom, int exclude_idx) {
     for (int tries = 0; tries < 100; tries++) {
-        int x = rng_range(r->left + 1, r->right - 1);
-        int y = rng_range(r->top + 1, r->bottom - 1);
+        int x = rng_range(left, right);
+        int y = rng_range(top, bottom);
         int idx = xy_to_idx(x, y);
         if (idx == exclude_idx) continue;
         if (gTileFlags[lvl->map[idx]] & TF_PASSABLE) return idx;
     }
     return -1;
+}
+static int room_random_passable_point(const Level *lvl, const Room *r, int exclude_idx) {
+    return random_passable_in_box(lvl, r->left + 1, r->top + 1, r->right - 1, r->bottom - 1, exclude_idx);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -55,9 +26,6 @@ static int room_random_passable_point(const Level *lvl, const Room *r, int exclu
    ══════════════════════════════════════════════════════════ */
 #define SEWERS_BOSS_MAX_ATTEMPTS 50
 
-/* One attempt at a full build+decorate. Returns 1 on success, 0
-   if this attempt should be thrown away and retried from scratch
-   (mirrors build() returning false in the original). */
 static int try_sewers_boss(Level *lvl, int depth) {
     memset(lvl, 0, sizeof(*lvl));
     lvl->theme = THEME_SEWERS;
@@ -73,8 +41,6 @@ static int try_sewers_boss(Level *lvl, int depth) {
     } while (lvl->num_rooms < 8);
     build_neighbours(lvl);
 
-    /* entrance >= 4x4; exit >= 6x6, not touching the top edge;
-       at least sqrt(num_rooms) hops apart */
     int min_dist = (int)sqrt((double)lvl->num_rooms);
     int entrance_r = -1, exit_r = -1, outer = 0, distance;
     do {
@@ -101,10 +67,6 @@ static int try_sewers_boss(Level *lvl, int depth) {
     lvl->rooms[entrance_r].type = ROOM_ENTRANCE;
     lvl->rooms[exit_r].type = ROOM_BOSS_EXIT;
 
-    /* Single path entrance->exit, re-routed once for variety (the
-       same "raise price along the first path, recompute" trick
-       level_generate uses before building its two paths). Unlike
-       a regular level, only this one final path gets connected. */
     int path[MAX_ROOMS], plen;
     build_distance_map(lvl, exit_r);
     plen = build_path(lvl, entrance_r, exit_r, path);
@@ -115,8 +77,6 @@ static int try_sewers_boss(Level *lvl, int depth) {
     for (int i = 0; i < plen - 1; i++)
         room_connect(lvl, path[i], path[i + 1]);
 
-    /* Reject if the boss room is entered from directly above -
-       that edge is reserved for the waterfall decoration. */
     {
         int neighbour = lvl->rooms[exit_r].connected[0];
         if (lvl->rooms[exit_r].top == lvl->rooms[neighbour].bottom)
@@ -129,9 +89,6 @@ static int try_sewers_boss(Level *lvl, int depth) {
             r->type = ROOM_TUNNEL;
     }
 
-    /* Rat King side room: an unconnected neighbour of the boss
-       room touching its left, right, or bottom edge (never top -
-       reserved, same as the reject check above). */
     {
         Room *rex = &lvl->rooms[exit_r];
         int candidates[MAX_NEIGHBOURS], n_cand = 0;
@@ -167,6 +124,12 @@ static int try_sewers_boss(Level *lvl, int depth) {
 
     /* createItems() only drops Bones here - nothing to spawn. */
 
+    {
+        int boss_pos = room_random_passable_point(lvl, &lvl->rooms[exit_r], lvl->exit);
+        if (boss_pos != -1)
+            mob_spawn(bestiary_pick(depth), boss_pos, NULL);
+    }
+
     return 1;
 }
 
@@ -189,8 +152,6 @@ static int try_prison_boss(Level *lvl, int depth) {
     } while (lvl->num_rooms < 8);
     build_neighbours(lvl);
 
-    /* entrance >= 4x4; exit >= 7x7, not touching the top edge;
-       path of at least 3 rooms (>=1 room between entrance/exit) */
     int entrance_r = -1, exit_r = -1, outer = 0, plen;
     int path[MAX_ROOMS];
     do {
@@ -217,7 +178,6 @@ static int try_prison_boss(Level *lvl, int depth) {
     lvl->rooms[entrance_r].type = ROOM_ENTRANCE;
     lvl->rooms[exit_r].type = ROOM_BOSS_EXIT;
 
-    /* Same single-path-rerouted-once approach as Sewers. */
     build_distance_map(lvl, exit_r);
     plen = build_path(lvl, entrance_r, exit_r, path);
     set_price(lvl, path, plen, lvl->rooms[entrance_r].distance);
@@ -245,10 +205,6 @@ static int try_prison_boss(Level *lvl, int depth) {
     assign_door_types(lvl);
     paint_doors(lvl);
 
-    /* Reject if the boss room's one door sits on its top wall.
-       (Prison checks this *after* painting, unlike Sewers - the
-       original really does check at different points for the two
-       levels; ported faithfully rather than unified.) */
     {
         int door_y = lvl->rooms[exit_r].door_y[0];
         if (door_y == lvl->rooms[exit_r].top)
@@ -291,7 +247,6 @@ static int try_prison_boss(Level *lvl, int depth) {
 
 /* ══════════════════════════════════════════════════════════
    CAVES  —  CavesBossLevel.java
-   Hand-carved, no room graph - always succeeds in one pass.
    ══════════════════════════════════════════════════════════ */
 static void build_caves_boss(Level *lvl, int depth) {
     (void)depth;
@@ -300,7 +255,7 @@ static void build_caves_boss(Level *lvl, int depth) {
     memset(lvl->map, TILE_WALL, sizeof(lvl->map));
     lvl->feeling = FEELING_NONE;
 
-    int top_most = LEVEL_H + 1;     /* sentinel, larger than any real row */
+    int top_most = LEVEL_H + 1;
     int exit_x = -1, exit_y = -1;
 
     for (int i = 0; i < 8; i++) {
@@ -318,12 +273,6 @@ static void build_caves_boss(Level *lvl, int depth) {
             top = rng_range(2, CAVES_ARENA_TOP - 3);
             bottom = CAVES_ARENA_BOTTOM + 3;
         } else {
-            /* Original literally reads ROOM_LEFT-3 here, not
-               ROOM_TOP-3 (likely a copy/paste artefact) - written
-               here as CAVES_ARENA_TOP-3 for clarity. Numerically
-               identical today since LEVEL_W==LEVEL_H, so behaviour
-               is unchanged; flagging in case that ever stops
-               being true. */
             top = CAVES_ARENA_TOP - 3;
             bottom = rng_range(CAVES_ARENA_TOP + 3, LEVEL_H - 1);
         }
@@ -352,7 +301,7 @@ static void build_caves_boss(Level *lvl, int depth) {
               TILE_EMPTY);
     fill_rect(lvl, CAVES_ARENA_LEFT, CAVES_ARENA_TOP,
               CAVES_ARENA_RIGHT - CAVES_ARENA_LEFT + 1, 1,
-              TILE_TOXIC_TRAP);   /* original: Terrain.TOXIC_TRAP, same tile */
+              TILE_TOXIC_TRAP);
 
     {
         int door_x = rng_range(CAVES_ARENA_LEFT, CAVES_ARENA_RIGHT);
@@ -378,7 +327,6 @@ static void build_caves_boss(Level *lvl, int depth) {
 
 /* ══════════════════════════════════════════════════════════
    CITY  —  CityBossLevel.java
-   Hand-carved, no room graph - always succeeds in one pass.
    ══════════════════════════════════════════════════════════ */
 static void build_city_boss(Level *lvl, int depth) {
     (void)depth;
@@ -430,7 +378,6 @@ static void build_city_boss(Level *lvl, int depth) {
 
 /* ══════════════════════════════════════════════════════════
    HALLS  —  HallsBossLevel.java
-   Hand-carved, no room graph - always succeeds in one pass.
    ══════════════════════════════════════════════════════════ */
 static void build_halls_boss(Level *lvl, int depth) {
     (void)depth;
@@ -451,11 +398,6 @@ static void build_halls_boss(Level *lvl, int depth) {
         fill_rect(lvl, 2 + i * 4, top, 4, bottom - top + 1, TILE_EMPTY);
 
         if (i == 2) {
-            /* Original uses i*4+3, not (2+i*4)+3 - deliberately
-               ported as-is (same asymmetry as the deco loop just
-               below). Numerically that's (2+i*4)+1, still inside
-               the 4-wide corridor, just its 2nd column rather than
-               centered on it. */
             exit_x = i * 4 + 3;
             exit_y = top - 1;
         }
@@ -463,10 +405,6 @@ static void build_halls_boss(Level *lvl, int depth) {
         for (int j = 0; j < 4; j++) {
             if (rng_int(2) == 0) {
                 int y = rng_range(top + 1, bottom - 1);
-                /* Same as above: original indexes i*4+j, not
-                   (2+i*4)+j, so for j=0,1 this can land one or two
-                   tiles into the wall left of the corridor rather
-                   than inside it. Ported as-is. */
                 set_tile(lvl, i * 4 + j, y, TILE_WALL_DECO);
             }
         }
@@ -475,10 +413,8 @@ static void build_halls_boss(Level *lvl, int depth) {
     lvl->exit = xy_to_idx(exit_x, exit_y);
     set_tile(lvl, exit_x, exit_y, TILE_LOCKED_EXIT);
 
-    fill_rect(lvl, room_left - 1, room_top - 1,
-              room_right - room_left + 3, room_bottom - room_top + 3, TILE_WALL);
-    fill_rect(lvl, room_left, room_top,
-              room_right - room_left + 1, room_bottom - room_top + 1, TILE_EMPTY);
+    fill_rect(lvl, room_left - 1, room_top - 1, room_right - room_left + 3, room_bottom - room_top + 3, TILE_WALL);
+    fill_rect(lvl, room_left, room_top, room_right - room_left + 1, room_bottom - room_top + 1, TILE_EMPTY);
 
     {
         int ex = rng_range(room_left + 1, room_right - 1);
@@ -501,6 +437,8 @@ static void build_halls_boss(Level *lvl, int depth) {
    ══════════════════════════════════════════════════════════ */
 int level_generate_boss(Level *lvl, uint32_t seed, DungeonTheme theme, int depth) {
     rng_state = seed ? seed : (uint32_t)time(NULL);
+
+    mob_set_pool(&lvl->mob_pool);
 
     switch (theme) {
     case THEME_SEWERS:
@@ -527,5 +465,77 @@ int level_generate_boss(Level *lvl, uint32_t seed, DungeonTheme theme, int depth
 
     default:
         return -1;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   ARENA TRIGGERS
+   ══════════════════════════════════════════════════════════ */
+void level_boss_event(Level *lvl, int depth, Player *player) {
+    if (depth == 24) { 
+        if (lvl->entrance == -1) return;
+        if (player->base.pos == lvl->entrance) return;
+
+        const int room_left   = LEVEL_W / 2 - 1;
+        const int room_right  = LEVEL_W / 2 + 1;
+        const int room_top    = LEVEL_H / 2 - 1;
+        const int room_bottom = LEVEL_H / 2 + 1;
+
+        for (int x = room_left - 1; x <= room_right + 1; x++) {
+            lvl->map[xy_to_idx(x, room_top - 1)]    = TILE_EMPTY_SP;
+            lvl->map[xy_to_idx(x, room_bottom + 1)] = TILE_EMPTY_SP;
+        }
+        for (int y = room_top; y <= room_bottom; y++) {
+            lvl->map[xy_to_idx(room_left - 1, y)]   = TILE_EMPTY_SP;
+            lvl->map[xy_to_idx(room_right + 1, y)]  = TILE_EMPTY_SP;
+        }
+        lvl->map[lvl->entrance] = TILE_EMPTY_SP;
+        lvl->entrance = -1;
+
+        /* REDO BULLSHIT PLACEHOLDER FOR YOG BOSSFIGHT*/
+        int boss_pos = random_passable_in_box(lvl, room_left, room_top, room_right, room_bottom, player->base.pos);
+        if (boss_pos != -1) {
+            Mob *boss = mob_spawn(bestiary_pick(depth), boss_pos, &player->base);
+            if (boss) boss->state = MOB_HUNTING;
+        }
+        return;
+    }
+
+    if (lvl->boss_triggered) return;
+
+    int boss_pos = -1;
+
+    switch (depth) {
+    case 9: {
+        Room *exit_room = NULL;
+        for (int i = 0; i < lvl->num_rooms; i++) {
+            if (lvl->rooms[i].type == ROOM_BOSS_EXIT) { exit_room = &lvl->rooms[i]; break; }
+        }
+        if (!exit_room) return;
+        Point p = idx_to_xy(player->base.pos);
+        if (!room_inside(exit_room, p.x, p.y)) return;
+        boss_pos = room_random_passable_point(lvl, exit_room, player->base.pos);
+        break;
+    }
+    case 14: 
+        if(lvl->map[player->base.pos] != TILE_OPEN_DOOR) return;
+        boss_pos = random_passable_in_box(lvl, CAVES_ARENA_LEFT, CAVES_ARENA_TOP-2, CAVES_ARENA_RIGHT, CAVES_ARENA_TOP-1, player->base.pos);
+        break;
+    case 19: {
+        const int top = 2, hall_w = 7, hall_h = 15;
+        const int left = (LEVEL_W - hall_w) / 2;
+        Point p = idx_to_xy(player->base.pos);
+        if (p.y >= top + hall_h || p.x < left || p.x >= left + hall_w) return;
+        boss_pos = random_passable_in_box(lvl, left, top, left + hall_w - 1, top + hall_h - 1, player->base.pos);
+        break;
+    }
+    default:
+        return;
+    }
+
+    lvl->boss_triggered = 1;
+    if (boss_pos != -1) {
+        Mob *boss = mob_spawn(bestiary_pick(depth), boss_pos, &player->base);
+        if (boss) boss->state = MOB_HUNTING;
     }
 }

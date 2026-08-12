@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <SDL2/SDL.h>
 
 /* ── PSP screen ─────────────────────────────────────── */
 #define SCREEN_W   480
@@ -37,6 +38,20 @@ void TileSize_Update(void);
 
 /* ── ITEM ICON ───────────────────────────────── */
 #define ICON_SIZE  16
+
+/* ── Palette  ──────────── */
+static const SDL_Color COL_WHITE            = { 0xFF, 0xFF, 0xFF, 0xFF };
+
+static const SDL_Color COL_GOLD_TEXT        = { 0xe8, 0xc5, 0x47, 0xFF };
+static const SDL_Color COL_TEXT             = { 0xd8, 0xcd, 0xb8, 0xFF };
+
+static const SDL_Color COL_SLOT_NORMAL      = { 0x4A, 0x4D, 0x44, 0xFF };
+static const SDL_Color COL_SLOT_SELECTED    = { 0x78, 0x77, 0x71, 0xFF };
+static const SDL_Color COL_SLOT_EQUIP       = { 0x63, 0x66, 0x5B, 0xFF };
+static const SDL_Color COL_SLOT_CURSED      = { 0x7A, 0x45, 0x45, 0xFF };
+static const SDL_Color COL_SLOT_UNKNOWN     = { 0x40, 0x46, 0x5B, 0xFF };
+static const SDL_Color COL_SLOT_GOLD        = { 0x3a, 0x30, 0x24, 0xFF };
+
 /* ── Terrain tile IDs — exact mirror of Terrain.java ─── */
 typedef enum {
     TILE_CHASM                  =  0,

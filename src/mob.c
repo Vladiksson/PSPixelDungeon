@@ -1,4 +1,5 @@
 #include "mob.h"
+#include "mob_bestiary.h"
 #include "player.h"
 #include "rng.h"
 #include <stdlib.h>
@@ -274,10 +275,21 @@ Mob *mob_spawn(MobKind kind, int pos, Char *target) {
         return NULL;
 
     if (kind < 0 || kind >= MOB_KIND_COUNT) return NULL;
-    if (active_mob_pool->count >= MAX_LEVEL_MOBS) return NULL;
     if (char_find_at(pos) != NULL) return NULL;
 
-    Mob *m = &active_mob_pool->mobs[active_mob_pool->count];
+    Mob *m = NULL;
+    for (int i = 0; i < active_mob_pool->count; i++) {
+        if (!char_is_alive(&active_mob_pool->mobs[i].base)) {
+            m = &active_mob_pool->mobs[i];
+            break;
+        }
+    }
+    int reused = (m != NULL);
+    if (!m) {
+        if (active_mob_pool->count >= MAX_LEVEL_MOBS) return NULL;
+        m = &active_mob_pool->mobs[active_mob_pool->count];
+    }
+
     const MobStats *stats = &MOB_DB[kind];
 
     char_init(&m->base, mob_vtable(), CHAR_KIND_MOB, pos, stats->ht);
@@ -298,7 +310,7 @@ Mob *mob_spawn(MobKind kind, int pos, Char *target) {
 
     if (!char_add(&m->base)) return NULL; 
 
-    active_mob_pool->count++;
+    if (!reused) active_mob_pool->count++;
     return m;
 }
 
@@ -329,7 +341,15 @@ int mob_spawn_random_no_target(Level *lvl, MobKind kind, int count) {
     return mob_spawn_random(lvl, kind, count, NULL);
 }
 
+void mob_spawn_initial(Level *lvl, int depth) {
+    int n = bestiary_mob_count(depth);
+    if (n > MAX_LEVEL_MOBS) n = MAX_LEVEL_MOBS;
 
+    for (int i = 0; i < n; i++) {
+        MobKind kind = bestiary_pick(depth);
+        mob_spawn_random(lvl, kind, 1, NULL);
+    }
+}
 
 
 void mob_unload_all(void) { //temporar solution of mobs saving after level transition

@@ -1,5 +1,6 @@
 #include "dungeon.h"
 #include "mob.h" //redo temporar solution for the test
+#include "level_boss.h"
 #include <time.h>
 
 static DungeonTheme get_theme(int depth){
@@ -20,6 +21,8 @@ Fog *dungeon_current_fog(Dungeon *d){
 
 void dungeon_init(Dungeon *d){
     memset(d, 0, sizeof(*d));
+    char_clear();
+    actor_clear();
 
     d->world_seed = (uint32_t)time(NULL);
     d->current_depth = 0;
@@ -106,34 +109,7 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
     return 1;
 }
 
-void dungeon_on_player_move(Dungeon *dungeon, Player *player){
+void dungeon_event(Dungeon *dungeon, Player *player){
     Level *lvl = dungeon_current_level(dungeon);
-
-    /* Halls boss room: seal the entrance once the player enters. */
-    if (dungeon->current_depth != 24)
-        return;
-
-    if (lvl->entrance == -1)
-        return;
-
-    if (player->base.pos == lvl->entrance)
-        return;
-
-    const int room_left   = LEVEL_W / 2 - 1;
-    const int room_right  = LEVEL_W / 2 + 1;
-    const int room_top    = LEVEL_H / 2 - 1;
-    const int room_bottom = LEVEL_H / 2 + 1;
-
-    for (int x = room_left - 1; x <= room_right + 1; x++) {
-        lvl->map[xy_to_idx(x, room_top - 1)]    = TILE_EMPTY_SP;
-        lvl->map[xy_to_idx(x, room_bottom + 1)] = TILE_EMPTY_SP;
-    }
-
-    for (int y = room_top; y <= room_bottom; y++) {
-        lvl->map[xy_to_idx(room_left - 1, y)]   = TILE_EMPTY_SP;
-        lvl->map[xy_to_idx(room_right + 1, y)]  = TILE_EMPTY_SP;
-    }
-
-    lvl->map[lvl->entrance] = TILE_EMPTY_SP;
-    lvl->entrance = -1;
+    level_boss_event(lvl, dungeon->current_depth, player);
 }

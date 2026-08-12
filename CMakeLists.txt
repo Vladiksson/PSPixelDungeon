@@ -28,6 +28,7 @@ add_executable(${PROJECT_NAME}
     src/char.c
     src/mob.c
     src/mob_db.c
+    src/mob_bestiary.c
     src/rng.c
     src/ui_inventory.c
     src/ui_ninepatch.c

@@ -26,4 +26,4 @@ Fog *dungeon_current_fog(Dungeon *d);
 int dungeon_go_down(Dungeon *d, Player *player, Camera *cam);
 int dungeon_go_up(Dungeon *d, Player *player, Camera *cam);
 
-void dungeon_on_player_move(Dungeon *dungeon, Player *player);
+void dungeon_event(Dungeon *dungeon, Player *player);

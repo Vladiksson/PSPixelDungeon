@@ -246,11 +246,17 @@ uint32_t char_visual_flags(const Char *self) {
     return flags;
 }
 
+static void char_restore_buffs(Char *self) {
+    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
+        Buff *b = &self->buffs[i];
+        if (b->type != BUFF_NONE) {
+            b->base.time = 0.0f; /* same "start fresh at now" treatment char_add's callers already give self */
+            actor_add(&b->base);
+        }
+    }
+}
+
 static void char_on_remove(Char *self) {
-    /* mirrors Char.onRemove(): cascade-detach every attached buff.
-       Iterating the fixed array by index sidesteps the "don't mutate
-       the collection you're iterating" problem the original works
-       around with buffs.toArray() first. */
     for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
         if (self->buffs[i].type != BUFF_NONE) {
             char_remove_buff(self, &self->buffs[i]);
@@ -267,7 +273,7 @@ void char_init(Char *self, const CharVTable *vt, CharKind kind, int pos, int max
     self->vt   = vt;
     self->kind = kind;
     self->pos  = pos;
-    self->name = "mob";      /* matches Char.java's own field default */
+    self->name = "mob";
     self->HT   = max_hp;
     self->HP   = max_hp;
     self->base_speed   = 1.0f;
@@ -286,12 +292,18 @@ Level *char_active_level(void) {
 
 int char_add(Char *self) {
     int ok = actor_add(&self->base);
-    if (ok) char_grid_occupy(self, self->pos);
+    if (ok) {
+        char_grid_occupy(self, self->pos);
+        char_restore_buffs(self);
+    }
     return ok;
 }
 int char_add_delayed(Char *self, float delay) {
     int ok = actor_add_delayed(&self->base, delay);
-    if (ok) char_grid_occupy(self, self->pos);
+    if (ok) {
+        char_grid_occupy(self, self->pos);
+        char_restore_buffs(self);
+    }
     return ok;
 }
 
@@ -308,8 +320,6 @@ void char_destroy(Char *self) {
 void char_die_default(Char *self, void *src, DamageSource src_type) {
     (void)src; (void)src_type;
     char_destroy(self);
-    /* original also calls sprite.die() (a death animation trigger)
-       here — wire your render layer's equivalent once it exists. */
 }
 
 void char_die(Char *self, void *src, DamageSource src_type) {
@@ -331,7 +341,7 @@ void char_move(Char *self, Level *lvl, int step) {
     }
 
     if (lvl->map[self->pos] == TILE_OPEN_DOOR) {
-        lvl->map[self->pos] = TILE_DOOR; /* closes the door behind you — mirrors Door.leave(pos); see the file header note in char.h */
+        lvl->map[self->pos] = TILE_DOOR; 
     }
 
     char_grid_free(self->pos);
@@ -339,13 +349,8 @@ void char_move(Char *self, Level *lvl, int step) {
     char_grid_occupy(self, self->pos);
 
     if (self->flying && lvl->map[self->pos] == TILE_DOOR) {
-        lvl->map[self->pos] = TILE_OPEN_DOOR; /* best-guess for Door.enter(pos) — Door.java wasn't shared; assumes "enter" means "open", matching what player_move() already does for grounded movement onto a door */
+        lvl->map[self->pos] = TILE_OPEN_DOOR; 
     }
-
-    /* original also toggles sprite.visible here for non-hero Chars,
-       based on Dungeon.visible[pos] — your render code already needs
-       to make that same FOV check to decide what to draw, so it
-       isn't duplicated here. */
 }
 
 int char_distance(const Char *self, const Char *other) {
@@ -453,7 +458,7 @@ void char_on_operate_complete(Char *self) { actor_next(&self->base); }
 
 
 
-void char_unregister(Char *self){ //REDO temporal bullshit for changing levels. is it gonna save or remove buffs from chars?
-    actor_remove(&self->base);
+void char_unregister(Char *self){
+    actor_unregister(&self->base);
     char_grid_free(self->pos);
 }

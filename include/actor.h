@@ -20,7 +20,7 @@ typedef struct {
 struct Actor {
     const ActorVTable *vt;
     float time;
-    int   id;   /* 0 = unassigned; actor_id() lazily assigns one, like the original */
+    int   id;
 };
 
 /* ── Actor methods ──────────────────────────────────────────── */
@@ -39,6 +39,8 @@ int actor_add(Actor *a);
 int actor_add_delayed(Actor *a, float delay);
 
 void actor_remove(Actor *a);
+
+void actor_unregister(Actor *a);
 
 void actor_process(void);
 

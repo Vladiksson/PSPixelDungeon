@@ -8,6 +8,7 @@ typedef struct {
     int top;
     int right;
     int bottom;
+    float scale;
 } NinePatch;
 
 void ninepatch_draw(SDL_Renderer *r, const NinePatch *p, int x, int y, int w, int h);

@@ -1,7 +1,6 @@
 #pragma once
 #include "player.h"
 #include "bag.h"
-#include <stdint.h>
 
 typedef enum {
     ICON_SKULL,

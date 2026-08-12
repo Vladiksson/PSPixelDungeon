@@ -1,6 +1,7 @@
 #include "ui_inventory.h"
+#include "ui_ninepatch.h"
 #include "ui_icons.h"
-#include <stdio.h>
+#include "common.h"
 
 /* ── Inventory ───────────────────────────────────────────── */
 #define INV_COLS   5
@@ -11,6 +12,7 @@
 #define INV_SLOT   30
 #define INV_GAP     1
 
+#define FONT_SCALING 1.15
 /* derived */
 
 #define GRID_W   (INV_COLS * INV_SLOT + (INV_COLS - 1) * INV_GAP)
@@ -30,7 +32,7 @@
 #define EQUIP_PANEL_Y INV_GRID_Y
 /* Labels */
 #define NAME_X (INV_GRID_X)
-#define NAME_Y (INV_GRID_Y + GRID_H + INV_GAP * 4)
+#define NAME_Y (INV_GRID_Y + GRID_H + INV_GAP * 2)
 
 #define BAG_NAME_X INV_GRID_X
 #define BAG_NAME_Y (INV_GRID_Y - PANEL_GAP)
@@ -39,14 +41,14 @@
 #define BAG_TAB_SIZE  (INV_SLOT * 2 / 3)
 
 #define BAG_TAB_GAP       INV_GAP
-#define BAG_TAB_GAP_H     8 //difference between unselected and selected tab's textures 
+#define BAG_TAB_GAP_H     10//difference between unselected and selected tab's textures 8 (SCALED 10) IDK WHY
 
 #define BAG_TAB_WIDTH           (BAG_TAB_SIZE + INV_SLOT) / 2
 #define BAG_TAB_STEP            BAG_TAB_WIDTH
-#define BAG_TAB_ICON_OFFSET_X   5 * BAG_TAB_GAP
-#define BAG_TAB_ICON_OFFSET_Y   BAG_TAB_GAP
+#define BAG_TAB_ICON_OFFSET_X   ( 6 * BAG_TAB_GAP)
+#define BAG_TAB_ICON_OFFSET_Y   (-1 * BAG_TAB_GAP)
 
-#define BAG_TABS_X        PANEL_X
+#define BAG_TABS_X       (PANEL_X + BAG_TAB_GAP)
 #define BAG_TABS_Y       (PANEL_Y + PANEL_H - BAG_TAB_GAP_H) 
 
 /* Description panel */
@@ -55,27 +57,17 @@
 #define DESC_PANEL_W (PANEL_W + PANEL_GAP / 2)
 #define DESC_PANEL_H (PANEL_H + BAG_TAB_SIZE)
 
-#define DESC_NAME_X  (DESC_PANEL_X + (DESC_PANEL_W * 5 / 16)) 
-#define DESC_NAME_Y  (DESC_PANEL_Y + (PANEL_GAP * 3 / 2))
+#define DESC_NAME_X  (DESC_PANEL_X + (DESC_PANEL_W * 9 / 32)) 
+#define DESC_NAME_Y  (DESC_PANEL_Y + (PANEL_GAP * 1.5))
 
-#define DESC_ICON_X (DESC_PANEL_X + (PANEL_GAP * 7 / 2))
+#define DESC_ICON_X (DESC_PANEL_X + (PANEL_GAP * 3.5))
 #define DESC_ICON_Y (DESC_PANEL_Y + PANEL_GAP * 2)
 
-#define DESC_X (DESC_PANEL_X + PANEL_GAP * 3)
+#define DESC_X (DESC_PANEL_X + PANEL_GAP * 1.2)
 #define DESC_Y (DESC_PANEL_Y + PANEL_GAP * 5)
 
 #define DESC_LENGTH (DESC_PANEL_W - PANEL_GAP * 2)
 
-/* ── Palette  ──────────── */
-static const SDL_Color COL_CURSOR           = { 0xe8, 0xc5, 0x47, 0xFF }; /* for gold text */
-static const SDL_Color COL_TEXT             = { 0xd8, 0xcd, 0xb8, 0xFF }; 
-
-static const SDL_Color COL_SLOT_NORMAL      = { 0x4A, 0x4D, 0x44, 0xFF };
-static const SDL_Color COL_SLOT_SELECTED    = { 0x78, 0x77, 0x71, 0xFF };
-static const SDL_Color COL_SLOT_EQUIP       = { 0x63, 0x66, 0x5B, 0xFF };
-static const SDL_Color COL_SLOT_CURSED      = { 0x7A, 0x45, 0x45, 0xFF };
-static const SDL_Color COL_SLOT_UNKNOWN     = { 0x40, 0x46, 0x5B, 0xFF };
-static const SDL_Color COL_SLOT_GOLD        = { 0x3a, 0x30, 0x24, 0xFF };
 
 
 /* ══════════════════════════════════════════════════════════
@@ -173,15 +165,8 @@ static void fill_rect_inventory(SDL_Renderer *r, int x, int y, int w, int h, SDL
     SDL_RenderFillRect(r, &rect);
 }
 
-static void draw_text(RenderCtx *ctx, int x, int y, SDL_Color c, const char *s) {
-    const BitmapFont *font = &ctx->font;
-    for (int i = 0; i < 3; i++) {
-        if (font->tex[i]) {
-            SDL_SetTextureColorMod(font->tex[i], c.r, c.g, c.b);
-            SDL_SetTextureAlphaMod(font->tex[i], 255);
-        }
-    }
-    font_draw_text(ctx->renderer, font, x, y, FONT_SCALING, s);
+static void draw_text(RenderCtx *ctx, int x, int y, SDL_Color color, const char *text){
+    font_draw_text(ctx->renderer, &ctx->font, x, y, FONT_SCALING, color, text);
 }
 
 static void draw_wrapped_text(RenderCtx *ctx, int x, int y, SDL_Color color, const char *text, int max_width) {
@@ -278,13 +263,13 @@ static void draw_item_contents(RenderCtx *ctx, ItemStack stack, int x, int y, in
         char lvl[8];
         snprintf(lvl, sizeof(lvl), "%+d", stack.level);
         int lw = font_text_width(lvl);
-        draw_text(ctx, x + size - lw - 2, y + 1, COL_CURSOR, lvl);
+        draw_text(ctx, x + size - lw - 2, y + 1, COL_GOLD_TEXT, lvl);
     }
     if (ITEM_DB[stack.type].stackable && stack.quantity > 1) {
         char qty[16];
         snprintf(qty, sizeof(qty), "%d", stack.quantity);
         int tw = font_text_width(qty);
-        draw_text(ctx, x + size - tw - 2, y + size - 8, COL_CURSOR, qty);
+        draw_text(ctx, x + size - tw - 2, y + size - 8, COL_GOLD_TEXT, qty);
     }
 }
 
@@ -372,7 +357,7 @@ static void render_item_description(RenderCtx *ctx, ItemStack stack) {
     char name[64];
     item_display_name(&stack, name, sizeof(name));
 
-    draw_text(ctx, DESC_NAME_X, DESC_NAME_Y, COL_CURSOR, name);
+    draw_text(ctx, DESC_NAME_X, DESC_NAME_Y, COL_GOLD_TEXT, name);
     draw_wrapped_text(ctx, DESC_X, DESC_Y, COL_TEXT, item_display_desc(&stack), DESC_LENGTH);
 }
 
@@ -382,14 +367,8 @@ static void render_item_description(RenderCtx *ctx, ItemStack stack) {
 void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
     if (!ui->open) return;
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
- 
-    /* If the active tab's pouch got dropped since the last time this
-       was set (shouldn't normally happen — see inventory_screen.h —
-       but ui is const here, so we can't self-correct ui->active_bag),
-       fall back to the backpack for this frame rather than showing a
-       tab for a bag the player no longer has. */
-    BagType shown = (ui->active_bag == BAG_BACKPACK || player_has_bag(p, ui->active_bag))
-                   ? ui->active_bag : BAG_BACKPACK;
+
+    BagType shown = (ui->active_bag == BAG_BACKPACK || player_has_bag(p, ui->active_bag)) ? ui->active_bag : BAG_BACKPACK;
  
     int backpack_tab = (shown == BAG_BACKPACK);
     int grid_cols     = backpack_tab ? INV_COLS : BAG_COLS;

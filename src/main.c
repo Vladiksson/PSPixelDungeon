@@ -233,7 +233,7 @@ int main(int argc, char *argv[]) {
                     fog = dungeon_current_fog(&dungeon);
                     continue;
                 }
-                dungeon_on_player_move(&dungeon, &player);
+                dungeon_event(&dungeon, &player);
 
             } else if (moved == PLAYER_BUMP_ATTACKED) {
                 /* Attack already started; player_animate() will resolve it. */

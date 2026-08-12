@@ -105,6 +105,7 @@ typedef struct Level {
     int          num_heaps;
 
     MobPool mob_pool;
+    int boss_triggered;
 } Level;
 
 typedef struct {
@@ -117,13 +118,11 @@ typedef struct {
 
 int  level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int blacksmith_depth);
 
-/* Safe tile read — returns TILE_WALL for out-of-bounds */
 static inline uint8_t get_tile_safe(const Level *lvl, int x, int y) {
     if (!in_bounds(x,y)) return TILE_WALL;
     return lvl->map[xy_to_idx(x,y)];
 }
 
-/* Room geometry helpers matching Rect.java */
 static inline int room_w     (const Room *r) { return r->right  - r->left; }
 static inline int room_h     (const Room *r) { return r->bottom - r->top;  }
 static inline int room_square(const Room *r) { return room_w(r) * room_h(r); }
