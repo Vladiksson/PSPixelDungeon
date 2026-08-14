@@ -43,29 +43,28 @@ static int char_random_neighbour(int pos) {
    as long as a Char's pos only ever changes via char_move(), never
    by writing ->pos directly.
    ══════════════════════════════════════════════════════════ */
-#define CHAR_GRID_LEN (LEVEL_W * LEVEL_H)
-static Char *g_chars_by_pos[CHAR_GRID_LEN];
+static Char *chars_by_pos[LEVEL_SIZE];
 
 static int char_grid_occupy(Char *c, int pos){
     if (!c)
         return 0;
-    if (pos < 0 || pos >= CHAR_GRID_LEN)
+    if (pos < 0 || pos >= LEVEL_SIZE)
         return 0;
-    if (g_chars_by_pos[pos] != NULL &&
-        g_chars_by_pos[pos] != c)
+    if (chars_by_pos[pos] != NULL &&
+        chars_by_pos[pos] != c)
         return 0;
-    g_chars_by_pos[pos] = c;
+    chars_by_pos[pos] = c;
     return 1;
 }
 static void char_grid_free(int pos) {
-    if (pos >= 0 && pos < CHAR_GRID_LEN) g_chars_by_pos[pos] = NULL;
+    if (pos >= 0 && pos < LEVEL_SIZE) chars_by_pos[pos] = NULL;
 }
 Char *char_find_at(int pos) {
-    if (pos < 0 || pos >= CHAR_GRID_LEN) return NULL;
-    return g_chars_by_pos[pos];
+    if (pos < 0 || pos >= LEVEL_SIZE) return NULL;
+    return chars_by_pos[pos];
 }
 void char_clear(void) {
-    memset(g_chars_by_pos, 0, sizeof(g_chars_by_pos));
+    memset(chars_by_pos, 0, sizeof(chars_by_pos));
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -108,14 +107,14 @@ const CharVTable CHAR_DEFAULT_VTABLE = {
 /* ══════════════════════════════════════════════════════════
    Actor <-> Char glue
    ══════════════════════════════════════════════════════════ */
-static void (*g_turn_started_hook)(Char *self) = NULL;
+static void (*turn_started_hook)(Char *self) = NULL;
 
 void char_set_turn_started_hook(void (*fn)(Char *self)) {
-    g_turn_started_hook = fn;
+    turn_started_hook = fn;
 }
 
 int char_base_act(Char *self) {
-    if (g_turn_started_hook) g_turn_started_hook(self);
+    if (turn_started_hook) turn_started_hook(self);
     return self->vt->on_turn(self);
 }
 
@@ -127,7 +126,7 @@ static int char_actor_act(Actor *a) {
 static void char_actor_on_remove(Actor *a) {
     char_on_remove((Char *)a);
 }
-static const ActorVTable g_char_actor_vtable = {
+static const ActorVTable char_actor_vtable = {
     .act        = char_actor_act,
     .on_add     = NULL,
     .on_remove  = char_actor_on_remove,
@@ -155,7 +154,7 @@ static int buff_default_act(Buff *self) {
 static int buff_actor_act(Actor *a) {
     return buff_default_act((Buff *)a);
 }
-static const ActorVTable g_buff_actor_vtable = {
+static const ActorVTable buff_actor_vtable = {
     .act        = buff_actor_act,
     .on_add     = NULL,
     .on_remove  = NULL,
@@ -172,7 +171,7 @@ Buff *char_apply_buff(Char *self, BuffType type, float duration) {
     for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
         if (self->buffs[i].type == BUFF_NONE) {
             Buff *b = &self->buffs[i];
-            actor_init(&b->base, &g_buff_actor_vtable);
+            actor_init(&b->base, &buff_actor_vtable);
             b->type     = type;
             b->target   = self;
             b->duration = duration;
@@ -269,7 +268,7 @@ static void char_on_remove(Char *self) {
    ══════════════════════════════════════════════════════════ */
 void char_init(Char *self, const CharVTable *vt, CharKind kind, int pos, int max_hp) {
     memset(self, 0, sizeof(*self));
-    actor_init(&self->base, &g_char_actor_vtable);
+    actor_init(&self->base, &char_actor_vtable);
     self->vt   = vt;
     self->kind = kind;
     self->pos  = pos;
@@ -280,14 +279,14 @@ void char_init(Char *self, const CharVTable *vt, CharKind kind, int pos, int max
     self->view_distance = 8;
 }
 
-static Level *g_active_level = NULL;
+static Level *active_level = NULL;
 
 void char_set_active_level(Level *lvl) {
-    g_active_level = lvl;
+    active_level = lvl;
 }
 
 Level *char_active_level(void) {
-    return g_active_level;
+    return active_level;
 }
 
 int char_add(Char *self) {

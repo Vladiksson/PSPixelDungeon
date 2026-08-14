@@ -256,6 +256,8 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     /* STARTING ITEMS */
     player_add_item(p, ITEM_SCROLL_UPGRADE, 1);//TEST
     player_add_item(p, ITEM_BAG_KEYRING, 1);
+
+    mob_set_hero(&p->base);
 }
 
 /*═══════════════════════════════════════════════════════════════

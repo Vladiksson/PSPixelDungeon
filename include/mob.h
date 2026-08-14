@@ -11,7 +11,10 @@ typedef struct {
 
     MobKind    kind;
     MobAiState state;
-    Char      *target; 
+    Char      *target;     /* current enemy, mirrors Mob.enemy — see mob_choose_enemy() in mob.c */
+    int        dest;       /* wander/hunt/flee destination cell — mirrors Mob.target (an int cell index in the original, unlike this struct's own Char* target above); -1 = none */
+    int        enemy_seen; /* mirrors Mob.enemySeen — persists across turns for the sneak-attack check in mob_defense_skill() */
+    int        alerted;    /* mirrors Mob.alerted/justAlerted — set in mob_on_damaged(), consumed and cleared at the start of the mob's next turn */
 
     Facing       facing;
     MobAnimState anim;
@@ -44,4 +47,9 @@ typedef struct {
 
 void mob_set_pool(MobPool *pool);
 void mob_restore_grid(void);
+
 void mob_restore_targets(Char *player);
+
+void mob_set_hero(Char *hero);
+
+void mob_set_fog(const uint8_t *visible);

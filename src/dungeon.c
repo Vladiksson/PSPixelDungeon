@@ -1,15 +1,6 @@
 #include "dungeon.h"
-#include "mob.h" //redo temporar solution for the test
 #include "level_boss.h"
 #include <time.h>
-
-static DungeonTheme get_theme(int depth){
-    if (depth < 5 ) return THEME_SEWERS;
-    if (depth < 10) return THEME_PRISON;
-    if (depth < 15) return THEME_CAVES;
-    if (depth < 20) return THEME_CITY;
-    return THEME_HALLS;
-}
 
 Level *dungeon_current_level(Dungeon *d){
     return &d->floors[d->current_depth];
@@ -31,6 +22,7 @@ void dungeon_init(Dungeon *d){
 
     level_generate(&d->floors[0], d->world_seed, get_theme(0), d->current_depth, d->blacksmith_depth);
     fog_init(&d->fog[d->current_depth]);
+    mob_set_fog(d->fog[d->current_depth].visible);
 
     d->generated[0] = 1;
 
@@ -62,6 +54,7 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     char_set_active_level(lvl);
 
     mob_set_pool(&lvl->mob_pool);
+    mob_set_fog(dungeon_current_fog(d)->visible);
 
     char_add(&player->base);
 
@@ -72,10 +65,13 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     Point p = idx_to_xy(player->base.pos);
     camera_center_on(cam, p.x, p.y);
 
-    /* 2 = this floor was freshly generated this call (nothing's been
-       spawned on it yet — main.c uses this to know when to call
-       mob_spawn_random()); 1 = you'd already been here. Callers that
-       only care about success/failure can still just check truthiness. */
+    /* 2 = this floor was freshly generated this call; 1 = you'd
+       already been here. Mob population happens inside
+       level_generate() itself now (mob_spawn_initial(), mob.c), not
+       from here, so this distinction is mostly historical — kept in
+       case a caller other than main.c (which doesn't check it) wants
+       it later. Either way it's truthy, so success/failure still
+       works with a plain if(). */
     return freshly_generated ? 2 : 1;
 }
 
@@ -96,6 +92,7 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
     char_set_active_level(lvl);
 
     mob_set_pool(&lvl->mob_pool);
+    mob_set_fog(dungeon_current_fog(d)->visible);
 
     char_add(&player->base);
 

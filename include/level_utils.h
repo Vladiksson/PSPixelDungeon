@@ -2,6 +2,7 @@
 #include "level.h"
 #include "rng.h"
 
+DungeonTheme get_theme(int depth);
 int level_is_boss_depth(int depth);
 int shop_on_level(int depth);
 

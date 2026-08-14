@@ -3,6 +3,14 @@
 /* ══════════════════════════════════════════════════════════
    SOME DEPTH-DEPENDED STUFF
    ══════════════════════════════════════════════════════════ */
+DungeonTheme get_theme(int depth){ //mb return back to the dungeon???
+    if (depth < 5 ) return THEME_SEWERS;
+    if (depth < 10) return THEME_PRISON;
+    if (depth < 15) return THEME_CAVES;
+    if (depth < 20) return THEME_CITY;
+    return THEME_HALLS;
+}
+   
 int level_is_boss_depth(int depth) { 
     return depth >= 0 && (depth + 1) % 5 == 0;
 }

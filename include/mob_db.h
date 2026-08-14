@@ -50,6 +50,8 @@ typedef enum {
     MOB_ASLEEP,
     MOB_WANDERING,
     MOB_HUNTING,
+    MOB_FLEEING,
+    MOB_PASSIVE,
 } MobAiState;
 
 typedef struct {

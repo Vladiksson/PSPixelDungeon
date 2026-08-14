@@ -244,9 +244,8 @@ int main(int argc, char *argv[]) {
         pos = idx_to_xy(player.base.pos);
 
         actor_process();
-        mob_restore_targets(&player.base);
 
-        fog_update(fog, lvl, pos.x, pos.y);
+        fog_update(fog, lvl, pos.x, pos.y, dungeon.current_depth);
         player_animate(&player, dt);
         mob_animate_all(dt);
         /* Draw: tiles → items → shadow → mobs →fog → player → present */

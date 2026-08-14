@@ -1,5 +1,6 @@
 #include "mob.h"
 #include "mob_bestiary.h"
+#include "pathfinder.h"
 #include "player.h"
 #include "rng.h"
 #include <stdlib.h>
@@ -8,9 +9,19 @@
     Storage
 ═══════════════════════════════════════════════════════════════*/
 static MobPool *active_mob_pool = NULL;
+static Char *hero = NULL;
+static const uint8_t *fov_visible = NULL;
 
 void mob_set_pool(MobPool *pool) {
     active_mob_pool = pool;
+}
+
+void mob_set_hero(Char *player) {
+    hero = player;
+}
+
+void mob_set_fog(const uint8_t *visible) {
+    fov_visible = visible;
 }
 
 /*═══════════════════════════════════════════════════════════════
@@ -26,7 +37,8 @@ static int mob_attack_skill(Char *self, Char *target) {
 }
 static int mob_defense_skill(Char *self, Char *enemy) {
     (void)enemy;
-    return MOB_DB[((Mob *)self)->kind].defense_skill;
+    Mob *m = (Mob *)self;
+    return (m->enemy_seen && !self->paralysed) ? MOB_DB[m->kind].defense_skill : 0;
 }
 static int mob_dr(Char *self) {
     return MOB_DB[((Mob *)self)->kind].dr;
@@ -39,9 +51,17 @@ static int mob_damage_roll(Char *self) {
 static void mob_on_damaged(Char *self, int dmg_taken, void *src, DamageSource src_type) {
     (void)dmg_taken;
     Mob *m = (Mob *)self;
+    char_remove_buffs_of_type(self, BUFF_TERROR);
+
+    if (m->state == MOB_ASLEEP) m->state = MOB_WANDERING;
+    m->alerted = 1;
+
     if (src_type == DMGSRC_CHAR && src) {
+        /* Not in the original — chooseEnemy() there would fall back
+           to the hero here instead — but keeps a mob correctly
+           hunting whatever actually hit it, hero or not. Kept from
+           this port's existing behavior. */
         m->target = (Char *)src;
-        m->state  = MOB_HUNTING;
     }
 }
 
@@ -56,6 +76,30 @@ static void mob_die(Char *self, void *src, DamageSource src_type) {
 
     char_die_default(self, src, src_type);
     /* TODO ADD DROP HERE*/
+}
+
+static void mob_on_buff_added(Char *self, Buff *buff) {
+    Mob *m = (Mob *)self;
+    switch (buff->type) {
+    case BUFF_AMOK:
+        m->state = MOB_HUNTING;
+        break;
+    case BUFF_TERROR:
+        m->state = MOB_FLEEING;
+        break;
+    case BUFF_SLEEP:
+        m->state = MOB_ASLEEP;
+        actor_postpone(&self->base, ACTOR_TICK);
+        break;
+    default:
+        break;
+    }
+}
+
+static void mob_on_buff_removed(Char *self, Buff *buff) {
+    if (buff->type == BUFF_TERROR) {
+        ((Mob *)self)->state = MOB_HUNTING;
+    }
 }
 
 /*═══════════════════════════════════════════════════════════════
@@ -132,8 +176,10 @@ void mob_animate_all(float dt) {
 }
 
 /*═══════════════════════════════════════════════════════════════
-   stupid AI, fully redo
+    MOB AI
 ═══════════════════════════════════════════════════════════════*/
+#define MOB_TIME_TO_WAKE_UP 1.0f
+
 static int mob_is_busy(const Mob *m) {
     switch (m->anim) {
         case MOB_ANIM_ATTACK:
@@ -165,31 +211,64 @@ static int mob_try_step(Mob *m, Level *lvl, int dx, int dy) {
     return 1;
 }
 
-/* one step toward `target` per call*/
-static void mob_step_toward(Mob *m, Level *lvl, Char *target) {
-    Point mp = idx_to_xy(m->base.pos);
-    Point tp = idx_to_xy(target->pos);
-    int dx = (tp.x > mp.x) - (tp.x < mp.x);
-    int dy = (tp.y > mp.y) - (tp.y < mp.y);
+static int mob_step_toward_pos(Mob *m, Level *lvl, int dest_pos) {
+    if (m->base.rooted) return 0;
 
-    if (abs(tp.x - mp.x) >= abs(tp.y - mp.y)) {
-        if (mob_try_step(m, lvl, dx, dy)) return;
-        if (mob_try_step(m, lvl, dx, 0)) return;
-        if (mob_try_step(m, lvl, 0, dy)) return;
-    } else {
-        if (mob_try_step(m, lvl, dx, dy)) return;
-        if (mob_try_step(m, lvl, 0, dy)) return;
-        if (mob_try_step(m, lvl, dx, 0)) return;
-    }
+    int next = pathfinder_get_step(lvl, m->base.pos, dest_pos);
+    if (next == -1) return 0;
+
+    Point mp = idx_to_xy(m->base.pos);
+    Point np = idx_to_xy(next);
+    return mob_try_step(m, lvl, np.x - mp.x, np.y - mp.y);
 }
 
-static void mob_wander(Mob *m, Level *lvl) {
-    if (rng_int(4) != 0) return; /* mostly stands still — tune to taste */
+static int mob_step_away_pos(Mob *m, Level *lvl, int from_pos) {
+    if (m->base.rooted) return 0;
 
-    static const int dx8[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
-    static const int dy8[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
-    int i = rng_int(8);
-    mob_try_step(m, lvl, dx8[i], dy8[i]);
+    int next = pathfinder_get_step_back(lvl, m->base.pos, from_pos);
+    if (next == -1) return 0;
+
+    Point mp = idx_to_xy(m->base.pos);
+    Point np = idx_to_xy(next);
+    return mob_try_step(m, lvl, np.x - mp.x, np.y - mp.y);
+}
+
+static int mob_random_destination(Level *lvl) {
+    for (int tries = 0; tries < 100; tries++) {
+        int pos = xy_to_idx(rng_int(LEVEL_W), rng_int(LEVEL_H));
+        if (gTileFlags[lvl->map[pos]] & TF_PASSABLE) return pos;
+    }
+    return -1;
+}
+
+static int char_stealth_of(Char *c) {
+    return (c->vt && c->vt->stealth) ? c->vt->stealth(c) : 0;
+}
+
+static Mob *mob_pick_amok_target(Mob *self) {
+    int count = mob_count();
+    if (count <= 1) return NULL;
+
+    int start = rng_int(count);
+    for (int i = 0; i < count; i++) {
+        Mob *cand = mob_at_index((start + i) % count);
+        if (cand != self && char_is_alive(&cand->base) &&
+            (!fov_visible || fov_visible[cand->base.pos]))
+            return cand;
+    }
+    return NULL;
+}
+
+static Char *mob_choose_enemy(Mob *m) {
+    if (char_buff(&m->base, BUFF_AMOK)) {
+        if (m->target == hero || m->target == NULL) {
+            Mob *pick = mob_pick_amok_target(m);
+            if (pick) return &pick->base;
+        }
+    }
+
+    if (m->target && char_is_alive(m->target)) return m->target;
+    return hero;
 }
 
 static int mob_on_turn(Char *self) {
@@ -206,46 +285,106 @@ static int mob_on_turn(Char *self) {
         actor_next(&self->base);
         return 0;
     }
-    if (m->target && !char_is_alive(m->target)) {
-        m->target = NULL;
+
+    int just_alerted = m->alerted;
+    m->alerted = 0;
+
+    if (self->paralysed) {
+        m->enemy_seen = 0;
+        char_spend(self, ACTOR_TICK);
+        actor_next(&self->base);
+        return 0;
     }
+
+    m->target = mob_choose_enemy(m);
+
+    int enemy_in_view = m->target
+        && char_is_alive(m->target)
+        && m->target->invisible <= 0
+        && char_distance(self, m->target) <= self->view_distance
+        && (!fov_visible || fov_visible[m->target->pos]);
+
     mob_play_anim(m, MOB_ANIM_IDLE);
 
-    /* State transitions */
-    if (m->state == MOB_ASLEEP || m->state == MOB_WANDERING) {
-        if (m->target && char_distance(self, m->target) <= self->view_distance) {
-            m->state = MOB_HUNTING;
-        }
-    } else if (m->state == MOB_HUNTING) {
-        if (!m->target || char_distance(self, m->target) > self->view_distance * 2) {
-            m->state = MOB_WANDERING;
-        }
-    }
-
     switch (m->state) {
-        case MOB_ASLEEP:
-            break;
 
-        case MOB_HUNTING:
-            if (char_distance(self, m->target) <= 1) {
-                Point mp = idx_to_xy(self->pos);
-                Point tp = idx_to_xy(m->target->pos);
-
-                if (tp.x != mp.x)
-                    m->facing = (tp.x < mp.x) ? FACE_LEFT : FACE_RIGHT;
-
-                mob_play_anim(m, MOB_ANIM_ATTACK);
-            } else {
-                mob_step_toward(m, lvl, m->target);
-            }
-            break;
-
-        case MOB_WANDERING:
-        default:
-            mob_wander(m, lvl);
-            break;
+    case MOB_ASLEEP: {
+        int wake_odds = enemy_in_view
+            ? char_distance(self, m->target) + char_stealth_of(m->target) + (m->target->flying ? 2 : 0)
+            : 1;
+        if (enemy_in_view && (wake_odds <= 0 || rng_int(wake_odds) == 0)) {
+            m->enemy_seen = 1;
+            m->state = MOB_HUNTING;
+            m->dest = m->target->pos;
+            char_spend(self, MOB_TIME_TO_WAKE_UP);
+        } else {
+            m->enemy_seen = 0;
+            char_spend(self, ACTOR_TICK);
+        }
+        break;
     }
-    char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+
+    case MOB_WANDERING: {
+        int wake_odds = enemy_in_view
+            ? char_distance(self, m->target) / 2 + char_stealth_of(m->target)
+            : 1;
+        if (enemy_in_view && (just_alerted || wake_odds <= 0 || rng_int(wake_odds) == 0)) {
+            m->enemy_seen = 1;
+            m->state = MOB_HUNTING;
+            m->dest = m->target->pos;
+            char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+        } else {
+            m->enemy_seen = 0;
+            if (m->dest != -1 && mob_step_toward_pos(m, lvl, m->dest)) {
+                char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+            } else {
+                m->dest = mob_random_destination(lvl);
+                char_spend(self, ACTOR_TICK);
+            }
+        }
+        break;
+    }
+
+    case MOB_HUNTING:
+        m->enemy_seen = enemy_in_view;
+        if (enemy_in_view && char_distance(self, m->target) <= 1 && !char_is_charmed_by(self, m->target)) {
+            Point mp = idx_to_xy(self->pos);
+            Point tp = idx_to_xy(m->target->pos);
+
+            if (tp.x != mp.x)
+                m->facing = (tp.x < mp.x) ? FACE_LEFT : FACE_RIGHT;
+
+            mob_play_anim(m, MOB_ANIM_ATTACK);
+            char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+        } else {
+            if (enemy_in_view) m->dest = m->target->pos;
+            if (m->dest != -1 && mob_step_toward_pos(m, lvl, m->dest)) {
+                char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+            } else {
+                char_spend(self, ACTOR_TICK);
+                m->state = MOB_WANDERING;
+                m->dest = mob_random_destination(lvl);
+            }
+        }
+        break;
+
+    case MOB_FLEEING:
+        m->enemy_seen = enemy_in_view;
+        if (enemy_in_view) m->dest = m->target->pos;
+        if (m->dest != -1 && mob_step_away_pos(m, lvl, m->dest)) {
+            char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+        } else {
+            char_spend(self, ACTOR_TICK); /* nowhereToRun() in the original is an empty hook (no non-Fleeing-mob overrides it) — nothing to port */
+        }
+        break;
+
+    case MOB_PASSIVE:
+    default:
+        m->enemy_seen = 0;
+        char_spend(self, ACTOR_TICK);
+        break;
+    }
+
     actor_next(&self->base);
     return 0;
 }
@@ -262,6 +401,8 @@ static const CharVTable *mob_vtable(void) {
         vt.on_damaged    = mob_on_damaged;
         vt.die           = mob_die;
         vt.on_turn       = mob_on_turn;
+        vt.on_buff_added   = mob_on_buff_added;
+        vt.on_buff_removed = mob_on_buff_removed;
         built = 1;
     }
     return &vt;
@@ -277,6 +418,7 @@ Mob *mob_spawn(MobKind kind, int pos, Char *target) {
     if (kind < 0 || kind >= MOB_KIND_COUNT) return NULL;
     if (char_find_at(pos) != NULL) return NULL;
 
+    /* Reuse a dead mob's slot */
     Mob *m = NULL;
     for (int i = 0; i < active_mob_pool->count; i++) {
         if (!char_is_alive(&active_mob_pool->mobs[i].base)) {
@@ -301,6 +443,9 @@ Mob *mob_spawn(MobKind kind, int pos, Char *target) {
     m->kind   = kind;
     m->state  = stats->initial_state;
     m->target = target;
+    m->dest       = -1;
+    m->enemy_seen = 0;
+    m->alerted    = 0;
 
     m->facing      = FACE_RIGHT;
     m->anim        = MOB_ANIM_IDLE;
@@ -397,6 +542,7 @@ void mob_restore_grid(void) {
 }
 
 void mob_restore_targets(Char *player) {
+    hero = player;
     for(int i=0;i<active_mob_pool->count;i++) {
         active_mob_pool->mobs[i].target = player;
     }

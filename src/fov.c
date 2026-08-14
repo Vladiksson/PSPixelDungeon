@@ -1,15 +1,23 @@
 #include "fov.h"
 #include <string.h>
 
-/* ══════════════════════════════════════════════════════════════
-   LIGHT BLOCKING  — which tile types stop the FOV ray
-
-   In PD, closed doors block LOS (you can't see through them).
-   Open doors and all floor variants are transparent.
-   ══════════════════════════════════════════════════════════════ */
 static int blocks_light(const Level *lvl, int x, int y) {
     if (!in_bounds(x, y)) return 1;
     return gTileFlags[lvl->map[xy_to_idx(x, y)]] & TF_LOS_BLOCKING;
+}
+
+static int fov_radius(int depth) {
+    if (depth > 9 && depth < 15) {
+        return 6;
+    }
+    if (depth > 20 && depth < 24) {
+        int radius = 24 - depth;
+        return radius > 1 ? radius : 1;
+    }
+    if (depth == 24) {
+        return 3;
+    }
+    return 8;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -98,12 +106,13 @@ void fog_init(Fog *fog) {
  * to world offsets: world = cx + dx*xx + dy*xy,
  *                           cy + dx*yx + dy*yy
  */
-void fog_update(Fog *fog, const Level *lvl, int px, int py) {
+void fog_update(Fog *fog, const Level *lvl, int px, int py, int depth) {
     memset(fog->visible, 0, LEVEL_SIZE);
 
     /* Player's own tile is always visible */
     if (in_bounds(px, py)) fog->visible[xy_to_idx(px, py)] = 1;
 
+    int radius = fov_radius(depth);
     /* Cast into all 8 octants */
     static const int OCT[8][4] = {
         /* xx, xy, yx, yy */
@@ -118,7 +127,7 @@ void fog_update(Fog *fog, const Level *lvl, int px, int py) {
     };
     for (int i = 0; i < 8; i++) {
         cast_octant(fog->visible, lvl, px, py, 1,
-                    1.0f, 0.0f, FOV_RADIUS,
+                    1.0f, 0.0f, radius,
                     OCT[i][0], OCT[i][1], OCT[i][2], OCT[i][3]);
     }
 
