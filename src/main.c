@@ -246,6 +246,8 @@ int main(int argc, char *argv[]) {
         actor_process();
 
         fog_update(fog, lvl, pos.x, pos.y, dungeon.current_depth);
+        hud_update(&rctx, &player);
+
         player_animate(&player, dt);
         mob_animate_all(dt);
         /* Draw: tiles → items → shadow → mobs →fog → player → present */

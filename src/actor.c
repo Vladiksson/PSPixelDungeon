@@ -13,6 +13,10 @@ static Actor *ids[MAX_ACTORS + 1];
 static Actor *current = NULL;
 
 static float now = 0.0f;
+//for test
+float actor_now(void) {
+    return now;
+}
 
 static int (*stop_condition)(void);
 /* ══════════════════════════════════════════════════════════

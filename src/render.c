@@ -1,5 +1,6 @@
 #include "render.h"
-#include "assets_embedded.h"
+#include "assets.h"
+#include "icons.h" //test
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
@@ -110,7 +111,8 @@ int render_init(RenderCtx *ctx) {
     ctx->ui.status = load_tex(ctx->renderer, ASSET_STATUS); 
     ctx->ui.hp_bar = load_tex(ctx->renderer, ASSET_HP_BAR);
     ctx->ui.xp_bar = load_tex(ctx->renderer, ASSET_XP_BAR);
-    ctx->ui.icons  = load_tex(ctx->renderer, ASSET_ICONS);
+    /*icons*/
+    ctx->icons  = load_tex(ctx->renderer, ASSET_ICONS);
 
     return 0;
 }
@@ -127,7 +129,6 @@ static void ui_free(UITextures *ui) {
     destroy_tex(&ui->status);
     destroy_tex(&ui->hp_bar);
     destroy_tex(&ui->xp_bar);
-    destroy_tex(&ui->icons);
 }
 void render_free(RenderCtx *ctx) {
     for (int i = 0; i < 3; i++) {
@@ -146,6 +147,7 @@ void render_free(RenderCtx *ctx) {
         destroy_tex(&ctx->mob_tex[i]);
     }
     destroy_tex(&ctx->items);
+    destroy_tex(&ctx->icons);
     ui_free(&ctx->ui);
 
     if (ctx->renderer) {
@@ -417,6 +419,17 @@ void render_player(RenderCtx *ctx, const Player *p, const Camera *cam) {
 
 
 /* ── render_mobs ─────────────────────────────────────────── */
+static int mob_has_status_icon(const Mob *m) {
+    return m->state == MOB_ASLEEP || m->alert_icon;
+}
+
+static IconId mob_status_icon(const Mob *m) {
+    if (m->state == MOB_ASLEEP)
+        return ICON_SLEEP;
+
+    return ICON_ALERT;
+}
+
 static SDL_Rect mob_frame_rect(RenderCtx *ctx, const Mob *m, MobTexId tex_id) {
     const MobSpriteInfo *info = &MOB_SPRITES[m->kind];
     const AnimClip *clip = &info->clips[m->anim];
@@ -471,6 +484,30 @@ void render_mobs(RenderCtx *ctx, const Camera *cam) {
         SDL_Rect src = mob_frame_rect(ctx, m, tex_id);
         SDL_RendererFlip flip = (m->facing == FACE_LEFT) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
         SDL_RenderCopyEx(ctx->renderer, tex, &src, &dst, 0.0, NULL, flip);
+
+        if (mob_has_status_icon(m)) {
+            IconId icon = mob_status_icon(m);
+
+            uint8_t ix, iy, iw, ih;
+            icon_sprite(icon, &ix, &iy, &iw, &ih);
+
+            SDL_Rect icon_src = {
+                ix, iy, iw, ih
+            };
+
+            int scale = gTileSize / TILE_SIZE_MIN;
+            if (scale < 1)
+                scale = 1;
+
+            SDL_Rect icon_dst = {
+                dst.x + dst.w - 3,
+                dst.y - 5,
+                iw * scale,
+                ih * scale
+            };
+
+            SDL_RenderCopy(ctx->renderer, ctx->icons, &icon_src, &icon_dst);
+        }
     }
 }
 

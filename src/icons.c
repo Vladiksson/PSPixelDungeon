@@ -1,4 +1,4 @@
-#include "ui_icons.h"
+#include "icons.h"
 #include "render.h"
 
 typedef struct {
@@ -36,7 +36,7 @@ static const IconInfo ICONS[] = {
     [ICON_RESUME]         = {114,  0, 12, 11 }
 };
 
-
+/*
 IconId hero_icon(HeroClass cls) {
     switch (cls) {
     case HERO_WARRIOR:  return ICON_WARRIOR;
@@ -46,6 +46,7 @@ IconId hero_icon(HeroClass cls) {
     default:            return ICON_SKULL;
     }
 }
+*/
 
 IconId bag_icon(BagType type) {
     switch (type) {

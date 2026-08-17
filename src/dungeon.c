@@ -22,7 +22,6 @@ void dungeon_init(Dungeon *d){
 
     level_generate(&d->floors[0], d->world_seed, get_theme(0), d->current_depth, d->blacksmith_depth);
     fog_init(&d->fog[d->current_depth]);
-    mob_set_fog(d->fog[d->current_depth].visible);
 
     d->generated[0] = 1;
 
@@ -38,8 +37,7 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
 
     d->current_depth++;
 
-    int freshly_generated = !d->generated[d->current_depth];
-    if (freshly_generated) {
+    if (!d->generated[d->current_depth]) {
         uint32_t seed = d->world_seed + d->current_depth * 0x9E3779B9u;
         level_generate(&d->floors[d->current_depth], seed, get_theme(d->current_depth), d->current_depth, d->blacksmith_depth);
 
@@ -54,7 +52,6 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     char_set_active_level(lvl);
 
     mob_set_pool(&lvl->mob_pool);
-    mob_set_fog(dungeon_current_fog(d)->visible);
 
     char_add(&player->base);
 
@@ -65,14 +62,7 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     Point p = idx_to_xy(player->base.pos);
     camera_center_on(cam, p.x, p.y);
 
-    /* 2 = this floor was freshly generated this call; 1 = you'd
-       already been here. Mob population happens inside
-       level_generate() itself now (mob_spawn_initial(), mob.c), not
-       from here, so this distinction is mostly historical — kept in
-       case a caller other than main.c (which doesn't check it) wants
-       it later. Either way it's truthy, so success/failure still
-       works with a plain if(). */
-    return freshly_generated ? 2 : 1;
+    return 1;
 }
 
 int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
@@ -92,7 +82,6 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
     char_set_active_level(lvl);
 
     mob_set_pool(&lvl->mob_pool);
-    mob_set_fog(dungeon_current_fog(d)->visible);
 
     char_add(&player->base);
 

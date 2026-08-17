@@ -16,6 +16,8 @@ typedef struct {
     int        enemy_seen; /* mirrors Mob.enemySeen — persists across turns for the sneak-attack check in mob_defense_skill() */
     int        alerted;    /* mirrors Mob.alerted/justAlerted — set in mob_on_damaged(), consumed and cleared at the start of the mob's next turn */
 
+    int        alert_icon;   /* show alert icon for one mob turn */
+
     Facing       facing;
     MobAnimState anim;
     int          frame;

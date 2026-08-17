@@ -1,5 +1,5 @@
 #pragma once
-#include "player.h"
+//#include "player.h"
 #include "bag.h"
 
 typedef enum {
@@ -36,7 +36,7 @@ typedef enum {
 } IconId;
 
 
-IconId hero_icon(HeroClass cls);
+/*IconId hero_icon(HeroClass cls);*/
 IconId bag_icon(BagType type);
 
 void icon_sprite(IconId icon, uint8_t *x, uint8_t *y, uint8_t *w, uint8_t *h);

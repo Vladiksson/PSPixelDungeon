@@ -64,6 +64,7 @@ typedef struct {
     int   view_distance;
     int   xp_reward;
     float base_speed;
+    float attack_delay;
     int   flying;
     MobAiState initial_state;
 } MobStats;

@@ -281,9 +281,7 @@ static void player_resolve_attack(Player *p) {
     if (!target) return; 
 
     char_attack(&p->base, target);
-    /* CharAttackResult is discarded here */
-
-    actor_next(&p->base.base);
+    char_on_attack_complete(&p->base);
 }
 
 void player_animate(Player *p, float dt) {

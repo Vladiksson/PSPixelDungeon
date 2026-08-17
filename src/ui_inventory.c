@@ -1,6 +1,6 @@
 #include "ui_inventory.h"
 #include "ui_ninepatch.h"
-#include "ui_icons.h"
+#include "icons.h"
 #include "common.h"
 
 /* ── Inventory ───────────────────────────────────────────── */
@@ -217,7 +217,7 @@ static void draw_icon(RenderCtx *ctx, IconId icon, int x, int y, int size) {
 
     SDL_Rect src = { sx, sy, sw, sh };
     SDL_Rect dst = { x + (size - sw) / 2, y + (size - sh) / 2, sw, sh };
-    SDL_RenderCopy(ctx->renderer, ctx->ui.icons, &src, &dst);
+    SDL_RenderCopy(ctx->renderer, ctx->icons, &src, &dst);
 }
 
 /* ══════════════════════════════════════════════════════════

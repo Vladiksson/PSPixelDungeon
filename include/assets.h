@@ -1,6 +1,12 @@
 #pragma once
+#include <stddef.h>
 
-/* assets.h — C mirror of Assets.java*/
+typedef struct {
+    const unsigned char *data;  /* NULL if the name wasn't found */
+    size_t                size;
+} EmbeddedAsset;
+
+EmbeddedAsset asset_find(const char *name);
 /* ── UI / HUD ─────────────────────────────────────────── */
 #define ASSET_ARCS_BG       "arcs1.png"
 #define ASSET_ARCS_FG       "arcs2.png"

@@ -1,8 +1,36 @@
 #include "ui_hud.h"
 #include "ui_ninepatch.h"
+#include "icons.h"
 #include "common.h"
 //TODO BUFFS
-void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d){
+static void render_busy_indicator(RenderCtx *ctx, const Player *p) {
+    if (!char_is_alive(&p->base)) // || p->ready)
+        return;
+    uint8_t sx, sy, sw, sh;
+    icon_sprite(ICON_BUSY, &sx, &sy, &sw, &sh);
+
+    SDL_Rect src = { sx, sy, sw, sh };
+    SDL_Rect dst = { 0,  50, sw * 2, sh * 2 };
+
+    SDL_SetTextureBlendMode(ctx->icons, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureAlphaMod(ctx->icons, 128);
+
+    SDL_Point center = { dst.w / 2, dst.h / 2 };
+
+    SDL_RenderCopyEx(ctx->renderer, ctx->icons, &src, &dst, ctx->busy_angle, &center, SDL_FLIP_NONE);
+    SDL_SetTextureAlphaMod(ctx->icons, 255);
+}
+
+//test
+void hud_update(RenderCtx *ctx, const Player *p) {
+    if (!p || !char_is_alive(&p->base)) { //|| p->ready) {
+        ctx->busy_angle = 0.0f;
+        return;
+    }
+    ctx->busy_angle = fmodf(actor_now() * 45.0f, 360.0f);
+}
+
+void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d) {
     /* ── Status panel ───────────────────────────────────── */
     NinePatch status = status_panel(ctx->ui.status);
     ninepatch_draw(ctx->renderer, &status, 0, 0, 480, 96); //SCREEN_W, TEXTURE HIGH * SCALE
@@ -127,7 +155,7 @@ void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d){
 
     int dx = 0;
     if(p->lvl > 9) 
-        dx = 4;
+        dx = 3;
     font_draw_text(ctx->renderer, &ctx->font, 38 - dx, 37, 1.39, COL_WHITE, current_lvl);
     /* ── dungeon lvl ──────────────────────────────────────────── */
     char current_floor[16];
@@ -146,5 +174,8 @@ void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d){
     char key_count[16];
     snprintf(key_count, sizeof(key_count), "%d", keys);
 
-    font_draw_text(ctx->renderer, &ctx->font, 459, 9, 1.5, COL_WHITE, key_count); 
+    font_draw_text(ctx->renderer, &ctx->font, 459, 9, 1.5, COL_WHITE, key_count);
+
+    /* ── busy indicator ───────────────────────────────── */
+    render_busy_indicator(ctx, p);
 }

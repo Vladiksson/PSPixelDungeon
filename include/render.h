@@ -9,7 +9,6 @@ typedef struct {
    SDL_Texture *status;
    SDL_Texture *hp_bar;
    SDL_Texture *xp_bar;
-   SDL_Texture *icons;
 } UITextures;
 
 typedef struct {
@@ -28,6 +27,8 @@ typedef struct {
 
    BitmapFont    font;
    UITextures    ui;
+   SDL_Texture  *icons;
+   float         busy_angle;
 
    DungeonTheme  active_theme;
 } RenderCtx;

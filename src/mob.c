@@ -10,7 +10,6 @@
 ═══════════════════════════════════════════════════════════════*/
 static MobPool *active_mob_pool = NULL;
 static Char *hero = NULL;
-static const uint8_t *fov_visible = NULL;
 
 void mob_set_pool(MobPool *pool) {
     active_mob_pool = pool;
@@ -18,10 +17,6 @@ void mob_set_pool(MobPool *pool) {
 
 void mob_set_hero(Char *player) {
     hero = player;
-}
-
-void mob_set_fog(const uint8_t *visible) {
-    fov_visible = visible;
 }
 
 /*═══════════════════════════════════════════════════════════════
@@ -107,17 +102,16 @@ static void mob_on_buff_removed(Char *self, Buff *buff) {
 ═══════════════════════════════════════════════════════════════*/
 static void mob_resolve_attack(Mob *m) {
     Char *target = m->target;
-    if (!target)
-        return;
-    if (!char_is_alive(target)) {
+    if (target && char_is_alive(target)) {
+        char_attack(&m->base, target);
+    } else {
         m->target = NULL;
-        return;
     }
-    char_attack(&m->base, target);
+    char_on_attack_complete(&m->base);
 }
 
 void mob_play_anim(Mob *m, MobAnimState anim) {
-    if (m->anim == anim)
+    if (m->anim == anim && !m->anim_done)
         return;
 
     m->anim = anim;
@@ -125,6 +119,7 @@ void mob_play_anim(Mob *m, MobAnimState anim) {
     m->frame_clock = 0.0f;
     m->anim_done = 0;
 }
+
 
 void mob_animate_all(float dt) {
     if (!active_mob_pool)
@@ -174,7 +169,55 @@ void mob_animate_all(float dt) {
         }
     }
 }
+/*═══════════════════════════════════════════════════════════════
+    MOB FOV
+═══════════════════════════════════════════════════════════════*/
+static int mob_has_los(const Level *lvl, int from_pos, int to_pos) { //REDO AS PLAYER FOV
+    Point a = idx_to_xy(from_pos);
+    Point b = idx_to_xy(to_pos);
 
+    int x0 = a.x;
+    int y0 = a.y;
+    int x1 = b.x;
+    int y1 = b.y;
+
+    int dx = abs(x1 - x0);
+    int sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0);
+    int sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy;
+
+    for (;;) {
+        if (!(x0 == a.x && y0 == a.y)) {
+            int pos = xy_to_idx(x0, y0);
+
+            if (gTileFlags[lvl->map[pos]] & TF_LOS_BLOCKING)
+                return 0;
+        }
+        if (x0 == x1 && y0 == y1)
+            break;
+        int e2 = 2 * err;
+        if (e2 >= dy) {
+            err += dy;
+            x0 += sx;
+        }
+        if (e2 <= dx) {
+            err += dx;
+            y0 += sy;
+        }
+    }
+    return 1;
+}
+static int mob_can_see(Mob *m, Char *target, Level *lvl){
+    if (!target || !char_is_alive(target))
+        return 0;
+    if (target->invisible > 0)
+        return 0;
+    if (char_distance(&m->base, target) > m->base.view_distance)
+        return 0;
+
+    return mob_has_los(lvl, m->base.pos, target->pos);
+}
 /*═══════════════════════════════════════════════════════════════
     MOB AI
 ═══════════════════════════════════════════════════════════════*/
@@ -245,24 +288,23 @@ static int char_stealth_of(Char *c) {
     return (c->vt && c->vt->stealth) ? c->vt->stealth(c) : 0;
 }
 
-static Mob *mob_pick_amok_target(Mob *self) {
+static Mob *mob_pick_amok_target(Mob *self, Level *lvl) {
     int count = mob_count();
     if (count <= 1) return NULL;
 
     int start = rng_int(count);
     for (int i = 0; i < count; i++) {
         Mob *cand = mob_at_index((start + i) % count);
-        if (cand != self && char_is_alive(&cand->base) &&
-            (!fov_visible || fov_visible[cand->base.pos]))
+        if (cand != self && char_is_alive(&cand->base) && mob_can_see(self, &cand->base, lvl))
             return cand;
     }
     return NULL;
 }
 
-static Char *mob_choose_enemy(Mob *m) {
+static Char *mob_choose_enemy(Mob *m, Level *lvl) {
     if (char_buff(&m->base, BUFF_AMOK)) {
         if (m->target == hero || m->target == NULL) {
-            Mob *pick = mob_pick_amok_target(m);
+            Mob *pick = mob_pick_amok_target(m, lvl);
             if (pick) return &pick->base;
         }
     }
@@ -286,6 +328,9 @@ static int mob_on_turn(Char *self) {
         return 0;
     }
 
+    /* TEST alert icon lasted until this turn */
+    m->alert_icon = 0;
+
     int just_alerted = m->alerted;
     m->alerted = 0;
 
@@ -296,18 +341,12 @@ static int mob_on_turn(Char *self) {
         return 0;
     }
 
-    m->target = mob_choose_enemy(m);
+    m->target = mob_choose_enemy(m, lvl);
+    int enemy_in_view = mob_can_see(m, m->target, lvl);
 
-    int enemy_in_view = m->target
-        && char_is_alive(m->target)
-        && m->target->invisible <= 0
-        && char_distance(self, m->target) <= self->view_distance
-        && (!fov_visible || fov_visible[m->target->pos]);
-
-    mob_play_anim(m, MOB_ANIM_IDLE);
+    int attacking = 0;
 
     switch (m->state) {
-
     case MOB_ASLEEP: {
         int wake_odds = enemy_in_view
             ? char_distance(self, m->target) + char_stealth_of(m->target) + (m->target->flying ? 2 : 0)
@@ -316,6 +355,9 @@ static int mob_on_turn(Char *self) {
             m->enemy_seen = 1;
             m->state = MOB_HUNTING;
             m->dest = m->target->pos;
+
+            m->alert_icon = 1;   //TEST
+
             char_spend(self, MOB_TIME_TO_WAKE_UP);
         } else {
             m->enemy_seen = 0;
@@ -355,7 +397,8 @@ static int mob_on_turn(Char *self) {
                 m->facing = (tp.x < mp.x) ? FACE_LEFT : FACE_RIGHT;
 
             mob_play_anim(m, MOB_ANIM_ATTACK);
-            char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+            char_spend(self, MOB_DB[m->kind].attack_delay);
+            attacking = 1;
         } else {
             if (enemy_in_view) m->dest = m->target->pos;
             if (m->dest != -1 && mob_step_toward_pos(m, lvl, m->dest)) {
@@ -385,7 +428,7 @@ static int mob_on_turn(Char *self) {
         break;
     }
 
-    actor_next(&self->base);
+    if (!attacking) actor_next(&self->base);
     return 0;
 }
 

@@ -54,3 +54,5 @@ Actor *actor_find_by_id(int id);
 
 int    actor_count(void);
 Actor *actor_at_index(int i); /* for iterating every registered Actor, e.g. from a future save system — mirrors what a caller would get from Actor.all() */
+
+float actor_now(void);
