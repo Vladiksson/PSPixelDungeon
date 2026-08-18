@@ -250,10 +250,9 @@ int main(int argc, char *argv[]) {
 
         player_animate(&player, dt);
         mob_animate_all(dt);
-        /* Draw: tiles → items → shadow → mobs →fog → player → present */
+        /* Draw: tiles → items → mobs → fog → player → present */
         render_frame(&rctx, lvl, &cam);
         render_items(&rctx, lvl, &cam);
-        render_shadows(&rctx, lvl, fog, &cam);
         render_mobs(&rctx, &cam);
         render_fog(&rctx, fog, &cam);
         render_player(&rctx, &player, &cam);

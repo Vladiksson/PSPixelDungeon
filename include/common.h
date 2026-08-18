@@ -115,9 +115,7 @@ typedef enum {
     TF_LIQUID          = 1 << 6,
     TF_PIT             = 1 << 7,
     TF_UNSTITCHABLE    = 1 << 8,
-    TF_SHADOW          = 1 << 9,
-    TF_OPEN_FLOOR      = 1 << 10,
-    TF_RECEIVES_SHADOW = 1 << 11,
+    TF_OPEN_FLOOR      = 1 << 9,
 } TileFlags;
 
 extern uint16_t gTileFlags[256];

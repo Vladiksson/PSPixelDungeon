@@ -66,7 +66,7 @@
 #define DESC_X (DESC_PANEL_X + PANEL_GAP * 1.2)
 #define DESC_Y (DESC_PANEL_Y + PANEL_GAP * 5)
 
-#define DESC_LENGTH (DESC_PANEL_W - PANEL_GAP * 2)
+#define DESC_LENGTH (DESC_PANEL_W - PANEL_GAP * 2.5)
 
 
 
@@ -437,4 +437,5 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
         if (ui->desc_open)
             render_item_description(ctx, stack);
     }
+    SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
 }

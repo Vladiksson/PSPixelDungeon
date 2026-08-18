@@ -113,7 +113,9 @@ int render_init(RenderCtx *ctx) {
     ctx->ui.xp_bar = load_tex(ctx->renderer, ASSET_XP_BAR);
     /*icons*/
     ctx->icons  = load_tex(ctx->renderer, ASSET_ICONS);
-
+    
+    /*SHADOW/FOG TEXTURE*/
+    ctx->shadow = load_tex(ctx->renderer, ASSET_SHADOW);
     return 0;
 }
 
@@ -149,6 +151,8 @@ void render_free(RenderCtx *ctx) {
     destroy_tex(&ctx->items);
     destroy_tex(&ctx->icons);
     ui_free(&ctx->ui);
+
+    destroy_tex(&ctx->shadow);
 
     if (ctx->renderer) {
         SDL_DestroyRenderer(ctx->renderer);
@@ -242,118 +246,10 @@ void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     }
 }
 
-/* ── render_shadow ──────────────────────────────────── */
-static int wall_at(const Level *lvl, int nx, int ny) {
-    return in_bounds(nx, ny) && ((gTileFlags[lvl->map[xy_to_idx(nx, ny)]] & TF_SHADOW) != 0);
-}
-
-static void edge_shadow(SDL_Renderer *r, int px, int py, int axis, int flip, int max_a) {
-    const int STEPS = 5;
-    int span  = gTileSize / 4;
-    int chunk = span / STEPS;
-    if (chunk < 1) chunk = 1;
-
-    for (int i = 0; i < STEPS; i++) {
-        int a = max_a * (STEPS - i) / STEPS;
-        if (a <= 0) continue;
-        SDL_SetRenderDrawColor(r, 0, 0, 0, a);
-
-        int off = i * chunk;
-        SDL_Rect rect;
-        if (axis == 0) {
-            int y = flip ? (py + gTileSize - off - chunk) : (py + off);
-            rect = (SDL_Rect){ px, y, gTileSize, chunk };
-        } else {
-            int x = flip ? (px + gTileSize - off - chunk) : (px + off);
-            rect = (SDL_Rect){ x, py, chunk, gTileSize };
-        }
-        SDL_RenderFillRect(r, &rect);
-    }
-}
-
-void render_shadows(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam) {
-    SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
-
-    for (int ty = cam->tile_y; ty <= cam->tile_y + gViewRows; ty++) {
-        for (int tx = cam->tile_x; tx <= cam->tile_x + gViewCols; tx++) {
-            if (!in_bounds(tx, ty)) continue;
-            int idx = xy_to_idx(tx, ty);
-
-            if (!fog->visited[idx]) continue;
-            if (!(gTileFlags[lvl->map[idx]] & TF_RECEIVES_SHADOW)) continue;
-
-            Point scr = camera_tile_to_screen(cam, tx, ty);
-
-            /* ── Cardinal neighbours ──────────────────────────── */
-            int wN = wall_at(lvl, tx,   ty-1);
-            int wS = wall_at(lvl, tx,   ty+1);
-            int wW = wall_at(lvl, tx-1, ty  );
-            int wE = wall_at(lvl, tx+1, ty  );
-
-            /* ── Diagonal neighbours (for corner AO) ─────────── */
-            int wNW = wall_at(lvl, tx-1, ty-1);
-            int wNE = wall_at(lvl, tx+1, ty-1);
-            int wSW = wall_at(lvl, tx-1, ty+1);
-            int wSE = wall_at(lvl, tx+1, ty+1);
-
-            /* ── Directional shadows ──────────────────────────── */
-            /*    axis 0 = horiz strip, axis 1 = vert strip        */
-            /*    flip 0 = from near edge, flip 1 = from far edge  */
-            if (wN) edge_shadow(ctx->renderer, scr.x, scr.y, 0, 0, 200); /* N strongest */
-            if (wW) edge_shadow(ctx->renderer, scr.x, scr.y, 1, 0, 130); /* W medium    */
-            if (wE) edge_shadow(ctx->renderer, scr.x, scr.y, 1, 1,  85); /* E weaker    */
-            if (wS) edge_shadow(ctx->renderer, scr.x, scr.y, 0, 1,  45); /* S subtle    */
-
-            /* ── Diagonal corner AO ───────────────────────────── */
-            /* A diagonal wall with no matching cardinal wall means
-               this tile sits at an "inside corner" — darken that
-               quadrant to simulate AO in the tight corner.         */
-            int half = gTileSize / 2;
-
-            if (wNW && !wN && !wW) {  /* inside NW corner */
-                SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 70);
-                SDL_RenderFillRect(ctx->renderer,
-                    &(SDL_Rect){ scr.x,      scr.y,      half, half });
-            }
-            if (wNE && !wN && !wE) {  /* inside NE corner */
-                SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 70);
-                SDL_RenderFillRect(ctx->renderer,
-                    &(SDL_Rect){ scr.x+half, scr.y,      half, half });
-            }
-            if (wSW && !wS && !wW) {  /* inside SW corner */
-                SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 45);
-                SDL_RenderFillRect(ctx->renderer,
-                    &(SDL_Rect){ scr.x,      scr.y+half, half, half });
-            }
-            if (wSE && !wS && !wE) {  /* inside SE corner */
-                SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 45);
-                SDL_RenderFillRect(ctx->renderer,
-                    &(SDL_Rect){ scr.x+half, scr.y+half, half, half });
-            }
-
-            /* ── Enclosure AO ─────────────────────────────────── */
-            /* Subtle uniform darkening: the more walls surround a
-               tile, the more "enclosed" it feels. Cardinal walls
-               contribute more than diagonals.                      */
-            int enclosure = wN*3 + wW*2 + wE*2 + wS
-                          + wNW + wNE + wSW + wSE;
-            if (enclosure > 0) {
-                int a = enclosure * 6;
-                if (a > 72) a = 72;
-                SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, a);
-                SDL_RenderFillRect(ctx->renderer,
-                    &(SDL_Rect){ scr.x, scr.y, gTileSize, gTileSize });
-            }
-        }
-    }
-
-    SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
-}
-
 /* ── render_fog ────────────────────────────────── */
 void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
-
+    
     for (int ty = cam->tile_y; ty <= cam->tile_y + gViewRows; ty++) {
         for (int tx = cam->tile_x; tx <= cam->tile_x + gViewCols; tx++) {
             if (!in_bounds(tx, ty)) continue;
@@ -363,19 +259,40 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
             /* Fully visible — no overlay needed */
             if (fog->visible[idx]) continue;
 
-            Point    scr  = camera_tile_to_screen(cam, tx, ty);
-            SDL_Rect rect = { scr.x, scr.y, gTileSize, gTileSize };
+            Point scr  = camera_tile_to_screen(cam, tx, ty);
 
+            int pad = gTileSize / 2;
+            SDL_Rect rect = {
+                scr.x - pad,
+                scr.y - pad,
+                gTileSize + pad * 2,
+                gTileSize + pad * 2
+            };
+            SDL_Rect rect2 = {
+                rect.x - pad,
+                rect.y - pad,
+                rect.w + pad * 2,
+                rect.h + pad * 2
+            };
+            
             if (fog->visited[idx]) {
                 /* VISITED = 0xCC111111 (ARGB) */
-                SDL_SetRenderDrawColor(ctx->renderer, 0x11, 0x11, 0x11, 0xCC);
+                SDL_SetTextureColorMod(ctx->shadow, 0x11, 0x11, 0x11);
+                SDL_SetTextureAlphaMod(ctx->shadow, 0xCC);
+
+                SDL_RenderCopy(ctx->renderer, ctx->shadow, NULL, &rect);
             } else {
-                /* INVISIBLE = 0xFF000000 — solid black */
-                SDL_SetRenderDrawColor(ctx->renderer, 0x00, 0x00, 0x00, 0xFF);
+                /* INVISIBLE = 0xFF000000 */
+                SDL_SetTextureColorMod(ctx->shadow, 0x00, 0x00, 0x00);
+                SDL_SetTextureAlphaMod(ctx->shadow, 0xFF);
+
+                SDL_RenderCopy(ctx->renderer, ctx->shadow, NULL, &rect2);
             }
-            SDL_RenderFillRect(ctx->renderer, &rect);
+            
         }
     }
+    SDL_SetTextureColorMod(ctx->shadow, 255, 255, 255);
+    SDL_SetTextureAlphaMod(ctx->shadow, 255);
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
 }
 

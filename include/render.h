@@ -25,6 +25,8 @@ typedef struct {
 
    SDL_Texture  *items;
 
+   SDL_Texture  *shadow;
+
    BitmapFont    font;
    UITextures    ui;
    SDL_Texture  *icons;
@@ -38,7 +40,6 @@ void render_free  (RenderCtx *ctx);
 
 void render_frame  (RenderCtx *ctx, const Level *lvl, const Camera *cam);
 void render_items  (RenderCtx *ctx, const Level *lvl, const Camera *cam);
-void render_shadows(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam);
 void render_fog    (RenderCtx *ctx, const Fog    *fog, const Camera *cam);
 void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
 void render_mobs   (RenderCtx *ctx, const Camera *cam);

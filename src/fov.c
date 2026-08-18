@@ -22,19 +22,8 @@ static int fov_radius(int depth) {
 
 /* ══════════════════════════════════════════════════════════════
    RECURSIVE OCTANT SHADOW CASTING
-   Direct port of the RogueBasin "FOV using recursive shadow
-   casting" algorithm (Bjorn Bergstrom / Albert Ford variant).
-
-   Each call covers one octant of the circle.  The octant is
-   mapped to world coordinates via the (xx,xy,yx,yy) transform.
-
-   row        = first scan row (starts at 1)
-   start/end  = angular range [1.0 … 0.0] — start > end
    ══════════════════════════════════════════════════════════════ */
-static void cast_octant(uint8_t *vis, const Level *lvl,
-                         int cx, int cy, int row,
-                         float start, float end, int radius,
-                         int xx, int xy, int yx, int yy) {
+static void cast_octant(uint8_t *vis, const Level *lvl, int cx, int cy, int row, float start, float end, int radius, int xx, int xy, int yx, int yy) {
     if (start < end) return;
 
     float r2      = (float)(radius * radius);
@@ -98,22 +87,13 @@ void fog_init(Fog *fog) {
     memset(fog->visited, 0, LEVEL_SIZE);
 }
 
-/*
- * fog_update — recompute visible[], accumulate into visited[].
- * Call every time the player moves.
- *
- * The eight octant transforms map local (dx=lateral, dy=depth)
- * to world offsets: world = cx + dx*xx + dy*xy,
- *                           cy + dx*yx + dy*yy
- */
 void fog_update(Fog *fog, const Level *lvl, int px, int py, int depth) {
     memset(fog->visible, 0, LEVEL_SIZE);
 
-    /* Player's own tile is always visible */
     if (in_bounds(px, py)) fog->visible[xy_to_idx(px, py)] = 1;
 
     int radius = fov_radius(depth);
-    /* Cast into all 8 octants */
+
     static const int OCT[8][4] = {
         /* xx, xy, yx, yy */
         { 1,  0,  0,  1 },   /* E→NE  */
@@ -126,12 +106,8 @@ void fog_update(Fog *fog, const Level *lvl, int px, int py, int depth) {
         { 1,  0,  0, -1 },   /* SE→E  */
     };
     for (int i = 0; i < 8; i++) {
-        cast_octant(fog->visible, lvl, px, py, 1,
-                    1.0f, 0.0f, radius,
-                    OCT[i][0], OCT[i][1], OCT[i][2], OCT[i][3]);
+        cast_octant(fog->visible, lvl, px, py, 1, 1.0f, 0.0f, radius, OCT[i][0], OCT[i][1], OCT[i][2], OCT[i][3]);
     }
-
-    /* Accumulate: any visible tile is permanently visited */
     for (int i = 0; i < LEVEL_SIZE; i++)
         if (fog->visible[i]) fog->visited[i] = 1;
 }

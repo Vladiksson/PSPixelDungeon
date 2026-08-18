@@ -156,7 +156,7 @@ void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d) {
     int dx = 0;
     if(p->lvl > 9) 
         dx = 3;
-    font_draw_text(ctx->renderer, &ctx->font, 38 - dx, 37, 1.39, COL_WHITE, current_lvl);
+    font_draw_text(ctx->renderer, &ctx->font, 38 - dx, 38, 1.39, COL_WHITE, current_lvl);
     /* ── dungeon lvl ──────────────────────────────────────────── */
     char current_floor[16];
     snprintf(current_floor, sizeof(current_floor), "%d", d->current_depth + 1);
