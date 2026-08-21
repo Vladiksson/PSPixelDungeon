@@ -1,6 +1,6 @@
 #include "item.h"
 #include "item_generator.h"
-#include "level_utils.h"
+#include "item_spawn.h"
 
 /* ══════════════════════════════════════════════════════════
    HEAP

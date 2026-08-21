@@ -128,9 +128,7 @@ static void char_actor_on_remove(Actor *a) {
 }
 static const ActorVTable char_actor_vtable = {
     .act        = char_actor_act,
-    .on_add     = NULL,
     .on_remove  = char_actor_on_remove,
-    .is_blocked = NULL,   /* wire this to e.g. player_is_busy() once Player embeds a Char — see actor.h's is_blocked comment */
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -156,9 +154,7 @@ static int buff_actor_act(Actor *a) {
 }
 static const ActorVTable buff_actor_vtable = {
     .act        = buff_actor_act,
-    .on_add     = NULL,
     .on_remove  = NULL,
-    .is_blocked = NULL,
 };
 
 Buff *char_apply_buff(Char *self, BuffType type, float duration) {
@@ -347,7 +343,7 @@ void char_move(Char *self, Level *lvl, int step) {
     self->pos = step;
     char_grid_occupy(self, self->pos);
 
-    if (self->flying && lvl->map[self->pos] == TILE_DOOR) {
+    if (lvl->map[self->pos] == TILE_DOOR) {
         lvl->map[self->pos] = TILE_OPEN_DOOR; 
     }
 }
@@ -381,7 +377,7 @@ void char_damage(Char *self, int dmg, void *src, DamageSource src_type) {
     }
 
     Buff *paralysis = char_buff(self, BUFF_PARALYSIS);
-    if (paralysis) {
+    if (paralysis && dmg > 0) {
         if (rng_int(dmg) >= rng_int(self->HP)) {
             char_remove_buffs_of_type(self, BUFF_PARALYSIS);
             /* original logs "The pain snapped %s out of paralysis"
@@ -447,6 +443,23 @@ CharAttackResult char_attack(Char *self, Char *enemy) {
     }
 
     return result;
+}
+
+int char_is_busy(const Char *self) {
+    return self->anim_locked || self->incoming_hits > 0;
+}
+
+void char_begin_attack_anim(Char *self, Char *target) {
+    self->swing_target = target;
+    if (target) target->incoming_hits++;
+}
+
+void char_end_attack_anim(Char *self) {
+    if (self->swing_target) {
+        if (self->swing_target->incoming_hits > 0)
+            self->swing_target->incoming_hits--;
+        self->swing_target = NULL;
+    }
 }
 
 void char_on_motion_complete(Char *self)  { actor_next(&self->base); }

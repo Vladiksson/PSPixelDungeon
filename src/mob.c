@@ -1,7 +1,6 @@
 #include "mob.h"
 #include "mob_bestiary.h"
 #include "pathfinder.h"
-#include "player.h"
 #include "rng.h"
 #include <stdlib.h>
 
@@ -22,10 +21,6 @@ void mob_set_hero(Char *player) {
 /*═══════════════════════════════════════════════════════════════
     Combat
 ═══════════════════════════════════════════════════════════════*/
-static int char_is_hero(Char *c) { /* guards the Player* cast in mob_die() below */
-    return c && c->kind == CHAR_KIND_HERO;
-}
-
 static int mob_attack_skill(Char *self, Char *target) {
     (void)target;
     return MOB_DB[((Mob *)self)->kind].attack_skill;
@@ -60,13 +55,19 @@ static void mob_on_damaged(Char *self, int dmg_taken, void *src, DamageSource sr
     }
 }
 
+static void (*kill_reward_hook)(Char *killer, int xp) = NULL;
+
+void mob_set_kill_reward_hook(void (*fn)(Char *killer, int xp)) {
+    kill_reward_hook = fn;
+}
+
 static void mob_die(Char *self, void *src, DamageSource src_type) {
     Mob *m = (Mob *)self;
 
     mob_play_anim(m, MOB_ANIM_DIE);
 
-    if (src_type == DMGSRC_CHAR && char_is_hero((Char *)src)) {
-        player_earn_exp((Player *)src, MOB_DB[m->kind].xp_reward);
+    if (src_type == DMGSRC_CHAR && src && kill_reward_hook) {
+        kill_reward_hook((Char *)src, MOB_DB[m->kind].xp_reward);
     }
 
     char_die_default(self, src, src_type);
@@ -100,6 +101,21 @@ static void mob_on_buff_removed(Char *self, Buff *buff) {
 /*═══════════════════════════════════════════════════════════════
     Animation
 ═══════════════════════════════════════════════════════════════*/
+static void mob_sync_anim_lock(Mob *m) {
+    switch (m->anim) {
+        case MOB_ANIM_ATTACK:
+        case MOB_ANIM_DIE:
+            m->base.anim_locked = !m->anim_done;
+            break;
+        default:
+            m->base.anim_locked = 0;
+    }
+}
+
+static int mob_is_busy(const Mob *m) {
+    return m->base.anim_locked;
+}
+
 static void mob_resolve_attack(Mob *m) {
     Char *target = m->target;
     if (target && char_is_alive(target)) {
@@ -118,6 +134,7 @@ void mob_play_anim(Mob *m, MobAnimState anim) {
     m->frame = 0;
     m->frame_clock = 0.0f;
     m->anim_done = 0;
+    mob_sync_anim_lock(m);
 }
 
 
@@ -154,7 +171,7 @@ void mob_animate_all(float dt) {
         if (m->anim_done) {
             switch (m->anim) {
                 case MOB_ANIM_ATTACK:
-                    mob_resolve_attack(m);
+                    char_end_attack_anim(&m->base);
                     mob_play_anim(m, MOB_ANIM_IDLE);
                     break;
                 case MOB_ANIM_RUN:
@@ -167,6 +184,7 @@ void mob_animate_all(float dt) {
                     break;
             }
         }
+        mob_sync_anim_lock(m); /* unconditional: covers MOB_ANIM_DIE, which holds its last frame and never re-enters mob_play_anim() above */
     }
 }
 /*═══════════════════════════════════════════════════════════════
@@ -222,17 +240,6 @@ static int mob_can_see(Mob *m, Char *target, Level *lvl){
     MOB AI
 ═══════════════════════════════════════════════════════════════*/
 #define MOB_TIME_TO_WAKE_UP 1.0f
-
-static int mob_is_busy(const Mob *m) {
-    switch (m->anim) {
-        case MOB_ANIM_ATTACK:
-        case MOB_ANIM_DIE:
-            return !m->anim_done;
-
-        default:
-            return 0;
-    }
-}
 
 static int mob_try_step(Mob *m, Level *lvl, int dx, int dy) {
     if (dx == 0 && dy == 0) return 0;
@@ -301,6 +308,10 @@ static Mob *mob_pick_amok_target(Mob *self, Level *lvl) {
     return NULL;
 }
 
+static int mob_has_valid_target(const Mob *m) {
+    return m->target && char_is_alive(m->target);
+}
+
 static Char *mob_choose_enemy(Mob *m, Level *lvl) {
     if (char_buff(&m->base, BUFF_AMOK)) {
         if (m->target == hero || m->target == NULL) {
@@ -309,7 +320,7 @@ static Char *mob_choose_enemy(Mob *m, Level *lvl) {
         }
     }
 
-    if (m->target && char_is_alive(m->target)) return m->target;
+    if (mob_has_valid_target(m)) return m->target;
     return hero;
 }
 
@@ -397,8 +408,11 @@ static int mob_on_turn(Char *self) {
                 m->facing = (tp.x < mp.x) ? FACE_LEFT : FACE_RIGHT;
 
             mob_play_anim(m, MOB_ANIM_ATTACK);
+            char_begin_attack_anim(self, m->target);
             char_spend(self, MOB_DB[m->kind].attack_delay);
+            
             attacking = 1;
+            mob_resolve_attack(m);
         } else {
             if (enemy_in_view) m->dest = m->target->pos;
             if (m->dest != -1 && mob_step_toward_pos(m, lvl, m->dest)) {
@@ -464,11 +478,16 @@ Mob *mob_spawn(MobKind kind, int pos, Char *target) {
     /* Reuse a dead mob's slot */
     Mob *m = NULL;
     for (int i = 0; i < active_mob_pool->count; i++) {
-        if (!char_is_alive(&active_mob_pool->mobs[i].base)) {
-            m = &active_mob_pool->mobs[i];
+        Mob *candidate = &active_mob_pool->mobs[i];
+
+        if (!char_is_alive(&candidate->base) &&
+            candidate->anim == MOB_ANIM_DIE &&
+            candidate->anim_done) {
+            m = candidate;
             break;
         }
     }
+
     int reused = (m != NULL);
     if (!m) {
         if (active_mob_pool->count >= MAX_LEVEL_MOBS) return NULL;
@@ -535,7 +554,7 @@ void mob_spawn_initial(Level *lvl, int depth) {
 
     for (int i = 0; i < n; i++) {
         MobKind kind = bestiary_pick(depth);
-        mob_spawn_random(lvl, kind, 1, NULL);
+        mob_spawn_random_no_target(lvl, kind, 1);
     }
 }
 
@@ -586,7 +605,8 @@ void mob_restore_grid(void) {
 
 void mob_restore_targets(Char *player) {
     hero = player;
-    for(int i=0;i<active_mob_pool->count;i++) {
-        active_mob_pool->mobs[i].target = player;
+    for (int i = 0; i < active_mob_pool->count; i++) {
+        Mob *m = &active_mob_pool->mobs[i];
+        if (!mob_has_valid_target(m)) m->target = player;
     }
 }

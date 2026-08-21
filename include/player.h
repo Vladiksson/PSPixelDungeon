@@ -68,12 +68,12 @@ typedef enum {
 
 typedef struct {
    Char base;
-   HeroClass cls;         /* which sprite sheet to draw                */
-   Facing    facing;      /* left/right — drives the horizontal flip   */
-   AnimState anim;        /* animation currently playing               */
-   int       frame;       /* index into HERO_CLIPS[anim].frames        */
-   float     frame_clock; /* seconds accumulated toward the next frame */
-   int       anim_done;   /* 1 once a non-looping clip has played out  */
+   HeroClass cls;
+   Facing    facing;
+   AnimState anim;
+   int       frame;
+   float     frame_clock;
+   int       anim_done;
 
    Bag bags[BAG_TYPE_COUNT];
    int gold;
@@ -86,12 +86,12 @@ typedef struct {
 
    HeroSubClass sub_class;
 
-   int STR;         /* base strength; player_str() applies `weakened` */
-   int weakened;     /* mirrors Hero.java's boolean of the same name  */
+   int STR;
+   int weakened;
 
-   int   lvl;        /* character level */
+   int   lvl;
    int   exp;
-   float awareness;  /* search-radius modifier, see player_update_awareness() in player.c */
+   float awareness;
 
    int base_attack_skill;
    int base_defense_skill;
@@ -105,7 +105,7 @@ typedef struct {
 
 void player_init(Player *p, const Level *lvl, HeroClass cls);
  
-int  player_move(Player *p, Level *lvl, int dx, int dy);
+int player_move(Player *p, Level *lvl, int dx, int dy);
 int player_bump(Player *p, Level *lvl, int dx, int dy);
 
 void player_rest(Player *p, int till_healthy);

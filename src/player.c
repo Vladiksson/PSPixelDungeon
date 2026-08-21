@@ -121,6 +121,16 @@ static void hero_on_damaged(Char *self, int dmg_taken, void *src, DamageSource s
     }
 }
 
+static void hero_die(Char *self, void *src, DamageSource src_type) {
+    Player *p = (Player *)self;
+
+    player_play_anim(p, ANIM_DIE);
+
+    char_die_default(self, src, src_type);
+    /* TODO ADD GAMEOVER SCENE HERE
+       + BLOCK MOVEMENT */
+}
+
 static void hero_on_buff_added(Char *self, Buff *buff) {
     Player *p = (Player *)self;
 
@@ -149,28 +159,9 @@ static const CharVTable *hero_vtable(void) {
         vt.attack_proc   = hero_attack_proc;
         vt.defense_proc  = hero_defense_proc;
         vt.on_damaged    = hero_on_damaged;
+        vt.die           = hero_die;
         vt.on_buff_added = hero_on_buff_added;
-        /* Left at CHAR_DEFAULT_VTABLE's values:
-           - defense_verb/stealth/resistances/immunities: no ring or
-             subclass data to hang an override on yet.
-           - die: no DewVial/Ankh resurrection items or a death/
-             game-over flow yet — HP hits 0, the Char detaches and
-             frees its grid cell, same as any Char, until you build
-             that flow (see char_die_default() in char.h/c).
-           - on_turn: Player is input-driven, not scheduler-driven —
-             main.c calls player_bump()/player_operate()/
-             player_pickup() directly from button presses rather than
-             waiting for the scheduler to ask what the hero wants to
-             do this turn, so on_turn has nothing to do here. One
-             consequence: the original's "a paralysed hero auto-spends
-             turns so Mobs can still act" behaviour isn't ported —
-             paralysis here just blocks new actions (via
-             char_damage()'s existing paralysis-break check and the
-             evasion halving above) rather than auto-passing turns.
-             Real auto-pass would mean restructuring main.c's loop
-             around actor_process() driving the hero, instead of
-             direct input calls — a bigger change than this pass
-             covers. */
+
         built = 1;
     }
     return &vt;
@@ -216,6 +207,12 @@ void player_rest(Player *p, int till_healthy) {
 /*═══════════════════════════════════════════════════════════════
     Initialization
 ═══════════════════════════════════════════════════════════════*/
+static void hero_receive_kill_xp(Char *killer, int xp) {
+    if (killer->kind == CHAR_KIND_HERO) {
+        player_earn_exp((Player *)killer, xp);
+    }
+}
+
 void player_init(Player *p, const Level *lvl, HeroClass cls){
     char_init(&p->base, hero_vtable(), CHAR_KIND_HERO, lvl->entrance, HERO_STARTING_HP);
     p->base.name = "you";
@@ -258,21 +255,41 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     player_add_item(p, ITEM_BAG_KEYRING, 1);
 
     mob_set_hero(&p->base);
+    mob_set_kill_reward_hook(hero_receive_kill_xp);
 }
 
 /*═══════════════════════════════════════════════════════════════
     Animation
 ═══════════════════════════════════════════════════════════════*/
+int player_is_busy(const Player *p) {
+    if (!char_is_alive(&p->base))
+        return 1;
+
+    return char_is_busy(&p->base);
+}
+
+static void player_sync_anim_lock(Player *p) {
+    switch (p->anim) {
+    case ANIM_OPERATE:
+    case ANIM_ATTACK:
+    case ANIM_READ:
+    case ANIM_DIE:
+        p->base.anim_locked = !p->anim_done;
+        break;
+    default:
+        p->base.anim_locked = 0;
+    }
+}
+
 void player_play_anim(Player *p, AnimState anim){
-    if (p->anim == ANIM_OPERATE && !p->anim_done)
-        return;
-    if (p->anim == anim)
+    if (p->anim == anim && !p->anim_done)
         return;
 
     p->anim = anim;
     p->frame = 0;
     p->frame_clock = 0.0f;
     p->anim_done = 0;
+    player_sync_anim_lock(p);
 }
 
 static void player_resolve_attack(Player *p) {
@@ -308,7 +325,7 @@ void player_animate(Player *p, float dt) {
     if (p->anim_done) {
         switch (p->anim) {
             case ANIM_ATTACK:
-                player_resolve_attack(p);
+                char_end_attack_anim(&p->base);
                 player_play_anim(p, ANIM_IDLE);
                 break;
             case ANIM_OPERATE:
@@ -319,19 +336,7 @@ void player_animate(Player *p, float dt) {
                 break; /* ANIM_DIE holds its final frame on purpose */
         }
     }
-}
-
-int player_is_busy(const Player *p) {
-    switch (p->anim) {
-    case ANIM_OPERATE:
-    case ANIM_ATTACK:
-    case ANIM_READ:
-    case ANIM_DIE:
-        return !p->anim_done;
-
-    default:
-        return 0;
-    }
+    player_sync_anim_lock(p); /* unconditional: covers ANIM_DIE, which holds its last frame and never re-enters player_play_anim() above */
 }
 
 void player_set_moving(Player *p, int moving) {
@@ -438,6 +443,8 @@ int player_find_item(const Player *p, ItemType type) {
     Equipment
 ═══════════════════════════════════════════════════════════════*/
 int player_equip_item(Player *p, Bag *bag, int slot) {
+    if (player_is_busy(p))
+        return 0;
     if (!bag || slot < 0 || slot >= bag->count)
         return 0;
 
@@ -484,6 +491,8 @@ int player_equip_item(Player *p, Bag *bag, int slot) {
 }
 
 int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
+    if (player_is_busy(p))
+        return 0;
     ItemStack *src = equip_slot_ptr(p, slot);
     if (!src || src->type == ITEM_NONE) return 0;
 
@@ -513,6 +522,8 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
 }
 
 int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target) {
+    if (player_is_busy(p))
+        return 0;
     if (!bag || slot < 0 || slot >= bag->count)
         return 0;
 
@@ -575,6 +586,9 @@ int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
 }
 
 int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
+    if (player_is_busy(p))
+        return 0;
+
     if (!bag || slot < 0 || slot >= bag->count) return 0;
 
     Point pos = idx_to_xy(p->base.pos);
@@ -591,6 +605,9 @@ int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
     Ground interaction
 ═══════════════════════════════════════════════════════════════*/
 int player_pickup(Player *p, Level *lvl) {
+    if (player_is_busy(p))
+        return 0;
+
     Point pos = idx_to_xy(p->base.pos);
     Heap *h = level_heap_at(lvl, pos.x, pos.y);
     if (!h) return 0;
@@ -625,6 +642,9 @@ int player_drop_item(Player *p, Level *lvl, int slot) {//redo as player_drop_fro
 }
 
 int player_operate(Player *p, Level *lvl) {
+    if (player_is_busy(p))
+        return 0;
+    
     Point pos = idx_to_xy(p->base.pos);
     Heap *h = level_heap_at(lvl, pos.x, pos.y);
     if (!h)
@@ -652,14 +672,10 @@ int player_move(Player *p, Level *lvl, int dx, int dy){
     if (!in_bounds(nx, ny)) return 0;
     if (player_is_busy(p)) return 0;
 
-    uint8_t tile = lvl->map[xy_to_idx(nx, ny)];
-    
- 
     int idx = xy_to_idx(nx, ny);
+    uint8_t tile = lvl->map[idx];
+    
     switch (tile) {
-    case TILE_DOOR:
-        lvl->map[idx] = TILE_OPEN_DOOR;
-        break;
     case TILE_LOCKED_DOOR:
         if (!player_use_key(p, ITEM_KEY_IRON))
             return 0;
@@ -708,7 +724,9 @@ static int player_start_attack(Player *p, Char *target) {
     p->attack_target = target;
     char_spend(&p->base, hero_attack_delay(p));
     player_play_anim(p, ANIM_ATTACK);
-
+    char_begin_attack_anim(&p->base, target);
+    player_resolve_attack(p);
+    
     return 1;
 }
 

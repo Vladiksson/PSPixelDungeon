@@ -12,9 +12,9 @@ typedef struct Actor Actor;
 
 typedef struct {
     int  (*act)(Actor *self);
-    void (*on_add)(Actor *self);
     void (*on_remove)(Actor *self);
-    int  (*is_blocked)(Actor *self);
+    //void (*on_add)(Actor *self); I CAN'T REMEMBER WHY IT WAS ADDED...
+    //int  (*is_blocked)(Actor *self);
 } ActorVTable;
 
 struct Actor {

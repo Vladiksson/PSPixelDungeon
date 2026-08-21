@@ -437,9 +437,7 @@ static void build_halls_boss(Level *lvl, int depth) {
    ══════════════════════════════════════════════════════════ */
 int level_generate_boss(Level *lvl, uint32_t seed, DungeonTheme theme, int depth) {
     rng_state = seed ? seed : (uint32_t)time(NULL);
-
-    mob_set_pool(&lvl->mob_pool);
-
+    
     switch (theme) {
     case THEME_SEWERS:
         for (int i = 0; i < SEWERS_BOSS_MAX_ATTEMPTS; i++)

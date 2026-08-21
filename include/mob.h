@@ -4,17 +4,15 @@
 /* ══════════════════════════════════════════════════════════
    test of mobs system (as part of chars)
    ══════════════════════════════════════════════════════════ */
-typedef struct Level Level;
-
 typedef struct {
     Char base;
 
     MobKind    kind;
     MobAiState state;
-    Char      *target;     /* current enemy, mirrors Mob.enemy — see mob_choose_enemy() in mob.c */
-    int        dest;       /* wander/hunt/flee destination cell — mirrors Mob.target (an int cell index in the original, unlike this struct's own Char* target above); -1 = none */
-    int        enemy_seen; /* mirrors Mob.enemySeen — persists across turns for the sneak-attack check in mob_defense_skill() */
-    int        alerted;    /* mirrors Mob.alerted/justAlerted — set in mob_on_damaged(), consumed and cleared at the start of the mob's next turn */
+    Char      *target;
+    int        dest;
+    int        enemy_seen;
+    int        alerted;
 
     int        alert_icon;   /* show alert icon for one mob turn */
 
@@ -53,5 +51,7 @@ void mob_restore_grid(void);
 void mob_restore_targets(Char *player);
 
 void mob_set_hero(Char *hero);
+
+void mob_set_kill_reward_hook(void (*fn)(Char *killer, int xp));
 
 void mob_set_fog(const uint8_t *visible);

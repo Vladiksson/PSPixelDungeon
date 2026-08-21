@@ -1,5 +1,4 @@
 #include "icons.h"
-#include "render.h"
 
 typedef struct {
     uint8_t x, y, w, h;

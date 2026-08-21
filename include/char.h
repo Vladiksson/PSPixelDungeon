@@ -140,6 +140,10 @@ struct Char {
    int view_distance;
 
    Buff buffs[MAX_CHAR_BUFFS];
+
+   int   anim_locked;
+   int   incoming_hits;
+   Char *swing_target;
 };
 
 /* Visual state */
@@ -203,6 +207,16 @@ void char_damage(Char *self, int dmg, void *src, DamageSource src_type);
 
 float char_speed(Char *self);              /* mirrors Char.speed() */
 void  char_spend(Char *self, float time);  /* mirrors Char.spend(float) — call this, not actor_spend(), from a Char's own act()/on_turn */
+
+/* ── Turn-lock / busy ─────────────────────────────────────────────
+   self's own subtype code (player.c/mob.c) keeps anim_locked in sync
+   with its own clip state; char_is_busy() folds that together with
+   incoming_hits for callers that also need to wait out an attacker's
+   swing (currently just player_is_busy()). */
+int  char_is_busy(const Char *self);
+
+void char_begin_attack_anim(Char *self, Char *target); /* call when self's own attack clip starts */
+void char_end_attack_anim(Char *self);                 /* call when that clip's anim_done fires */
 
 /* ── Buffs ────────────────────────────────────────────────────── */
 Buff *char_apply_buff(Char *self, BuffType type, float duration);

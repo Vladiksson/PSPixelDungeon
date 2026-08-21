@@ -81,11 +81,7 @@ int render_init(RenderCtx *ctx) {
 
         int tex_w = 0;
         SDL_QueryTexture(ctx->mob_tex[i], NULL, NULL, &tex_w, NULL);
-        /* cols = sheet width / frame width. Frame width comes from
-           MOB_SPRITES, keyed by MobKind rather than MobTexId, so find
-           any kind that uses this texture and read its frame_w — every
-           kind sharing a texture shares its frame size by construction
-           (they're literally the same sheet). */
+
         for (int k = 0; k < MOB_KIND_COUNT; k++) {
             if (MOB_TEX_FOR_KIND[k] != (MobTexId)i) continue;
             int fw = MOB_SPRITES[k].frame_w;
@@ -250,13 +246,12 @@ void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
 void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
     
-    for (int ty = cam->tile_y; ty <= cam->tile_y + gViewRows; ty++) {
-        for (int tx = cam->tile_x; tx <= cam->tile_x + gViewCols; tx++) {
-            if (!in_bounds(tx, ty)) continue;
+    for (int ty = cam->tile_y - 1; ty <= cam->tile_y + gViewRows; ty++) {
+        for (int tx = cam->tile_x - 1; tx <= cam->tile_x + gViewCols; tx++) {
+            //if (!in_bounds(tx, ty)) continue;
 
             int idx = xy_to_idx(tx, ty);
 
-            /* Fully visible — no overlay needed */
             if (fog->visible[idx]) continue;
 
             Point scr  = camera_tile_to_screen(cam, tx, ty);

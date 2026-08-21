@@ -23,8 +23,6 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     rng_state = seed ? seed : (uint32_t)time(NULL);
     memset(lvl, 0, sizeof(*lvl));
     
-    mob_set_pool(&lvl->mob_pool);
-
     LevelGenState gen;
     init_special_rooms(&gen, depth);
 

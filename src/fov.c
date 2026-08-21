@@ -22,6 +22,8 @@ static int fov_radius(int depth) {
 
 /* ══════════════════════════════════════════════════════════════
    RECURSIVE OCTANT SHADOW CASTING
+   Direct port of the RogueBasin "FOV using recursive shadow
+   casting" algorithm (Bjorn Bergstrom / Albert Ford variant)
    ══════════════════════════════════════════════════════════════ */
 static void cast_octant(uint8_t *vis, const Level *lvl, int cx, int cy, int row, float start, float end, int radius, int xx, int xy, int yx, int yy) {
     if (start < end) return;

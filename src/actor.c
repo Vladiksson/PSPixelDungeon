@@ -78,8 +78,6 @@ static int actor_add_at(Actor *a, float time) {
 
     all[all_count++] = a;
 
-    if (a->vt->on_add) a->vt->on_add(a);
-
     return 1;
 }
 
@@ -163,11 +161,6 @@ void actor_process(void) {
         }
 
         if (current != NULL) {
-            if (current->vt->is_blocked && current->vt->is_blocked(current)) {
-                current = NULL;
-                return;
-            }
-
             do_next = current->vt->act(current);
 
             if (do_next && stop_condition && stop_condition()) {
