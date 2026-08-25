@@ -1,5 +1,6 @@
 #pragma once 
-#include "common.h"
+#include <string.h>
+#include <stdint.h>
 
 /* ══════════════════════════════════════════════════════════
    ITEM SPRITE SHEET port of ItemSpriteSheet.java
@@ -173,12 +174,7 @@ It is obtained by slaying 5-6 enemies with the debuff, 'Marked for Sacrifice'. *
 #define SPRITE_GOLD                14
 /* ══════════════════════════════════════════════════════════
    ITEM SYSTEM
-   ══════════════════════════════════════════════════════════
-   ItemType/category roster mirrors Generator.java's Category enum
-   (WEAPON/ARMOR/POTION/SCROLL/WAND/RING/SEED/FOOD/GOLD/MISC), plus
-   keys/bags/the amulet. Each entry's sprite_col/sprite_row is
-   computed from the real SPRITE_* constant above via
-   ITEMS_SHEET_COLS, so it's exact — not a visual guess. */
+   ══════════════════════════════════════════════════════════ */
 
 typedef enum {
    ITEMCAT_WEAPON,
@@ -327,19 +323,8 @@ typedef enum {
    ITEM_TYPE_COUNT
 } ItemType;
 
-/* Sentinel meaning "no item" — used for Player's equip slots
-   (weapon/armor/ring1/ring2 in player.h) so an empty slot has a
-   value distinct from every real ItemType, including ITEM_DAGGER==0. */
 #define ITEM_NONE ((ItemType)-1)
 
-/* NOTE on "unidentified" items: the real game shows potions/scrolls/
-   wands/rings under a random per-seed alias (color/rune/wood/gem)
-   until the hero identifies them, and Item.java carries curse/
-   enchantment state per-instance. None of that exists yet — every
-   item here is a fixed, always-known (type, quantity) pair. That's
-   deliberately out of scope for "generate + pick up"; the ItemDef
-   table below is the natural place to hang a `Look look;` field and
-   a shuffle table later. */
 typedef struct {
    const char  *name;
    const char  *description;

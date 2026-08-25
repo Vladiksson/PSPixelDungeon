@@ -59,11 +59,11 @@ typedef enum {
    EQUIP_SLOT_COUNT
 } EquipSlot;
 
-/* Return value of player_bump() */
 typedef enum {
-   PLAYER_BUMP_BLOCKED  = 0,
-   PLAYER_BUMP_MOVED    = 1,
-   PLAYER_BUMP_ATTACKED = 2,
+   PLAYER_BUMP_BLOCKED    = 0,
+   PLAYER_BUMP_MOVED      = 1,
+   PLAYER_BUMP_ATTACKED   = 2,
+   PLAYER_BUMP_INTERACTED = 3,
 } PlayerBumpResult;
 
 typedef struct {

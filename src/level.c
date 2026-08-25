@@ -167,12 +167,6 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     /*10 mobs*/
     mob_spawn_initial(lvl, depth);
 
+    npc_spawn_kind(NPC_IMP, lvl->entrance - 1); //test
     return 0;
-}
-
-int level_player_on_exit(const Level *lvl, int x, int y){
-    return xy_to_idx(x, y) == lvl->exit;
-}
-int level_player_on_entrance(const Level *lvl, int x, int y){
-    return xy_to_idx(x, y) == lvl->entrance;
 }

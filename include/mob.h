@@ -1,9 +1,6 @@
 #pragma once
 #include "mob_db.h"
 
-/* ══════════════════════════════════════════════════════════
-   test of mobs system (as part of chars)
-   ══════════════════════════════════════════════════════════ */
 typedef struct {
     Char base;
 

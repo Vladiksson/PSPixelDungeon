@@ -205,7 +205,7 @@ static int mob_has_los(const Level *lvl, int from_pos, int to_pos) { //REDO AS P
     int sy = y0 < y1 ? 1 : -1;
     int err = dx + dy;
 
-    for (;;) {
+    while (true) {
         if (!(x0 == a.x && y0 == a.y)) {
             int pos = xy_to_idx(x0, y0);
 

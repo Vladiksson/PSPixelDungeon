@@ -1,4 +1,5 @@
 #include "player.h"
+#include "npc.h"
 #include "item_spawn.h"
 #include "rng.h"
 #include <math.h>
@@ -355,12 +356,6 @@ void player_set_moving(Player *p, int moving) {
 /*═══════════════════════════════════════════════════════════════
     Inventory helpers 
 ═══════════════════════════════════════════════════════════════*/
-static Heap *heap_at_for_drop(Level *lvl, int x, int y) {
-    Heap *h = level_heap_at(lvl, x, y);
-    if (h) return h;
-    return level_create_heap(lvl, x, y, HEAP_NORMAL);
-}
-
 static ItemStack *equip_slot_ptr(Player *p, EquipSlot slot) {
     switch (slot) {
         case EQUIP_WEAPON: return &p->weapon;
@@ -508,8 +503,7 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
     }
 
     if (lvl) {
-        Point pos = idx_to_xy(p->base.pos);
-        Heap *h = level_heap_at(lvl, pos.x, pos.y);
+        Heap *h = level_heap_at(lvl, p->base.pos);
 
         if (h && heap_add_stack(h, stack)) {
             *src = item_stack_none();
@@ -588,18 +582,23 @@ int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
 int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
     if (player_is_busy(p))
         return 0;
+    if (!bag || slot < 0 || slot >= bag->count)
+        return 0;
+    
+    Heap *h = level_heap_at(lvl, p->base.pos);
+    if (!h)
+        h = level_create_heap(lvl, p->base.pos, HEAP_NORMAL);
 
-    if (!bag || slot < 0 || slot >= bag->count) return 0;
-
-    Point pos = idx_to_xy(p->base.pos);
-    Heap *h = heap_at_for_drop(lvl, pos.x, pos.y);
-    if (!h) return 0;
+    if (!h)
+        return 0;
 
     ItemStack stack = bag->items[slot];
-    if (!heap_add_stack(h, stack)) return 0;
+    if (!heap_add_stack(h, stack))
+        return 0;
 
     return bag_remove_item(bag, slot, stack.quantity);
 }
+
 
 /*═══════════════════════════════════════════════════════════════
     Ground interaction
@@ -608,8 +607,7 @@ int player_pickup(Player *p, Level *lvl) {
     if (player_is_busy(p))
         return 0;
 
-    Point pos = idx_to_xy(p->base.pos);
-    Heap *h = level_heap_at(lvl, pos.x, pos.y);
+    Heap *h = level_heap_at(lvl, p->base.pos);
     if (!h) return 0;
 
     if ((h->type == HEAP_LOCKED_CHEST || h->type == HEAP_CRYSTAL_CHEST)&& !player_use_key(p, ITEM_KEY_GOLDEN))
@@ -645,8 +643,7 @@ int player_operate(Player *p, Level *lvl) {
     if (player_is_busy(p))
         return 0;
     
-    Point pos = idx_to_xy(p->base.pos);
-    Heap *h = level_heap_at(lvl, pos.x, pos.y);
+    Heap *h = level_heap_at(lvl, p->base.pos);
     if (!h)
         return 0;
     if (h->type == HEAP_NORMAL || h->type == HEAP_FOR_SALE)
@@ -745,11 +742,13 @@ int player_bump(Player *p, Level *lvl, int dx, int dy) {
     if (occupant && occupant->kind == CHAR_KIND_MOB) {
         return player_start_attack(p, occupant) ? PLAYER_BUMP_ATTACKED : PLAYER_BUMP_BLOCKED;
     }
+    if (occupant && occupant->kind == CHAR_KIND_NPC) {
+        /* HeroAction.java's Interact case. npc.c has no concrete
+           NPCs wired up yet*/
+        npc_interact((NPC *)occupant, &p->base);
+        return PLAYER_BUMP_INTERACTED;
+    }
     if (occupant) {
-        /* Occupied by something that isn't a Mob — a future NPC
-           (CHAR_KIND_NPC), say. No Interact system yet (see
-           HeroAction.java's Interact case), so this just blocks
-           movement rather than attacking OR interacting. */
         return PLAYER_BUMP_BLOCKED;
     }
 

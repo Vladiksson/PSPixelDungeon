@@ -1,10 +1,6 @@
 #include "level_paint.h"
 #include "item_generator.h"
 #include "item_spawn.h"
-#include <stdbool.h>
-
-
-static int heap_at(const Level *lvl, int idx) { return level_heap_at_idx((Level *)lvl, idx) != NULL; }
 
 /* ══════════════════════════════════════════════════════════
     Room.center()
@@ -149,13 +145,13 @@ static void place_shop_items(Level *lvl, Room *room, int depth){
         Point p = shop_p2xy(room, (pos + i) % per);
         int idx = xy_to_idx(p.x, p.y);
 
-        if (level_heap_at_idx(lvl, idx) != NULL) {
+        if (level_heap_at(lvl, idx) != NULL) {
             int tries = 200;
             do {
                 int x = rng_range(room->left + 1, room->right - 1);
                 int y = rng_range(room->top + 1, room->bottom - 1);
                 idx = xy_to_idx(x, y);
-            } while (--tries > 0 && level_heap_at_idx(lvl, idx) != NULL);
+            } while (--tries > 0 && level_heap_at(lvl, idx) != NULL);
         }
         spawn_item_heap(lvl, idx, depth, items[i], HEAP_FOR_SALE);
     }
@@ -168,7 +164,7 @@ static void place_shopkeeper(Level *lvl, Room *room){
 
         int idx = xy_to_idx(x,y);
 
-        if(tile_is_open_floor(lvl->map[idx]) && !heap_at(lvl, idx)) {
+        if(tile_is_open_floor(lvl->map[idx]) && level_heap_at(lvl, idx) == NULL) {
 
              TODO ADD MOB  
             mob_spawn(MOB_SHOPKEEPER,x,y);
@@ -586,7 +582,7 @@ static void paint_treasury(Level *lvl, Room *r, int depth){
             y = rng_range(r->top + 1, r->bottom - 1);
             idx = xy_to_idx(x, y);
 
-        } while (lvl->map[idx] != TILE_EMPTY || heap_at(lvl, idx));
+        } while (lvl->map[idx] != TILE_EMPTY || level_heap_at(lvl, idx) != NULL);
 
         HeapType type = (i == 0 && heap_type == HEAP_CHEST)
             ? HEAP_MIMIC
@@ -823,15 +819,12 @@ static void paint_rat_king(Level *lvl, Room *r, int depth){
     for (int tries = 0; tries < 100; tries++) { //REDO cycle for mimic spawner
         int x = rng_range(r->left + 1, r->right - 1);
         int y = rng_range(r->top + 1, r->bottom - 1);
-        int found = 0;
-
-        for (int i = 0; i < lvl->num_heaps && !found; i++) {
-            if (lvl->heaps[i].active && lvl->heaps[i].x == x && lvl->heaps[i].y == y) {
-                lvl->heaps[i].type = HEAP_MIMIC;
-                found = 1;
-            }
+        int pos = xy_to_idx(x, y);
+        Heap *h = level_heap_at(lvl, pos);
+        if (h) {
+            h->type = HEAP_MIMIC;
+            break;
         }
-        if (found) break;
     }
 
     /* TODO: spawn Rat King */
@@ -840,7 +833,7 @@ static void paint_rat_king(Level *lvl, Room *r, int depth){
     do {
         x = rng_range(r->left + 1, r->right - 1);
         y = rng_range(r->top + 1, r->bottom - 1);
-    } while (heap_at(lvl, xy_to_idx(x,y)));
+    } while (level_heap_at(lvl, xy_to_idx(x,y)) != NULL);
 
     mob_spawn(MOB_RAT_KING, x, y);
     */
@@ -920,7 +913,7 @@ static void paint_library(Level *lvl, Room *r, int depth){
             y = rng_range(r->top + 1, r->bottom - 1);
             idx = xy_to_idx(x, y);
 
-            if (lvl->map[idx] == TILE_EMPTY && !heap_at(lvl, idx)) {
+            if (lvl->map[idx] == TILE_EMPTY && level_heap_at(lvl, idx) == NULL) {
                 found = true;
                 break;
             }
@@ -983,7 +976,7 @@ static void paint_laboratory(Level *lvl, Room *r, int depth) {
             x = rng_range(r->left + 1, r->right - 1);
             y = rng_range(r->top + 1, r->bottom - 1);
             idx = xy_to_idx(x, y);
-        } while ((lvl->map[idx] != TILE_EMPTY_SP || heap_at(lvl, idx)) &&  ++tries < 100);
+        } while ((lvl->map[idx] != TILE_EMPTY_SP || level_heap_at(lvl, idx) != NULL) &&  ++tries < 100);
         if (tries < 100)
             laboratory_prize(lvl, idx, depth);
     }
@@ -1005,7 +998,7 @@ static void paint_garden(Level *lvl, Room *r, int depth){
             x = rng_range(r->left + 1, r->right - 1);
             y = rng_range(r->top + 1, r->bottom - 1);
             idx = xy_to_idx(x, y);
-        } while (heap_at(lvl, idx));
+        } while (level_heap_at(lvl, idx) != NULL);
         spawn_item_heap(lvl, idx, depth, ITEM_HONEYPOT, HEAP_NORMAL);
     } else {
         int bushes = (rng_int(5) == 0) ? 2 : 1;
@@ -1083,7 +1076,7 @@ static void paint_blacksmith(Level *lvl, Room *r, int depth){
             x = rng_range(r->left + 2, r->right - 2);
             y = rng_range(r->top + 2, r->bottom - 2);
             idx = xy_to_idx(x,y);
-        } while ((lvl->map[idx] != TILE_EMPTY_SP || heap_at(lvl, idx)) && ++tries < 100);
+        } while ((lvl->map[idx] != TILE_EMPTY_SP || level_heap_at(lvl, idx) != NULL) && ++tries < 100);
         if (tries < 100)
             spawn_random_item_of_category_heap(lvl, idx, depth, rng_int(2) == 0 ? ITEMCAT_ARMOR : ITEMCAT_WEAPON, HEAP_NORMAL);
     }
@@ -1138,7 +1131,7 @@ static void paint_armory(Level *lvl, Room *r, int depth){
             x = rng_range(r->left + 1, r->right  - 1);
             y = rng_range(r->top  + 1, r->bottom - 1);
             idx = xy_to_idx(x,y);
-        } while (lvl->map[idx] != TILE_EMPTY || heap_at(lvl, idx));
+        } while (lvl->map[idx] != TILE_EMPTY || level_heap_at(lvl, idx) != NULL);
         armory_prize(lvl, idx, depth);
     }
 

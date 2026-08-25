@@ -21,6 +21,8 @@ void dungeon_init(Dungeon *d){
     d->blacksmith_depth = 11 + (d->world_seed % 3); 
 
     mob_set_pool(&d->floors[0].mob_pool);
+    npc_set_pool(&d->floors[0].npc_pool);
+
     level_generate(&d->floors[0], d->world_seed, get_theme(0), d->current_depth, d->blacksmith_depth);
     fog_init(&d->fog[d->current_depth]);
 
@@ -35,12 +37,14 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
         return 0;
 
     mob_unload_all();
+    npc_unload_all();
 
     d->current_depth++;
 
     if (!d->generated[d->current_depth]) {
         uint32_t seed = d->world_seed + d->current_depth * 0x9E3779B9u;
         mob_set_pool(&d->floors[d->current_depth].mob_pool);
+        npc_set_pool(&d->floors[d->current_depth].npc_pool);
         level_generate(&d->floors[d->current_depth], seed, get_theme(d->current_depth), d->current_depth, d->blacksmith_depth);
 
         d->generated[d->current_depth] = 1;
@@ -54,12 +58,14 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     char_set_active_level(lvl);
 
     mob_set_pool(&lvl->mob_pool);
+    npc_set_pool(&lvl->npc_pool);
 
     char_add(&player->base);
 
     actor_fix_time();
     mob_restore_grid();
     mob_restore_targets(&player->base);
+    npc_restore_grid();
 
     Point p = idx_to_xy(player->base.pos);
     camera_center_on(cam, p.x, p.y);
@@ -73,6 +79,7 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
         return 0;
 
     mob_unload_all();
+    npc_unload_all();
     
     d->current_depth--;
 
@@ -84,12 +91,14 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
     char_set_active_level(lvl);
 
     mob_set_pool(&lvl->mob_pool);
+    npc_set_pool(&lvl->npc_pool);
 
     char_add(&player->base);
 
     actor_fix_time();
     mob_restore_grid();
     mob_restore_targets(&player->base);
+    npc_restore_grid();
 
     Point p = idx_to_xy(player->base.pos);
     camera_center_on(cam, p.x, p.y);

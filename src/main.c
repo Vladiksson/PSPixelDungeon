@@ -66,8 +66,6 @@ int main(int argc, char *argv[]) {
     Level *lvl = dungeon_current_level(&dungeon);
     Fog *fog = dungeon_current_fog(&dungeon);
 
-    mob_set_pool(&lvl->mob_pool);
-
     Player player;
     player_init(&player, lvl, 0);
 
@@ -215,19 +213,18 @@ int main(int argc, char *argv[]) {
             input_get_move(&inp, &dx, &dy);
             int moved = move_repeat_update(&mr, now, &player, lvl, &cam, dx, dy);
             if (moved == PLAYER_BUMP_MOVED) {
-                pos = idx_to_xy(player.base.pos);
                 player_set_moving(&player, 1);
 
                 if (!player_operate(&player, lvl))
                     player_pickup(&player, lvl); /* TODO: route this to a message log / HUD once one exists */
 
-                if (level_player_on_exit(lvl, pos.x, pos.y)) {
+                if (player.base.pos == lvl->exit) {
                     dungeon_go_down(&dungeon, &player, &cam);
                     lvl = dungeon_current_level(&dungeon);
                     fog = dungeon_current_fog(&dungeon);
                     continue;
                 }
-                if (level_player_on_entrance(lvl, pos.x, pos.y)) {
+                if (player.base.pos == lvl->entrance) {
                     dungeon_go_up(&dungeon, &player, &cam);
                     lvl = dungeon_current_level(&dungeon);
                     fog = dungeon_current_fog(&dungeon);
@@ -250,10 +247,12 @@ int main(int argc, char *argv[]) {
 
         player_animate(&player, dt);
         mob_animate_all(dt);
-        /* Draw: tiles → items → mobs → fog → player → present */
+        npc_animate_all(dt);
+        /* Draw: tiles → items → mobs → npcs → fog → player → present */
         render_frame(&rctx, lvl, &cam);
         render_items(&rctx, lvl, &cam);
         render_mobs(&rctx, &cam);
+        render_npcs(&rctx, &cam);
         render_fog(&rctx, fog, &cam);
         render_player(&rctx, &player, &cam);
 

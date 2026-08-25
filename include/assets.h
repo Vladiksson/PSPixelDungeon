@@ -54,7 +54,6 @@ EmbeddedAsset asset_find(const char *name);
 #define ASSET_THIEF     "thief.png"
 #define ASSET_TENGU     "tengu.png"
 #define ASSET_SHEEP     "sheep.png"
-#define ASSET_KEEPER    "shopkeeper.png"
 #define ASSET_BAT       "bat.png"
 #define ASSET_BRUTE     "brute.png"
 #define ASSET_SPINNER   "spinner.png"
@@ -75,12 +74,6 @@ EmbeddedAsset asset_find(const char *name);
 #define ASSET_BURNING   "burning_fist.png"
 #define ASSET_YOG       "yog.png"
 #define ASSET_LARVA     "larva.png"
-#define ASSET_GHOST     "ghost.png"
-#define ASSET_MAKER     "wandmaker.png"
-#define ASSET_TROLL     "blacksmith.png"
-#define ASSET_IMP       "demon.png"
-#define ASSET_RATKING   "ratking.png"
-#define ASSET_BEE       "bee.png"
 #define ASSET_MIMIC     "mimic.png"
 
 typedef enum {
@@ -100,6 +93,30 @@ typedef enum {
     ASSET_WARLOCK, ASSET_GOLEM, ASSET_UNDEAD, ASSET_KING, ASSET_STATUE, \
     ASSET_PIRANHA, ASSET_EYE, ASSET_SUCCUBUS, ASSET_SCORPIO, ASSET_ROTTING, \
     ASSET_BURNING, ASSET_YOG, ASSET_LARVA, ASSET_GOO, ASSET_MIMIC }
+
+/* ── NPC sprites ────────────────────────────────── */
+#define ASSET_GHOST     "ghost.png"
+#define ASSET_TROLL     "blacksmith.png"
+#define ASSET_IMP       "demon.png"
+#define ASSET_MAKER     "wandmaker.png"
+#define ASSET_RATKING   "ratking.png"
+#define ASSET_BEE       "bee.png"
+#define ASSET_KEEPER    "shopkeeper.png"
+
+typedef enum {
+    NPCTEX_GHOST = 0,
+    NPCTEX_BLACKSMITH,
+    NPCTEX_IMP,
+    NPCTEX_WANDMAKER,
+    NPCTEX_RATKING,
+    NPCTEX_BEE,
+    NPCTEX_SHOPKEEPER,
+    NPCTEX_COUNT
+} NpcTexId;
+
+#define ASSET_NPC_TEX_BY_ID { \
+    ASSET_GHOST, ASSET_TROLL, ASSET_IMP, ASSET_MAKER, \
+    ASSET_RATKING, ASSET_BEE, ASSET_KEEPER }
 
 /* ── Items ────────────────────────────────────────────── */
 #define ASSET_ITEMS     "items.png"

@@ -35,6 +35,7 @@ add_executable(${PROJECT_NAME}
     src/ui_ninepatch.c
     src/ui_hud.c
     src/pathfinder.c
+    src/npc.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O2 -G0 -Wall)

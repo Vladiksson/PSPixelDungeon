@@ -23,7 +23,7 @@ static int char_cells_adjacent(int a, int b) {
    neighbour would fall off the map (the original relies on a
    guaranteed solid border so this never happens there; this port
    checks explicitly instead of assuming your level always has one). */
-static int char_random_neighbour(int pos) {
+static int char_random_neighbour(int pos) { //REDO
     static const int dx8[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
     static const int dy8[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
     Point p = idx_to_xy(pos);

@@ -89,6 +89,24 @@ int render_init(RenderCtx *ctx) {
             break;
         }
     }
+    /*npcs*/
+    const char *npc_files[] = ASSET_NPC_TEX_BY_ID;
+    for (int i = 0; i < NPCTEX_COUNT; i++) {
+        ctx->npc_tex[i] = load_tex(ctx->renderer, npc_files[i]);
+        ctx->npc_tex_cols[i] = 1; /* safe fallback if the load below finds nothing */
+        if (!ctx->npc_tex[i]) continue;
+
+        int tex_w = 0;
+        SDL_QueryTexture(ctx->npc_tex[i], NULL, NULL, &tex_w, NULL);
+
+        for (int k = 0; k < NPC_KIND_COUNT; k++) {
+            if (k == NPC_MIRROR_IMAGE) continue; /* no NPC_TEX_FOR_KIND entry */
+            if (NPC_TEX_FOR_KIND[k] != (NpcTexId)i) continue;
+            int fw = NPC_SPRITES[k].frame_w;
+            if (fw > 0 && tex_w > 0) ctx->npc_tex_cols[i] = tex_w / fw;
+            break;
+        }
+    }
     /*items*/
     ctx->items = load_tex(ctx->renderer, ASSET_ITEMS);
     /*fonts*/
@@ -143,6 +161,9 @@ void render_free(RenderCtx *ctx) {
     }
     for (int i = 0; i < MOBTEX_COUNT; i++) {
         destroy_tex(&ctx->mob_tex[i]);
+    }
+    for (int i = 0; i < NPCTEX_COUNT; i++) {
+        destroy_tex(&ctx->npc_tex[i]);
     }
     destroy_tex(&ctx->items);
     destroy_tex(&ctx->icons);
@@ -227,13 +248,16 @@ void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     for (int i = 0; i < lvl->num_heaps; i++) {
         const Heap *h = &lvl->heaps[i];
         if (!h->active) continue;
-        if (h->x < cam->tile_x || h->x > cam->tile_x + gViewCols ||
-            h->y < cam->tile_y || h->y > cam->tile_y + gViewRows) continue;
+
+        Point pos = idx_to_xy(h->pos);
+
+        if (pos.x < cam->tile_x || pos.x > cam->tile_x + gViewCols ||
+            pos.y < cam->tile_y || pos.y > cam->tile_y + gViewRows) continue;
  
         uint8_t col, row;
         if (!heap_sprite_cell(h, &col, &row)) continue;
  
-        Point scr = camera_tile_to_screen(cam, h->x, h->y);
+        Point scr = camera_tile_to_screen(cam, pos.x, pos.y);
  
         SDL_Rect src = { col * ICON_SIZE, row * ICON_SIZE, ICON_SIZE, ICON_SIZE };
         SDL_Rect dst = { scr.x, scr.y, gTileSize, gTileSize };
@@ -420,6 +444,75 @@ void render_mobs(RenderCtx *ctx, const Camera *cam) {
 
             SDL_RenderCopy(ctx->renderer, ctx->icons, &icon_src, &icon_dst);
         }
+    }
+}
+
+
+/* ── render_npcs ────────────────────────────────────────── */
+static SDL_Rect npc_frame_rect(RenderCtx *ctx, const NPC *n, NpcTexId tex_id) {
+    const NpcSpriteInfo *info = &NPC_SPRITES[n->kind];
+    const AnimClip *clip = &info->clips[n->anim];
+    uint8_t idx = clip->frames[n->frame % clip->count];
+
+    int cols = ctx->npc_tex_cols[tex_id];
+    if (cols <= 0) cols = 1;
+
+    SDL_Rect src = {
+        (idx % cols) * info->frame_w,
+        (idx / cols) * info->frame_h,
+        info->frame_w,
+        info->frame_h
+    };
+    return src;
+}
+
+void render_npcs(RenderCtx *ctx, const Camera *cam) {
+    for (int i = 0; i < npc_count(); i++) {
+        NPC *n = npc_at_index(i);
+        if (!n)
+            continue;
+
+        /* NPC_MIRROR_IMAGE has no NPC_SPRITES/NPC_TEX_FOR_KIND row
+           (see npc.h) — its original textures itself from the
+           hero's own sprite sheet instead, which needs its own
+           draw path against ctx->heroes[], not implemented here
+           yet. Any other out-of-range kind (npc_init()'s
+           NPC_KIND_COUNT sentinel, for a plain npc_spawn() never
+           given a catalog kind) has nothing to draw either. */
+        if (n->kind < 0 || n->kind >= NPC_KIND_COUNT || n->kind == NPC_MIRROR_IMAGE)
+            continue;
+
+        if (!char_is_alive(&n->base) && n->anim_done)
+            continue;
+
+        Point pos = idx_to_xy(n->base.pos);
+
+        /* outside camera */
+        if (pos.x < cam->tile_x || pos.x > cam->tile_x + gViewCols ||
+            pos.y < cam->tile_y || pos.y > cam->tile_y + gViewRows)
+            continue;
+
+        NpcTexId tex_id = NPC_TEX_FOR_KIND[n->kind];
+        SDL_Texture *tex = ctx->npc_tex[tex_id];
+        if (!tex)
+            continue;
+
+        const NpcSpriteInfo *info = &NPC_SPRITES[n->kind];
+
+        int draw_w = info->frame_w * gTileSize / TILE_SIZE_MIN;
+        int draw_h = info->frame_h * gTileSize / TILE_SIZE_MIN;
+
+        Point scr = camera_tile_to_screen(cam, pos.x, pos.y);
+        SDL_Rect dst = {
+            scr.x - (draw_w - gTileSize) / 2,
+            scr.y - (draw_h - gTileSize),
+            draw_w,
+            draw_h
+        };
+
+        SDL_Rect src = npc_frame_rect(ctx, n, tex_id);
+        SDL_RendererFlip flip = (n->facing == FACE_LEFT) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+        SDL_RenderCopyEx(ctx->renderer, tex, &src, &dst, 0.0, NULL, flip);
     }
 }
 

@@ -1,5 +1,4 @@
 #include "pathfinder.h"
-#include <limits.h>
 
 /* ══════════════════════════════════════════════════════════
    port of PathFinder.java REDO 

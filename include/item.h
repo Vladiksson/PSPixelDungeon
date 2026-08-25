@@ -34,7 +34,7 @@ typedef struct {
     ItemStack items[MAX_HEAP_ITEMS];
 
     int       count;
-    int       x, y;
+    int       pos;
     uint8_t   active;
 } Heap;
 

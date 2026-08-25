@@ -1,6 +1,8 @@
 #pragma once
+#include "common.h"
 #include "item.h"
 #include "mob.h"
+#include "npc.h"
 
 /* ── Room constants ──────────────────────────────────── */
 #define MAX_ROOMS       64
@@ -106,6 +108,8 @@ typedef struct Level {
 
     MobPool mob_pool;
     int boss_triggered;
+
+    NPCPool npc_pool;
 } Level;
 
 typedef struct {
@@ -129,6 +133,3 @@ static inline int room_square(const Room *r) { return room_w(r) * room_h(r); }
 static inline int room_inside(const Room *r, int x, int y) {
     return x > r->left && y > r->top && x < r->right && y < r->bottom;
 }
-
-int level_player_on_exit(const Level *lvl, int x, int y);
-int level_player_on_entrance(const Level *lvl, int x, int y);

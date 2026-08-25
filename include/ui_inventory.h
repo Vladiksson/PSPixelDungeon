@@ -1,7 +1,7 @@
 #pragma once
-#include "player.h"
+//#include "player.h"
 #include "render.h"
-#include "bag.h"
+//#include "bag.h"
 
 /* ══════════════════════════════════════════════════════════
    INVENTORY SCREEN backpack/equip UI.

@@ -30,30 +30,25 @@ int heap_sprite_cell(const Heap *h, uint8_t *out_col, uint8_t *out_row) {
     return 1;
 }
 
-Heap *level_create_heap(Level *lvl, int x, int y, HeapType type) {
+Heap *level_create_heap(Level *lvl, int pos, HeapType type) {
     if (lvl->num_heaps >= MAX_LEVEL_ITEMS)
         return NULL;
     Heap *h = &lvl->heaps[lvl->num_heaps++];
     h->type   = type;
     h->count  = 0;
-    h->x      = x;
-    h->y      = y;
+    h->pos    = pos;
     h->active = 1;
     return h;
 }
 
-Heap *level_heap_at(Level *lvl, int x, int y) {
+Heap *level_heap_at(Level *lvl, int pos) {
     for (int i = 0; i < lvl->num_heaps; i++) {
         Heap *h = &lvl->heaps[i];
-        if (h->active && h->x == x && h->y == y)
+
+        if (h->active && h->pos == pos)
             return h;
     }
     return NULL;
-}
-
-Heap *level_heap_at_idx(Level *lvl, int idx) {
-    Point p = idx_to_xy(idx);
-    return level_heap_at(lvl, p.x, p.y);
 }
 
 static int heap_insert(Heap *heap, ItemStack stack) {
@@ -90,10 +85,10 @@ int heap_add_item(Heap *heap, ItemType type, int quantity) {
 Heap *spawn_item(Level *lvl, int idx, int depth, ItemType type) {
     if (type < 0 || type >= ITEM_TYPE_COUNT)
         return NULL;
-    Point p = idx_to_xy(idx);
-    Heap *heap = level_heap_at(lvl, p.x, p.y);
+
+    Heap *heap = level_heap_at(lvl, idx);
     if (!heap) {
-        heap = level_create_heap(lvl, p.x, p.y, HEAP_NORMAL);
+        heap = level_create_heap(lvl, idx, HEAP_NORMAL);
         if (!heap)
             return NULL;
     }
@@ -119,10 +114,10 @@ Heap *spawn_item_heap(Level *lvl, int idx, int depth, ItemType type, HeapType he
 Heap *spawn_item_amount_heap(Level *lvl, int idx, int depth, ItemType type, int amount, HeapType heap_type){
     if (type < 0 || type >= ITEM_TYPE_COUNT)
         return NULL;
-    Point p = idx_to_xy(idx);
-    Heap *heap = level_heap_at(lvl, p.x, p.y);
+
+    Heap *heap = level_heap_at(lvl, idx);
     if (!heap) {
-        heap = level_create_heap(lvl, p.x, p.y, heap_type);
+        heap = level_create_heap(lvl, idx, heap_type);
         if (!heap)
             return NULL;
     } else {
