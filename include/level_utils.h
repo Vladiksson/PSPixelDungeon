@@ -2,6 +2,8 @@
 #include "level.h"
 #include "rng.h"
 
+#define LAST_SHOP_DEPTH 20
+#define FINAL_LEVEL_DEPTH 25
 DungeonTheme get_theme(int depth);
 int level_is_boss_depth(int depth);
 int shop_on_level(int depth);

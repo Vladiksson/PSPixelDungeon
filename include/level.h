@@ -48,7 +48,13 @@ typedef enum {
     DOOR_BARRICADE,
     DOOR_UNLOCKED
 } DoorType;
- 
+
+typedef struct {
+    int room;
+    int pos;
+    DoorType type;
+} RoomConnection;
+
 typedef struct {
     int left, top, right, bottom;
 
@@ -57,10 +63,8 @@ typedef struct {
     int distance;             /* BFS distance (pathfinding)   */
     int price;                /* Dijkstra cost (default 1)    */
 
-    int connected [MAX_CONN_ROOM];
-    int door_x    [MAX_CONN_ROOM];
-    int door_y    [MAX_CONN_ROOM];
-    int n_connected;
+    RoomConnection connections [MAX_CONN_ROOM];
+    int n_connections;
 
     DoorType door_type[MAX_CONN_ROOM];
     RoomType type;

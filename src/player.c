@@ -271,6 +271,7 @@ int player_is_busy(const Player *p) {
 
 static void player_sync_anim_lock(Player *p) {
     switch (p->anim) {
+    //case ANIM_RUN: //TEST
     case ANIM_OPERATE:
     case ANIM_ATTACK:
     case ANIM_READ:

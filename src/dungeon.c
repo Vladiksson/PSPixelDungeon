@@ -67,8 +67,7 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     mob_restore_targets(&player->base);
     npc_restore_grid();
 
-    Point p = idx_to_xy(player->base.pos);
-    camera_center_on(cam, p.x, p.y);
+    camera_center_on(cam, player->base.pos);
 
     return 1;
 }
@@ -100,8 +99,7 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
     mob_restore_targets(&player->base);
     npc_restore_grid();
 
-    Point p = idx_to_xy(player->base.pos);
-    camera_center_on(cam, p.x, p.y);
+    camera_center_on(cam, player->base.pos);
 
     return 1;
 }

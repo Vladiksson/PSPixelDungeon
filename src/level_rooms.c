@@ -40,7 +40,7 @@ void place_special_near_entrance(Level *lvl, int entrance_idx, int depth, int bl
         if (w < 6 || h < 6)
             continue;
 
-        if (r->n_connected == 0) {
+        if (r->n_connections == 0) {
             room_connect(lvl, entrance_idx, ni);
         }
 
@@ -147,7 +147,7 @@ void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int exit_idx
         Room *r = &lvl->rooms[i];
         if (r->type != ROOM_NULL)
             continue;
-        if (r->n_connected != 1)
+        if (r->n_connections != 1)
             continue;
         if (gen->num_specials > 0 &&
             room_w(r) > 3 &&
@@ -222,7 +222,7 @@ void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int exit_idx
     for (int i=0; i<lvl->num_rooms; i++) {
         Room *r = &lvl->rooms[i];
         if (r->type != ROOM_NULL) continue;
-        int nc = r->n_connected;
+        int nc = r->n_connections;
         if (nc == 0) continue;
         if (rng_int(nc*nc) == 0) { r->type = ROOM_STANDARD; n_std++; }
         else{
@@ -264,9 +264,11 @@ static DoorType get_door_type(Room *a, Room *b){
 void assign_door_types(Level *lvl){
     for (int i = 0; i < lvl->num_rooms; i++) {
         Room *r = &lvl->rooms[i];
-        for (int j = 0; j < r->n_connected; j++) {
-            Room *n = &lvl->rooms[r->connected[j]];
-            r->door_type[j] = get_door_type(r,n);
+        for (int j = 0; j < r->n_connections; j++) {
+            RoomConnection *c = &r->connections[j];
+            Room *n = &lvl->rooms[c->room];
+
+            c->type = get_door_type(r, n);
         }
     }
 }
@@ -275,22 +277,45 @@ void assign_door_types(Level *lvl){
    DOOR POSITION CALCULATION  —  RegularLevel.placeDoors()
    ══════════════════════════════════════════════════════════ */
 void compute_doors(Level *lvl) {
-    for (int i=0; i<lvl->num_rooms; i++) {
+    for (int i = 0; i < lvl->num_rooms; i++) {
         Room *r = &lvl->rooms[i];
-        for (int j=0; j<r->n_connected; j++) {
-            if (r->door_x[j] != -1) continue;
-            int ni = r->connected[j]; Room *n = &lvl->rooms[ni];
-            int ix0 = r->left  > n->left  ? r->left  : n->left;
-            int ix1 = r->right < n->right ? r->right : n->right;
+
+        for (int j = 0; j < r->n_connections; j++) {
+            RoomConnection *c = &r->connections[j];
+
+            if (c->pos != -1)
+                continue;
+
+            Room *n = &lvl->rooms[c->room];
+
+            int ix0 = r->left   > n->left   ? r->left   : n->left;
+            int ix1 = r->right  < n->right  ? r->right  : n->right;
             int iy0 = r->top    > n->top    ? r->top    : n->top;
             int iy1 = r->bottom < n->bottom ? r->bottom : n->bottom;
-            int iw = ix1-ix0;
+
+            int iw = ix1 - ix0;
             int dx, dy;
-            if (iw == 0) { dx=ix0;                        dy=rng_range(iy0+1, iy1-1); }
-            else         { dx=rng_range(ix0+1, ix1-1);    dy=iy0; }
-            r->door_x[j]=dx; r->door_y[j]=dy;
-            for (int k=0; k<n->n_connected; k++)
-                if (n->connected[k]==i) { n->door_x[k]=dx; n->door_y[k]=dy; break; }
+
+            if (iw == 0) {
+                dx = ix0;
+                dy = rng_range(iy0 + 1, iy1 - 1);
+            } else {
+                dx = rng_range(ix0 + 1, ix1 - 1);
+                dy = iy0;
+            }
+
+            int pos = xy_to_idx(dx, dy);
+            c->pos = pos;
+
+            /* Same door from the other side */
+            for (int k = 0; k < n->n_connections; k++) {
+                RoomConnection *nc = &n->connections[k];
+
+                if (nc->room == i) {
+                    nc->pos = pos;
+                    break;
+                }
+            }
         }
     }
 }

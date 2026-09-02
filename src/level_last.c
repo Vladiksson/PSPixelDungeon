@@ -67,7 +67,7 @@ static int try_last_shop(Level *lvl, int depth, int quest_completed) {
     int shop_idx = -1, shop_square = 0;
     for (int i = 0; i < lvl->num_rooms; i++) {
         Room *r = &lvl->rooms[i];
-        if (r->type == ROOM_NULL && r->n_connected > 0) {
+        if (r->type == ROOM_NULL && r->n_connections > 0) {
             r->type = ROOM_PASSAGE;
             int sq = room_square(r);
             if (sq > shop_square) { shop_idx = i; shop_square = sq; }

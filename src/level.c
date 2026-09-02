@@ -9,9 +9,6 @@
 /* ══════════════════════════════════════════════════════════
    PUBLIC: level_generate
    ══════════════════════════════════════════════════════════ */
-#define LAST_SHOP_DEPTH 20
-#define FINAL_LEVEL_DEPTH 25
-
 int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int blacksmith_depth) {
     if (level_is_boss_depth(depth))
         return level_generate_boss(lvl, seed, theme, depth);
@@ -167,6 +164,5 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     /*10 mobs*/
     mob_spawn_initial(lvl, depth);
 
-    npc_spawn_kind(NPC_IMP, lvl->entrance - 1); //test
     return 0;
 }

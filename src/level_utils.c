@@ -37,16 +37,32 @@ void fill_rect(Level *lvl, int x, int y, int w, int h, uint8_t t) {
    ══════════════════════════════════════════════════════════ */
 int already_connected(Level *lvl, int a, int b) {
     Room *ra = &lvl->rooms[a];
-    for (int i=0; i<ra->n_connected; i++)
-        if (ra->connected[i] == b) return 1;
+    for (int i = 0; i < ra->n_connections; i++)
+        if (ra->connections[i].room == b)
+            return 1;
     return 0;
 }
 void room_connect(Level *lvl, int a, int b) {
-    if (already_connected(lvl,a,b)) return;
-    Room *ra = &lvl->rooms[a], *rb = &lvl->rooms[b];
-    if (ra->n_connected >= MAX_CONN_ROOM || rb->n_connected >= MAX_CONN_ROOM) return;
-    ra->connected[ra->n_connected]=b; ra->door_x[ra->n_connected]=-1; ra->door_y[ra->n_connected]=-1; ra->n_connected++;
-    rb->connected[rb->n_connected]=a; rb->door_x[rb->n_connected]=-1; rb->door_y[rb->n_connected]=-1; rb->n_connected++;
+    if (already_connected(lvl, a, b))
+        return;
+
+    Room *ra = &lvl->rooms[a];
+    Room *rb = &lvl->rooms[b];
+
+    if (ra->n_connections >= MAX_CONN_ROOM || rb->n_connections >= MAX_CONN_ROOM)
+        return;
+
+    ra->connections[ra->n_connections++] = (RoomConnection) {
+        .room = b,
+        .pos = -1,
+        .type = DOOR_EMPTY
+    };
+
+    rb->connections[rb->n_connections++] = (RoomConnection) {
+        .room = a,
+        .pos = -1,
+        .type = DOOR_EMPTY
+    };
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -61,16 +77,18 @@ void bsp_split(Level *lvl, int left, int top, int right, int bottom) {
     int h = bottom - top;
 
     if (w > MAX_ROOM && h < MIN_ROOM) {
-        int vw = rng_range(left+3, right-3);
-        bsp_split(lvl, left,top, vw,bottom);
-        bsp_split(lvl, vw,  top, right,bottom);
+        int vw = rng_range(left + 3, right - 3);
+
+        bsp_split(lvl, left, top, vw,    bottom);
+        bsp_split(lvl, vw,   top, right, bottom);
+
     } else if (h > MAX_ROOM && w < MIN_ROOM) {
-        int vh = rng_range(top+3, bottom-3);
-        bsp_split(lvl, left,top,   right,vh);
-        bsp_split(lvl, left,vh,    right,bottom);
-    } else if (w < MIN_ROOM || h < MIN_ROOM ||
-               (rng_float() <= (float)(MIN_ROOM*MIN_ROOM)/(float)(w*h)
-                && w <= MAX_ROOM && h <= MAX_ROOM)) {
+        int vh = rng_range(top + 3, bottom - 3);
+
+        bsp_split(lvl, left, top, right, vh);
+        bsp_split(lvl, left, vh,  right, bottom);
+
+    } else if (w < MIN_ROOM || h < MIN_ROOM || (rng_float() <= (float)(MIN_ROOM*MIN_ROOM)/(float)(w * h) && w <= MAX_ROOM && h <= MAX_ROOM)) {
         Room *r = &lvl->rooms[lvl->num_rooms++];
         memset(r, 0, sizeof(*r));
         r->left   = left;  r->top    = top;
@@ -78,16 +96,15 @@ void bsp_split(Level *lvl, int left, int top, int right, int bottom) {
         r->type   = ROOM_NULL;
         r->price  = 1;
         r->distance = 10000;
-        for (int k=0; k<MAX_CONN_ROOM; k++) { r->door_x[k]=-1; r->door_y[k]=-1; }
     } else {
-        if (rng_float() < (float)(w-2)/(float)(w+h-4)) {
-            int vw = rng_range(left+3, right-3);
-            bsp_split(lvl, left,top, vw,bottom);
-            bsp_split(lvl, vw,  top, right,bottom);
+        if (rng_float() < (float)(w - 2)/(float)(w + h - 4)) {
+            int vw = rng_range(left + 3, right - 3);
+            bsp_split(lvl, left, top, vw,    bottom);
+            bsp_split(lvl, vw,   top, right, bottom);
         } else {
-            int vh = rng_range(top+3, bottom-3);
-            bsp_split(lvl, left,top,  right,vh);
-            bsp_split(lvl, left,vh,   right,bottom);
+            int vh = rng_range(top + 3, bottom - 3);
+            bsp_split(lvl, left, top,  right, vh);
+            bsp_split(lvl, left, vh,   right, bottom);
         }
     }
 }
@@ -96,15 +113,15 @@ void bsp_split(Level *lvl, int left, int top, int right, int bottom) {
    NEIGHBOUR GRAPH  —  Room.addNeigbour()
    ══════════════════════════════════════════════════════════ */
 void build_neighbours(Level *lvl) {
-    for (int i=0; i<lvl->num_rooms-1; i++) {
-        for (int j=i+1; j<lvl->num_rooms; j++) {
+    for (int i = 0; i < lvl->num_rooms - 1; i++) {
+        for (int j = i + 1; j < lvl->num_rooms; j++) {
             Room *a = &lvl->rooms[i], *b = &lvl->rooms[j];
             int ix0 = a->left   > b->left   ? a->left   : b->left;
             int ix1 = a->right  < b->right  ? a->right  : b->right;
             int iy0 = a->top    > b->top    ? a->top    : b->top;
             int iy1 = a->bottom < b->bottom ? a->bottom : b->bottom;
-            int iw = ix1-ix0, ih = iy1-iy0;
-            if ((iw==0 && ih>=3) || (ih==0 && iw>=3)) {
+            int iw = ix1 - ix0, ih = iy1 - iy0;
+            if ((iw == 0 && ih >= 3) || (ih == 0 && iw >= 3)) {
                 if (a->n_neighbours < MAX_NEIGHBOURS) a->neighbours[a->n_neighbours++] = j;
                 if (b->n_neighbours < MAX_NEIGHBOURS) b->neighbours[b->n_neighbours++] = i;
             }

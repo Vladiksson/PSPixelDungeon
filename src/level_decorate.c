@@ -104,17 +104,16 @@ void decorate_caves(Level *lvl) {
                 lvl->map[idx+LEVEL_W] == TILE_WALL)
                 lvl->map[idx] = TILE_WALL;
         }
-        for (int j = 0; j < room->n_connected; j++) {
+        for (int j = 0; j < room->n_connections; j++) {
 
-            Room *n = &lvl->rooms[room->connected[j]];
+            Room *r = &lvl->rooms[room->connections[j].room];
 
-            if ((n->type == ROOM_STANDARD || n->type == ROOM_TUNNEL) && rng_int(3) == 0) {
+            if ((r->type == ROOM_STANDARD || r->type == ROOM_TUNNEL) && rng_int(3) == 0) {
 
-                int dx = room->door_x[j];
-                int dy = room->door_y[j];
+                Point p = idx_to_xy(room->connections[j].pos);
 
-                if (dx >= 0 && dy >= 0)
-                    set_tile(lvl, dx, dy, TILE_EMPTY_DECO);
+                if (p.x >= 0 && p.y >= 0)
+                    set_tile(lvl, p.x, p.y, TILE_EMPTY_DECO);
             }
         }
     }    
@@ -278,7 +277,9 @@ void decorate_prison_boss(Level *lvl, int exit_room_idx) {
        floor becomes an (currently inert, no trigger yet) trap bed -
        see the deferred-mechanics note at the top of level_boss.c. */
     Room *ex = &lvl->rooms[exit_room_idx];
-    set_tile(lvl, ex->door_x[0], ex->door_y[0], TILE_LOCKED_DOOR);
+    Point door = idx_to_xy(ex->connections[0].pos);
+
+    set_tile(lvl, door.x, door.y, TILE_LOCKED_DOOR);
     fill_rect(lvl, ex->left + 2, ex->top + 2, room_w(ex) - 3, room_h(ex) - 3, TILE_INACTIVE_TRAP);
 }
 

@@ -20,32 +20,33 @@ PSP_HEAP_SIZE_KB(16384); // 16 MB, in other case sdl gonna eat all of ram, shitt
 typedef struct {
     uint32_t next_ms;
     int held;
+    int blocked;
 } MoveRepeat;
  
 static int move_repeat_update(MoveRepeat *mr, uint32_t now, Player *p, Level *lvl, Camera *cam, int dx, int dy) {
     if (dx == 0 && dy == 0) {
-        mr->held = 0;
+        mr->held    = 0;
+        mr->blocked = 0;
         return 0;
     }
     if (!mr->held) {
         int result = player_bump(p, lvl, dx, dy);
         mr->held = 1;
         mr->next_ms = now + REPEAT_DELAY_MS;
+        mr->blocked = (result == PLAYER_BUMP_BLOCKED);
 
         if (result == PLAYER_BUMP_MOVED) {
-            Point pos = idx_to_xy(p->base.pos);
-            camera_center_on(cam, pos.x, pos.y);
+            camera_center_on(cam, p->base.pos);
         }
         return result;
     }
     if (now >= mr->next_ms) {
         int result = player_bump(p, lvl, dx, dy);
         mr->next_ms = now + REPEAT_RATE_MS;
+        mr->blocked = (result == PLAYER_BUMP_BLOCKED);
 
-        if (result == PLAYER_BUMP_MOVED) {
-            Point pos = idx_to_xy(p->base.pos);
-            camera_center_on(cam, pos.x, pos.y);
-        }
+        if (result == PLAYER_BUMP_MOVED)
+            camera_center_on(cam, p->base.pos);
         return result;
     }
     return 0;
@@ -69,13 +70,10 @@ int main(int argc, char *argv[]) {
     Player player;
     player_init(&player, lvl, 0);
 
-    Point pos = idx_to_xy(player.base.pos);
-
     InventoryUI inv = {0};
 
     Camera cam;
-    camera_init(&cam, 0, 0);
-    camera_center_on(&cam, pos.x, pos.y);
+    camera_center_on(&cam, player.base.pos);
 
     RenderCtx rctx;
     if (render_init(&rctx) != 0) {
@@ -206,17 +204,21 @@ int main(int argc, char *argv[]) {
                     gTileSize = TILE_SIZE_MIN;
                 }
                 TileSize_Update();
-                camera_center_on(&cam, pos.x, pos.y);
+                camera_center_on(&cam, player.base.pos);
             }
             /* Player movement — d-pad */
             int dx, dy;
             input_get_move(&inp, &dx, &dy);
+
+            int moving_input = (dx != 0 || dy != 0);
+
             int moved = move_repeat_update(&mr, now, &player, lvl, &cam, dx, dy);
             if (moved == PLAYER_BUMP_MOVED) {
-                player_set_moving(&player, 1);
+                if (moving_input)
+                    player_set_moving(&player, 1);
 
                 if (!player_operate(&player, lvl))
-                    player_pickup(&player, lvl); /* TODO: route this to a message log / HUD once one exists */
+                    player_pickup(&player, lvl);
 
                 if (player.base.pos == lvl->exit) {
                     dungeon_go_down(&dungeon, &player, &cam);
@@ -234,15 +236,13 @@ int main(int argc, char *argv[]) {
 
             } else if (moved == PLAYER_BUMP_ATTACKED) {
                 /* Attack already started; player_animate() will resolve it. */
-            } else {
+            } else if (!moving_input || mr.blocked) {
                 player_set_moving(&player, 0);
             }
         }
-        pos = idx_to_xy(player.base.pos);
-
         actor_process();
 
-        fog_update(fog, lvl, pos.x, pos.y, dungeon.current_depth);
+        fog_update(fog, lvl, player.base.pos, dungeon.current_depth);
         hud_update(&rctx, &player);
 
         player_animate(&player, dt);

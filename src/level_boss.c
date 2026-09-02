@@ -78,14 +78,16 @@ static int try_sewers_boss(Level *lvl, int depth) {
         room_connect(lvl, path[i], path[i + 1]);
 
     {
-        int neighbour = lvl->rooms[exit_r].connected[0];
-        if (lvl->rooms[exit_r].top == lvl->rooms[neighbour].bottom)
+        Room *exit = &lvl->rooms[exit_r];
+        Room *neighbour = &lvl->rooms[exit->connections[0].room];
+
+        if (exit->top == neighbour->bottom)
             return 0;
     }
 
     for (int i = 0; i < lvl->num_rooms; i++) {
         Room *r = &lvl->rooms[i];
-        if (r->type == ROOM_NULL && r->n_connected > 0)
+        if (r->type == ROOM_NULL && r->n_connections > 0)
             r->type = ROOM_TUNNEL;
     }
 
@@ -195,7 +197,7 @@ static int try_prison_boss(Level *lvl, int depth) {
 
     for (int i = 0; i < lvl->num_rooms; i++) {
         Room *r = &lvl->rooms[i];
-        if (r->type == ROOM_NULL && r->n_connected > 0)
+        if (r->type == ROOM_NULL && r->n_connections > 0)
             r->type = ROOM_PASSAGE;
     }
 
@@ -206,8 +208,10 @@ static int try_prison_boss(Level *lvl, int depth) {
     paint_doors(lvl);
 
     {
-        int door_y = lvl->rooms[exit_r].door_y[0];
-        if (door_y == lvl->rooms[exit_r].top)
+        Room *exit = &lvl->rooms[exit_r];
+        Point door = idx_to_xy(exit->connections[0].pos);
+
+        if (door.y == exit->top)
             return 0;
     }
 

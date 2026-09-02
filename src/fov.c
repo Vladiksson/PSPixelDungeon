@@ -89,10 +89,11 @@ void fog_init(Fog *fog) {
     memset(fog->visited, 0, LEVEL_SIZE);
 }
 
-void fog_update(Fog *fog, const Level *lvl, int px, int py, int depth) {
+void fog_update(Fog *fog, const Level *lvl, int idx, int depth) { //todo idx instead px,py
     memset(fog->visible, 0, LEVEL_SIZE);
 
-    if (in_bounds(px, py)) fog->visible[xy_to_idx(px, py)] = 1;
+    Point p = idx_to_xy(idx);
+    if (in_bounds(p.x, p.y)) fog->visible[idx] = 1;
 
     int radius = fov_radius(depth);
 
@@ -108,7 +109,7 @@ void fog_update(Fog *fog, const Level *lvl, int px, int py, int depth) {
         { 1,  0,  0, -1 },   /* SE→E  */
     };
     for (int i = 0; i < 8; i++) {
-        cast_octant(fog->visible, lvl, px, py, 1, 1.0f, 0.0f, radius, OCT[i][0], OCT[i][1], OCT[i][2], OCT[i][3]);
+        cast_octant(fog->visible, lvl, p.x, p.y, 1, 1.0f, 0.0f, radius, OCT[i][0], OCT[i][1], OCT[i][2], OCT[i][3]);
     }
     for (int i = 0; i < LEVEL_SIZE; i++)
         if (fog->visible[i]) fog->visited[i] = 1;
