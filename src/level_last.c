@@ -11,7 +11,7 @@
 
 static int try_last_shop(Level *lvl, int depth, int quest_completed) {
     memset(lvl, 0, sizeof(*lvl));
-    lvl->theme = THEME_CITY;   /* tilesTex()/waterTex() are both CITY in the original */
+    lvl->theme = THEME_CITY;
     memset(lvl->map, TILE_WALL, sizeof(lvl->map));
     lvl->feeling = FEELING_NONE;
 
@@ -60,10 +60,6 @@ static int try_last_shop(Level *lvl, int depth, int quest_completed) {
     for (int i = 0; i < plen - 1; i++)
         room_connect(lvl, path[i], path[i + 1]);
 
-    /* Every other connected room becomes a PASSAGE; the *largest*
-       of them (by area) is the shop candidate, provided it's big
-       enough (>=30 tiles). No candidate, or too small -> the whole
-       level is rejected and retried, same as the original. */
     int shop_idx = -1, shop_square = 0;
     for (int i = 0; i < lvl->num_rooms; i++) {
         Room *r = &lvl->rooms[i];
@@ -115,17 +111,10 @@ int level_generate_last(Level *lvl, uint32_t seed, int depth) {
     rng_state = seed ? seed : (uint32_t)time(NULL);
  
     memset(lvl, 0, sizeof(*lvl));
-    lvl->theme = THEME_HALLS;   /* tilesTex()/waterTex() are both HALLS in the original */
+    lvl->theme = THEME_HALLS;
     memset(lvl->map, TILE_WALL, sizeof(lvl->map));
     lvl->feeling = FEELING_NONE;
  
-    /* Original anchors this whole room at the map's top-left corner
-       (1,1). Centered here instead: origin is the water block's
-       top-left corner, computed so the *whole* footprint - the 7x7
-       water block plus the exit tile sitting one row above it - is
-       centered as a unit, not just the water block by itself. Every
-       other position below is the same offset from origin that the
-       original used from its fixed (1,1). */
     int origin_x = (LEVEL_W - LASTLEVEL_SIZE) / 2;
     int origin_y = (LEVEL_H - (LASTLEVEL_SIZE + 1)) / 2 + 1;
  
@@ -133,24 +122,19 @@ int level_generate_last(Level *lvl, uint32_t seed, int depth) {
     fill_rect(lvl, origin_x + 1, origin_y + 1, LASTLEVEL_SIZE - 2, LASTLEVEL_SIZE - 2, TILE_EMPTY);
     fill_rect(lvl, origin_x + LASTLEVEL_SIZE/2 - 1, origin_y + LASTLEVEL_SIZE/2 - 1, 3, 3, TILE_EMPTY_SP);
  
-    /* original: entrance at the water block's bottom-center edge */
     int ex = origin_x + LASTLEVEL_SIZE / 2, ey = origin_y + LASTLEVEL_SIZE - 1;
     lvl->entrance = xy_to_idx(ex, ey);
-    set_tile(lvl, ex, ey, TILE_ENTRANCE);
+    set_tile(lvl, lvl->entrance, TILE_ENTRANCE);
  
-    /* original: exit = entrance - WIDTH*SIZE -> same column, one row
-       above the water block's top edge */
     int exit_x = ex, exit_y = origin_y - 1;
     lvl->exit = xy_to_idx(exit_x, exit_y);
-    set_tile(lvl, exit_x, exit_y, TILE_LOCKED_EXIT);
+    set_tile(lvl, lvl->exit, TILE_LOCKED_EXIT);
  
-    /* original: pedestal = (SIZE/2+1)*(WIDTH+1) - the exact center
-       of the 7x7 block */
     int px = origin_x + LASTLEVEL_SIZE / 2, py = origin_y + LASTLEVEL_SIZE / 2;
     int pedestal_idx = xy_to_idx(px, py);
-    set_tile(lvl, px, py, TILE_PEDESTAL);
-    set_tile(lvl, px - 1, py, TILE_STATUE_SP);
-    set_tile(lvl, px + 1, py, TILE_STATUE_SP);
+    set_tile(lvl, pedestal_idx, TILE_PEDESTAL);
+    set_tile(lvl, pedestal_idx - 1, TILE_STATUE_SP);
+    set_tile(lvl, pedestal_idx + 1, TILE_STATUE_SP);
  
     decorate_last(lvl);
  

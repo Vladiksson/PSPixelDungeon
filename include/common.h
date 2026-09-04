@@ -121,5 +121,5 @@ void Terrain_InitFlags(void);
 typedef struct { int x, y; } Point;
 
 static inline int   xy_to_idx (int x, int y) { return y * LEVEL_W + x; }
-static inline Point idx_to_xy (int idx)       { return (Point){ idx % LEVEL_W, idx / LEVEL_W }; }
-static inline int   in_bounds (int x, int y)  { return x>=0 && y>=0 && x<LEVEL_W && y<LEVEL_H; }
+static inline Point idx_to_xy (int idx)      { return (Point){ idx % LEVEL_W, idx / LEVEL_W }; }
+static inline int   in_bounds (int idx)      { return idx >= 0 && idx < LEVEL_SIZE; }

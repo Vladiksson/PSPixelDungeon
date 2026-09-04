@@ -200,10 +200,10 @@ static int tile_unstitchable(uint8_t t){
     return (gTileFlags[t] & TF_UNSTITCHABLE) != 0;
 }
 static int water_sprite(const Level *lvl, int tx, int ty) { //mirror Level.java getWaterTile()
-    int top   = tile_unstitchable(get_tile_safe(lvl, tx,   ty-1));
-    int right = tile_unstitchable(get_tile_safe(lvl, tx+1, ty  ));
-    int bot   = tile_unstitchable(get_tile_safe(lvl, tx,   ty+1));
-    int left  = tile_unstitchable(get_tile_safe(lvl, tx-1, ty  ));
+    int top   = tile_unstitchable(get_tile_safe(lvl, xy_to_idx(tx,   ty-1)));
+    int right = tile_unstitchable(get_tile_safe(lvl, xy_to_idx(tx+1, ty  )));
+    int bot   = tile_unstitchable(get_tile_safe(lvl, xy_to_idx(tx,   ty+1)));
+    int left  = tile_unstitchable(get_tile_safe(lvl, xy_to_idx(tx-1, ty  )));
     return TILE_WATER_TILES + (top | (right<<1) | (bot<<2) | (left<<3));
 }
 
@@ -224,8 +224,12 @@ void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
 
     for (int ty = cam->tile_y; ty <= cam->tile_y + gViewRows; ty++) {
         for (int tx = cam->tile_x; tx <= cam->tile_x + gViewCols; tx++) {
-            if (!in_bounds(tx, ty)) continue;
-            uint8_t tile = lvl->map[xy_to_idx(tx, ty)];
+
+            int idx = xy_to_idx(tx, ty);
+            if (!in_bounds(idx))
+                continue;
+            uint8_t tile = lvl->map[idx];
+
             Point   scr  = camera_tile_to_screen(cam, tx, ty);
             if (tile == TILE_CHASM_WATER) {
                 render_water_fill(ctx, tx, ty, scr.x, scr.y);

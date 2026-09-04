@@ -662,16 +662,11 @@ int player_operate(Player *p, Level *lvl) {
     World interaction
 ═══════════════════════════════════════════════════════════════*/
 int player_move(Player *p, Level *lvl, int dx, int dy){
-    Point pos = idx_to_xy(p->base.pos);
-
-    int nx = pos.x + dx;
-    int ny = pos.y + dy;
-
-    if (!in_bounds(nx, ny)) return 0;
-    if (player_is_busy(p)) return 0;
-
-    int idx = xy_to_idx(nx, ny);
+    int idx = p->base.pos + xy_to_idx(dx, dy);
     uint8_t tile = lvl->map[idx];
+
+    if (!in_bounds(idx)) return 0;
+    if (player_is_busy(p)) return 0;
     
     switch (tile) {
     case TILE_LOCKED_DOOR:
@@ -731,15 +726,13 @@ static int player_start_attack(Player *p, Char *target) {
 int player_bump(Player *p, Level *lvl, int dx, int dy) {
     if (player_is_busy(p)) return PLAYER_BUMP_BLOCKED;
 
-    Point pos = idx_to_xy(p->base.pos);
+    int idx = p->base.pos + xy_to_idx(dx, dy);
 
-    int nx = pos.x + dx;
-    int ny = pos.y + dy;
-    if (!in_bounds(nx, ny)) return PLAYER_BUMP_BLOCKED;
+    if (!in_bounds(idx)) return PLAYER_BUMP_BLOCKED;
 
     if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
 
-    Char *occupant = char_find_at(xy_to_idx(nx, ny));
+    Char *occupant = char_find_at(idx);
     if (occupant && occupant->kind == CHAR_KIND_MOB) {
         return player_start_attack(p, occupant) ? PLAYER_BUMP_ATTACKED : PLAYER_BUMP_BLOCKED;
     }

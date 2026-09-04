@@ -10,6 +10,16 @@ Fog *dungeon_current_fog(Dungeon *d){
     return &d->fog[d->current_depth];
 }
 
+static void dungeon_create_floor(Dungeon *d, int depth){
+    uint32_t seed = d->world_seed + d->current_depth * 0x9E3779B9u;
+
+    mob_set_pool(&d->floors[depth].mob_pool);
+    npc_set_pool(&d->floors[depth].npc_pool);
+
+    level_generate(&d->floors[depth], seed, get_theme(depth), d->current_depth, d->blacksmith_depth);
+    d->generated[depth] = 1;
+}
+
 void dungeon_init(Dungeon *d){
     memset(d, 0, sizeof(*d));
     char_clear();
@@ -20,15 +30,10 @@ void dungeon_init(Dungeon *d){
 
     d->blacksmith_depth = 11 + (d->world_seed % 3); 
 
-    mob_set_pool(&d->floors[0].mob_pool);
-    npc_set_pool(&d->floors[0].npc_pool);
-
-    level_generate(&d->floors[0], d->world_seed, get_theme(0), d->current_depth, d->blacksmith_depth);
+    dungeon_create_floor(d, d->current_depth);
     fog_init(&d->fog[d->current_depth]);
 
-    d->generated[0] = 1;
-
-    char_set_active_level(&d->floors[0]); 
+    char_set_active_level(&d->floors[d->current_depth]); 
 }
 
 int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
@@ -42,12 +47,7 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     d->current_depth++;
 
     if (!d->generated[d->current_depth]) {
-        uint32_t seed = d->world_seed + d->current_depth * 0x9E3779B9u;
-        mob_set_pool(&d->floors[d->current_depth].mob_pool);
-        npc_set_pool(&d->floors[d->current_depth].npc_pool);
-        level_generate(&d->floors[d->current_depth], seed, get_theme(d->current_depth), d->current_depth, d->blacksmith_depth);
-
-        d->generated[d->current_depth] = 1;
+        dungeon_create_floor(d, d->current_depth);
     }
 
     Level *lvl = dungeon_current_level(d);

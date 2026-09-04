@@ -1,9 +1,9 @@
 #include "fov.h"
 #include <string.h>
 
-static int blocks_light(const Level *lvl, int x, int y) {
-    if (!in_bounds(x, y)) return 1;
-    return gTileFlags[lvl->map[xy_to_idx(x, y)]] & TF_LOS_BLOCKING;
+static int blocks_light(const Level *lvl, int idx) {
+    if (!in_bounds(idx)) return 1;
+    return gTileFlags[lvl->map[idx]] & TF_LOS_BLOCKING;
 }
 
 static int fov_radius(int depth) {
@@ -25,7 +25,7 @@ static int fov_radius(int depth) {
    Direct port of the RogueBasin "FOV using recursive shadow
    casting" algorithm (Bjorn Bergstrom / Albert Ford variant)
    ══════════════════════════════════════════════════════════════ */
-static void cast_octant(uint8_t *vis, const Level *lvl, int cx, int cy, int row, float start, float end, int radius, int xx, int xy, int yx, int yy) {
+static void cast_octant(uint8_t *vis, const Level *lvl, int idx, int row, float start, float end, int radius, int xx, int xy, int yx, int yy) {
     if (start < end) return;
 
     float r2      = (float)(radius * radius);
@@ -39,8 +39,10 @@ static void cast_octant(uint8_t *vis, const Level *lvl, int cx, int cy, int row,
 
         while (dx <= 0) {
             dx++;
-            int ax = cx + dx * xx + dy * xy;
-            int ay = cy + dx * yx + dy * yy;
+            Point c = idx_to_xy(idx);
+            int ax = c.x + dx * xx + dy * xy;
+            int ay = c.y + dx * yx + dy * yy;
+            int aidx = xy_to_idx(ax, ay);
 
             /* Slopes for the left and right edges of this tile */
             float l_slope = (dx - 0.5f) / (dy + 0.5f);
@@ -50,12 +52,12 @@ static void cast_octant(uint8_t *vis, const Level *lvl, int cx, int cy, int row,
             if (end   > l_slope) break;      /* past the end of our range  */
 
             /* Tile is in the light beam — mark visible if within radius */
-            if ((float)(dx*dx + dy*dy) < r2 && in_bounds(ax, ay))
-                vis[xy_to_idx(ax, ay)] = 1;
+            if ((float)(dx*dx + dy*dy) < r2 && in_bounds(aidx))
+                vis[aidx] = 1;
 
             if (blocked) {
                 /* Scanning through shadow: look for gap */
-                if (blocks_light(lvl, ax, ay)) {
+                if (blocks_light(lvl, aidx)) {
                     nstart = r_slope;
                 } else {
                     /* Found open space: end shadow, resume */
@@ -64,12 +66,10 @@ static void cast_octant(uint8_t *vis, const Level *lvl, int cx, int cy, int row,
                 }
             } else {
                 /* In open: check for new wall */
-                if (blocks_light(lvl, ax, ay) && j < radius) {
+                if (blocks_light(lvl, aidx) && j < radius) {
                     /* Wall starts a shadow — recurse for the subtended angle */
                     blocked = 1;
-                    cast_octant(vis, lvl, cx, cy, j + 1,
-                                start, l_slope, radius,
-                                xx, xy, yx, yy);
+                    cast_octant(vis, lvl, idx, j + 1, start, l_slope, radius, xx, xy, yx, yy);
                     nstart = r_slope;
                 }
             }
@@ -89,11 +89,10 @@ void fog_init(Fog *fog) {
     memset(fog->visited, 0, LEVEL_SIZE);
 }
 
-void fog_update(Fog *fog, const Level *lvl, int idx, int depth) { //todo idx instead px,py
+void fog_update(Fog *fog, const Level *lvl, int idx, int depth) {
     memset(fog->visible, 0, LEVEL_SIZE);
 
-    Point p = idx_to_xy(idx);
-    if (in_bounds(p.x, p.y)) fog->visible[idx] = 1;
+    if (in_bounds(idx)) fog->visible[idx] = 1;
 
     int radius = fov_radius(depth);
 
@@ -109,7 +108,7 @@ void fog_update(Fog *fog, const Level *lvl, int idx, int depth) { //todo idx ins
         { 1,  0,  0, -1 },   /* SE→E  */
     };
     for (int i = 0; i < 8; i++) {
-        cast_octant(fog->visible, lvl, p.x, p.y, 1, 1.0f, 0.0f, radius, OCT[i][0], OCT[i][1], OCT[i][2], OCT[i][3]);
+        cast_octant(fog->visible, lvl, idx, 1, 1.0f, 0.0f, radius, OCT[i][0], OCT[i][1], OCT[i][2], OCT[i][3]);
     }
     for (int i = 0; i < LEVEL_SIZE; i++)
         if (fog->visible[i]) fog->visited[i] = 1;

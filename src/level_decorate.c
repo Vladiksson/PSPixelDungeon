@@ -110,10 +110,8 @@ void decorate_caves(Level *lvl) {
 
             if ((r->type == ROOM_STANDARD || r->type == ROOM_TUNNEL) && rng_int(3) == 0) {
 
-                Point p = idx_to_xy(room->connections[j].pos);
-
-                if (p.x >= 0 && p.y >= 0)
-                    set_tile(lvl, p.x, p.y, TILE_EMPTY_DECO);
+                if (room->connections[j].pos >= 0)
+                    set_tile(lvl, room->connections[j].pos, TILE_EMPTY_DECO);
             }
         }
     }    
@@ -165,7 +163,7 @@ void decorate_caves(Level *lvl) {
                 int y1 = (r->bottom < n->bottom) ? r->bottom : n->bottom;
                 if (y1 - y0 >= 5) {
                     for (int y = y0 + 2; y <= y1 - 2; y++)
-                        set_tile(lvl, wallx, y, TILE_CHASM);
+                        set_tile(lvl, xy_to_idx(wallx, y), TILE_CHASM);
                 }
             }
             /* Rooms share a horizontal wall */
@@ -175,7 +173,7 @@ void decorate_caves(Level *lvl) {
                 int x1 = (r->right < n->right) ? r->right : n->right;
                 if (x1 - x0 >= 5) {
                     for (int x = x0 + 2; x <= x1 - 2; x++)
-                        set_tile(lvl, x, wally, TILE_CHASM);
+                        set_tile(lvl, xy_to_idx(x, wally), TILE_CHASM);
                 }
             }
         }
@@ -277,9 +275,8 @@ void decorate_prison_boss(Level *lvl, int exit_room_idx) {
        floor becomes an (currently inert, no trigger yet) trap bed -
        see the deferred-mechanics note at the top of level_boss.c. */
     Room *ex = &lvl->rooms[exit_room_idx];
-    Point door = idx_to_xy(ex->connections[0].pos);
 
-    set_tile(lvl, door.x, door.y, TILE_LOCKED_DOOR);
+    set_tile(lvl, ex->connections[0].pos, TILE_LOCKED_DOOR);
     fill_rect(lvl, ex->left + 2, ex->top + 2, room_w(ex) - 3, room_h(ex) - 3, TILE_INACTIVE_TRAP);
 }
 
@@ -304,7 +301,7 @@ void decorate_caves_boss(Level *lvl) {
         sy = rng_range(CAVES_ARENA_TOP, CAVES_ARENA_BOTTOM);
         sidx = xy_to_idx(sx, sy);
     } while (sidx == lvl->entrance);
-    set_tile(lvl, sx, sy, TILE_SIGN);
+    set_tile(lvl, sidx, TILE_SIGN);
 }
 
 void decorate_city_boss(Level *lvl, int arena_door_idx) {

@@ -419,9 +419,9 @@ void npc_throw_item(NPC *self, Level *lvl) {
         int i = rng_int(8);
         int nx = p.x + NPC_DX8[i];
         int ny = p.y + NPC_DY8[i];
-        if (!in_bounds(nx, ny)) continue;
-
         int npos = xy_to_idx(nx, ny);
+        if (!in_bounds(npos)) continue;
+
         if (gTileFlags[lvl->map[npos]] & TF_PASSABLE) dest = npos;
     }
     if (dest < 0) return;

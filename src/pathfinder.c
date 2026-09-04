@@ -34,8 +34,8 @@ static int build_distance_map_single(const Level *lvl, int from, int to) {
 
         for (int i = 0; i < 8; i++) {
             int nx = sp.x + DX8[i], ny = sp.y + DY8[i];
-            if (!in_bounds(nx, ny)) continue;
             int n = xy_to_idx(nx, ny);
+            if (!in_bounds(n)) continue;
 
             if (n == from || (cell_passable(lvl, n) && distance[n] > next_dist)) {
                 bfs_queue[tail++] = n;
@@ -68,8 +68,8 @@ static int build_distance_map_multi(const Level *lvl, int from, const uint8_t *g
 
         for (int i = 0; i < 8; i++) {
             int nx = sp.x + DX8[i], ny = sp.y + DY8[i];
-            if (!in_bounds(nx, ny)) continue;
             int n = xy_to_idx(nx, ny);
+            if (!in_bounds(n)) continue;
 
             if (n == from || (cell_passable(lvl, n) && distance[n] > next_dist)) {
                 bfs_queue[tail++] = n;
@@ -87,8 +87,8 @@ static int best_neighbour(int from) {
 
     for (int i = 0; i < 8; i++) {
         int nx = fp.x + DX8[i], ny = fp.y + DY8[i];
-        if (!in_bounds(nx, ny)) continue;
         int n = xy_to_idx(nx, ny);
+        if (!in_bounds(n)) continue;
         if (distance[n] < min_d) {
             min_d = distance[n];
             best = n;
@@ -123,8 +123,8 @@ static int build_escape_distance_map(const Level *lvl, int cur, int from) {
 
         for (int i = 0; i < 8; i++) {
             int nx = sp.x + DX8[i], ny = sp.y + DY8[i];
-            if (!in_bounds(nx, ny)) continue;
             int n = xy_to_idx(nx, ny);
+            if (!in_bounds(n)) continue;
 
             if (cell_passable(lvl, n) && distance[n] > next_dist) {
                 bfs_queue[tail++] = n;

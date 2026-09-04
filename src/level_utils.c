@@ -22,14 +22,14 @@ int shop_on_level(int depth){
 /* ══════════════════════════════════════════════════════════
    MAP HELPERS
    ══════════════════════════════════════════════════════════ */
-void set_tile(Level *lvl, int x, int y, uint8_t t) {
-    if (in_bounds(x,y)) lvl->map[xy_to_idx(x,y)] = t;
+void set_tile(Level *lvl, int idx, uint8_t t) {
+    if (in_bounds(idx)) lvl->map[idx] = t;
 }
 
 void fill_rect(Level *lvl, int x, int y, int w, int h, uint8_t t) {
     for (int r=y; r<y+h; r++)
         for (int c=x; c<x+w; c++)
-            set_tile(lvl,c,r,t);
+            set_tile(lvl, xy_to_idx(c,r), t);
 }
 
 /* ══════════════════════════════════════════════════════════

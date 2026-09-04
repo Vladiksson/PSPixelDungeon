@@ -8,7 +8,7 @@ DungeonTheme get_theme(int depth);
 int level_is_boss_depth(int depth);
 int shop_on_level(int depth);
 
-void set_tile(Level *lvl, int x, int y, uint8_t t); 
+void set_tile(Level *lvl, int idx, uint8_t t); 
 void fill_rect(Level *lvl, int x, int y, int w, int h, uint8_t t);
 
 int already_connected(Level *lvl, int a, int b);

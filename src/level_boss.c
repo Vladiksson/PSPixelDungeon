@@ -93,20 +93,33 @@ static int try_sewers_boss(Level *lvl, int depth) {
 
     {
         Room *rex = &lvl->rooms[exit_r];
-        int candidates[MAX_NEIGHBOURS], n_cand = 0;
+        int candidates[MAX_NEIGHBOURS];
+        int n_cand = 0;
+
         for (int j = 0; j < rex->n_neighbours; j++) {
             int ni = rex->neighbours[j];
             Room *n = &lvl->rooms[ni];
-            if (already_connected(lvl, exit_r, ni)) continue;
-            if (rex->left == n->right || rex->right == n->left || rex->bottom == n->top)
+
+            if (already_connected(lvl, exit_r, ni))
+                continue;
+            
+            if ((rex->left == n->right ||
+                rex->right == n->left ||
+                rex->bottom == n->top) &&
+                (room_w(n) > 3 && room_h(n) > 3)) {
                 candidates[n_cand++] = ni;
+            }
         }
-        if (n_cand > 0) {
-            int king = candidates[rng_int(n_cand)];
-            room_connect(lvl, king, exit_r);
-            lvl->rooms[king].type = ROOM_RAT_KING;
-        }
+
+        if (n_cand == 0)
+            return 0;
+
+        int king = candidates[rng_int(n_cand)];
+
+        room_connect(lvl, king, exit_r);
+        lvl->rooms[king].type = ROOM_RAT_KING;
     }
+
 
     compute_doors(lvl);
     paint_rooms(lvl, depth);
@@ -291,7 +304,7 @@ static void build_caves_boss(Level *lvl, int depth) {
     }
 
     lvl->exit = xy_to_idx(exit_x, exit_y);
-    set_tile(lvl, exit_x, exit_y, TILE_LOCKED_EXIT);
+    set_tile(lvl, lvl->exit, TILE_LOCKED_EXIT);
 
     for (int i = 0; i < LEVEL_SIZE; i++)
         if (lvl->map[i] == TILE_EMPTY && rng_int(6) == 0)
@@ -310,14 +323,14 @@ static void build_caves_boss(Level *lvl, int depth) {
     {
         int door_x = rng_range(CAVES_ARENA_LEFT, CAVES_ARENA_RIGHT);
         int door_y = CAVES_ARENA_BOTTOM + 1;
-        set_tile(lvl, door_x, door_y, TILE_DOOR);
+        set_tile(lvl, xy_to_idx(door_x, door_y), TILE_DOOR);
     }
 
     {
         int ex = rng_range(CAVES_ARENA_LEFT + 1, CAVES_ARENA_RIGHT - 1);
         int ey = rng_range(CAVES_ARENA_TOP + 1, CAVES_ARENA_BOTTOM - 1);
         lvl->entrance = xy_to_idx(ex, ey);
-        set_tile(lvl, ex, ey, TILE_ENTRANCE);
+        set_tile(lvl, lvl->entrance, TILE_ENTRANCE);
     }
 
     {
@@ -347,24 +360,24 @@ static void build_city_boss(Level *lvl, int depth) {
     fill_rect(lvl, center, top, 1, hall_h, TILE_EMPTY_SP);
 
     for (int y = top + 1; y < top + hall_h; y += 2) {
-        set_tile(lvl, center - 2, y, TILE_STATUE_SP);
-        set_tile(lvl, center + 2, y, TILE_STATUE_SP);
+        set_tile(lvl, xy_to_idx(center - 2, y), TILE_STATUE_SP);
+        set_tile(lvl, xy_to_idx(center + 2, y), TILE_STATUE_SP);
     }
 
     int pedestal_row = top + hall_h / 2;
     int ped_left = center - 2, ped_right = center + 2;
-    set_tile(lvl, ped_left,  pedestal_row, TILE_PEDESTAL);
-    set_tile(lvl, ped_right, pedestal_row, TILE_PEDESTAL);
+    set_tile(lvl, xy_to_idx(ped_left,  pedestal_row), TILE_PEDESTAL);
+    set_tile(lvl, xy_to_idx(ped_right, pedestal_row), TILE_PEDESTAL);
     for (int x = ped_left + 1; x < ped_right; x++)
-        set_tile(lvl, x, pedestal_row, TILE_EMPTY_SP);
+        set_tile(lvl, xy_to_idx(x, pedestal_row), TILE_EMPTY_SP);
 
     int exit_x = center, exit_y = top - 1;
     lvl->exit = xy_to_idx(exit_x, exit_y);
-    set_tile(lvl, exit_x, exit_y, TILE_LOCKED_EXIT);
+    set_tile(lvl, lvl->exit, TILE_LOCKED_EXIT);
 
     int door_x = center, door_y = top + hall_h;
-    set_tile(lvl, door_x, door_y, TILE_DOOR);
     int arena_door_idx = xy_to_idx(door_x, door_y);
+    set_tile(lvl, arena_door_idx, TILE_DOOR);
 
     fill_rect(lvl, left, top + hall_h + 1, hall_w, chamber_h, TILE_EMPTY);
     fill_rect(lvl, left, top + hall_h + 1, 1, chamber_h, TILE_BOOKSHELF);
@@ -374,7 +387,7 @@ static void build_city_boss(Level *lvl, int depth) {
         int ex = left + rng_int(hall_w - 2);
         int ey = top + hall_h + 2 + rng_int(chamber_h - 1);
         lvl->entrance = xy_to_idx(ex, ey);
-        set_tile(lvl, ex, ey, TILE_ENTRANCE);
+        set_tile(lvl, lvl->entrance, TILE_ENTRANCE);
     }
 
     decorate_city_boss(lvl, arena_door_idx);
@@ -409,13 +422,13 @@ static void build_halls_boss(Level *lvl, int depth) {
         for (int j = 0; j < 4; j++) {
             if (rng_int(2) == 0) {
                 int y = rng_range(top + 1, bottom - 1);
-                set_tile(lvl, i * 4 + j, y, TILE_WALL_DECO);
+                set_tile(lvl, xy_to_idx(i * 4 + j, y), TILE_WALL_DECO);
             }
         }
     }
 
     lvl->exit = xy_to_idx(exit_x, exit_y);
-    set_tile(lvl, exit_x, exit_y, TILE_LOCKED_EXIT);
+    set_tile(lvl, lvl->exit, TILE_LOCKED_EXIT);
 
     fill_rect(lvl, room_left - 1, room_top - 1, room_right - room_left + 3, room_bottom - room_top + 3, TILE_WALL);
     fill_rect(lvl, room_left, room_top, room_right - room_left + 1, room_bottom - room_top + 1, TILE_EMPTY);
@@ -424,7 +437,7 @@ static void build_halls_boss(Level *lvl, int depth) {
         int ex = rng_range(room_left + 1, room_right - 1);
         int ey = rng_range(room_top + 1, room_bottom - 1);
         lvl->entrance = xy_to_idx(ex, ey);
-        set_tile(lvl, ex, ey, TILE_ENTRANCE);
+        set_tile(lvl, lvl->entrance, TILE_ENTRANCE);
     }
 
     {

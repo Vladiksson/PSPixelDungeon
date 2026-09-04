@@ -30,8 +30,9 @@ static int char_random_neighbour(int pos) { //REDO
     int i = rng_int(8);
     int nx = p.x + dx8[i];
     int ny = p.y + dy8[i];
-    if (!in_bounds(nx, ny)) return -1;
-    return xy_to_idx(nx, ny);
+    int idx = xy_to_idx(nx, ny);
+    if (!in_bounds(idx)) return -1;
+    return idx;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -286,12 +287,28 @@ Level *char_active_level(void) {
 }
 
 int char_add(Char *self) {
+    if (!self)
+        return 0;
+
+    if (!in_bounds(self->pos))
+        return 0;
+
+    if (char_find_at(self->pos) != NULL &&
+        char_find_at(self->pos) != self)
+        return 0;
+
     int ok = actor_add(&self->base);
-    if (ok) {
-        char_grid_occupy(self, self->pos);
-        char_restore_buffs(self);
+    if (!ok)
+        return 0;
+
+    if (!char_grid_occupy(self, self->pos)) {
+        actor_unregister(&self->base);
+        return 0;
     }
-    return ok;
+
+    char_restore_buffs(self);
+
+    return 1;
 }
 int char_add_delayed(Char *self, float delay) {
     int ok = actor_add_delayed(&self->base, delay);

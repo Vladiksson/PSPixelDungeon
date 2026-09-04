@@ -117,7 +117,7 @@ static void special_remove(RoomType *specials, int *count, RoomType t){
     (*count)--;
 }
 
-static void shuffle_specials(RoomType *arr, int count){
+static void shuffle_specials(RoomType *arr, int count){ //redo duplication of code
     for (int i = count - 1; i > 0; i--) {
         int j = rng_int(i + 1);
         RoomType t = arr[i];

@@ -126,9 +126,9 @@ typedef struct {
 
 int  level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int blacksmith_depth);
 
-static inline uint8_t get_tile_safe(const Level *lvl, int x, int y) {
-    if (!in_bounds(x,y)) return TILE_WALL;
-    return lvl->map[xy_to_idx(x,y)];
+static inline uint8_t get_tile_safe(const Level *lvl, int idx) {
+    if (!in_bounds(idx)) return TILE_WALL;
+    return lvl->map[idx];
 }
 
 static inline int room_w     (const Room *r) { return r->right  - r->left; }

@@ -5,14 +5,18 @@
 /* ══════════════════════════════════════════════════════════
     Room.center()
    ══════════════════════════════════════════════════════════ */
-static void room_center(const Room *r, int *x, int *y){
-    *x = (r->left + r->right) / 2;
-    if ((r->right - r->left) & 1)
-        *x += rng_int(2);
+static Point room_center(const Room *r) {
+    Point p;
 
-    *y = (r->top + r->bottom) / 2;
+    p.x = (r->left + r->right) / 2;
+    if ((r->right - r->left) & 1)
+        p.x += rng_int(2);
+
+    p.y = (r->top + r->bottom) / 2;
     if ((r->bottom - r->top) & 1)
-        *y += rng_int(2);
+        p.y += rng_int(2);
+
+    return p;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -31,7 +35,7 @@ static int perimeter_length(Room *r){
     int h = room_h(r)-2;
     return w*2 + h*2;
 }
-static Point shop_p2xy(Room *r, int p){
+static int shop_p2xy(Room *r, int p){
     int w = room_w(r)-2;
     int h = room_h(r)-2;
     Point out;
@@ -48,7 +52,7 @@ static Point shop_p2xy(Room *r, int p){
         out.x = r->left + 1;
         out.y = r->bottom - 1 - (p-w*2-h);
     }
-    return out;
+    return xy_to_idx(out.x, out.y);
 }
 static int shop_xy2p(Room *room, int idx){
     int w = room_w(room)-2;
@@ -122,7 +126,7 @@ static int shop_build_inventory(ItemType *items, int depth){
     return n;
 }
 
-static void shuffle_items(ItemType *a, int n){//TODO transfer to the item.c
+static void shuffle_items(ItemType *a, int n){//TODO transfer to the item.c + redo duplication of code
     for(int i = n-1; i>0; i--){
         int j = rng_int(i+1);
         ItemType t = a[i];
@@ -144,8 +148,7 @@ static void place_shop_items(Level *lvl, Room *room, int depth){
 
     for (int i = 0; i < count; i++) {
 
-        Point p = shop_p2xy(room, (pos + i) % per);
-        int idx = xy_to_idx(p.x, p.y);
+        int idx = shop_p2xy(room, (pos + i) % per);
 
         if (level_heap_at(lvl, idx) != NULL) {
             int tries = 200;
@@ -185,22 +188,20 @@ static void paint_shop(Level *lvl, Room *room, int depth){
    ══════════════════════════════════════════════════════════ */
 static void paint_entrance(Level *lvl, Room *r){
     paint_room_base(lvl, r, TILE_EMPTY);
-    //ORIGINALLY WAS int x = rng_range(r->left + 1, r->right - 1), y = rng_range(r->top + 1, r->bottom - 1);
-    int x,y;
-    room_center(r, &x, &y);
 
-    lvl->entrance = xy_to_idx(x, y);
-    set_tile(lvl, x, y, TILE_ENTRANCE);
+    Point c = room_center(r);
+    lvl->entrance = xy_to_idx(c.x, c.y);
+
+    set_tile(lvl, lvl->entrance, TILE_ENTRANCE);
 }
 
 static void paint_exit(Level *lvl, Room *r){
     paint_room_base(lvl, r, TILE_EMPTY);
-    //ORIGINALLY WAS int x = rng_range(r->left + 1, r->right - 1), y = rng_range(r->top + 1, r->bottom - 1);
-    int x,y;
-    room_center(r, &x, &y);
 
-    lvl->exit = xy_to_idx(x, y);
-    set_tile(lvl, x, y, TILE_EXIT);
+    Point c = room_center(r);
+    lvl->exit = xy_to_idx(c.x, c.y);
+
+    set_tile(lvl, lvl->exit, TILE_EXIT);
 }
 
 static void paint_boss_exit(Level *lvl, Room *r){
@@ -210,7 +211,7 @@ static void paint_boss_exit(Level *lvl, Room *r){
     int y = r->top;
 
     lvl->exit = xy_to_idx(x, y);
-    set_tile(lvl, x, y, TILE_LOCKED_EXIT);
+    set_tile(lvl, lvl->exit, TILE_LOCKED_EXIT);
 }
 /* ══════════════════════════════════════════════════════════
    STANDARD ROOM PAINTING  —  StandardPainter.paint(), etc.
@@ -235,9 +236,10 @@ static void draw_inside(Level *lvl, Room *r, int dx, int dy, int len, uint8_t ti
         x += sx;
         y += sy;
 
-        if (!in_bounds(x,y))
+        int idx = xy_to_idx(x,y);
+        if (!in_bounds(idx))
             break;
-        set_tile(lvl,x,y,tile);
+        set_tile(lvl, idx, tile);
     }
 }
 
@@ -265,7 +267,7 @@ static void paint_burned(Level *lvl, Room *r){
                 default:
                     break;
             }
-            set_tile(lvl,x,y,t);
+            set_tile(lvl, xy_to_idx(x,y), t);
         }
     }
 }
@@ -297,19 +299,18 @@ static void paint_study(Level *lvl, Room *r){
             continue;
 
         if (p.x == r->left) {
-            set_tile(lvl, p.x + 1, p.y, TILE_EMPTY);
+            set_tile(lvl, xy_to_idx(p.x + 1, p.y), TILE_EMPTY);
         } else if (p.x == r->right) {
-            set_tile(lvl, p.x - 1, p.y, TILE_EMPTY);
+            set_tile(lvl, xy_to_idx(p.x - 1, p.y), TILE_EMPTY);
         } else if (p.y == r->top) {
-            set_tile(lvl, p.x, p.y + 1, TILE_EMPTY);
+            set_tile(lvl, xy_to_idx(p.x, p.y + 1), TILE_EMPTY);
         } else if (p.y == r->bottom) {
-            set_tile(lvl, p.x, p.y - 1, TILE_EMPTY);
+            set_tile(lvl, xy_to_idx(p.x, p.y - 1), TILE_EMPTY);
         }
     }
-    /* room.center() */
-    int cx, cy;
-    room_center(r, &cx, &cy);
-    set_tile(lvl, cx, cy, TILE_PEDESTAL);
+
+    Point c = room_center(r);
+    set_tile(lvl, xy_to_idx(c.x, c.y), TILE_PEDESTAL);
 }
 
 static void paint_graveyard(Level *lvl, Room *r, int depth){
@@ -338,13 +339,13 @@ static void paint_graveyard(Level *lvl, Room *r, int depth){
             y = r->top + 1 + shift + i * 2;
         }
 
-        if (!in_bounds(x,y))
-            continue;
-
         int idx = xy_to_idx(x,y);
-
-        if (i == index) spawn_item_heap(lvl, idx, depth, random_item(), HEAP_TOMB);
-        else spawn_item_heap(lvl, idx, depth, ITEM_GOLD, HEAP_TOMB);
+        if (!in_bounds(idx))
+            continue;
+        if (i == index)
+            spawn_item_heap(lvl, idx, depth, random_item(), HEAP_TOMB);
+        else
+            spawn_item_heap(lvl, idx, depth, ITEM_GOLD, HEAP_TOMB);
     }
 }
 
@@ -357,7 +358,7 @@ static void paint_bridge(Level *lvl, Room *r, int depth){
     fill_rect(lvl, r->left + 1, r->top + 1, room_w(r)-1, room_h(r)-1, base);
 
     Point p1 = idx_to_xy(r->connections[0].pos);
-    Point p2 = idx_to_xy(r->connections[0].pos);
+    Point p2 = idx_to_xy(r->connections[1].pos);
 
     if ((p1.x == r->left && p2.x == r->right) || (p1.x == r->right && p2.x == r->left)) {
         int s = room_w(r)/2;
@@ -365,13 +366,12 @@ static void paint_bridge(Level *lvl, Room *r, int depth){
         draw_inside(lvl, r, p1.x, p1.y, s, TILE_EMPTY_SP);
         draw_inside(lvl, r, p2.x, p2.y, s, TILE_EMPTY_SP);
 
-        int cx,cy;
-        room_center(r,&cx,&cy);
+        Point c = room_center(r);
 
         int y0 = p1.y < p2.y ? p1.y : p2.y;
         int h  = abs(p1.y - p2.y) + 1;
 
-        fill_rect(lvl, cx, y0, 1, h, TILE_EMPTY_SP);
+        fill_rect(lvl, c.x, y0, 1, h, TILE_EMPTY_SP);
     }
     else if ((p1.y == r->top && p2.y == r->bottom) || (p1.y == r->bottom && p2.y == r->top)) {
         int s = room_h(r)/2;
@@ -379,13 +379,12 @@ static void paint_bridge(Level *lvl, Room *r, int depth){
         draw_inside(lvl, r, p1.x, p1.y, s, TILE_EMPTY_SP);
         draw_inside(lvl, r, p2.x, p2.y, s, TILE_EMPTY_SP);
 
-        int cx,cy;
-        room_center(r,&cx,&cy);
+        Point c = room_center(r);
 
         int x0 = p1.x < p2.x ? p1.x : p2.x;
         int w  = abs(p1.x - p2.x) + 1;
 
-        fill_rect(lvl, x0, cy, w, 1, TILE_EMPTY_SP);
+        fill_rect(lvl, x0, c.y, w, 1, TILE_EMPTY_SP);
     }
     else if (p1.x == p2.x) {
         fill_rect(lvl, p1.x == r->left ? r->left+1 : r->right-1, p1.y < p2.y ? p1.y : p2.y, 1, abs(p1.y-p2.y)+1, TILE_EMPTY_SP);
@@ -422,7 +421,7 @@ static void paint_fissure(Level *lvl, Room *r){
             int min = v < h ? v : h;
 
             if (min > 2 || rng_int(2)==0) {
-                set_tile(lvl,x,y,TILE_CHASM);
+                set_tile(lvl, xy_to_idx(x,y), TILE_CHASM);
             }
         }
     }
@@ -547,7 +546,7 @@ static void paint_vault(Level *lvl, Room *r, int depth) {
         }
         case 2: {
             spawn_random_item_of_category(lvl, center, depth, rng_int(2) ? ITEMCAT_WAND : ITEMCAT_RING);
-            set_tile(lvl, cx, cy, TILE_PEDESTAL);
+            set_tile(lvl, center, TILE_PEDESTAL);
             break;
         }
     }
@@ -561,9 +560,8 @@ static void paint_vault(Level *lvl, Room *r, int depth) {
 static void paint_treasury(Level *lvl, Room *r, int depth){
     paint_room_base(lvl, r, TILE_EMPTY);
 
-    int cx, cy;
-    room_center(r, &cx, &cy);
-    set_tile(lvl, cx, cy, TILE_STATUE);
+    Point c = room_center(r);
+    set_tile(lvl, xy_to_idx(c.x, c.y), TILE_STATUE);
 
     HeapType heap_type = (rng_int(2) == 0)
         ? HEAP_CHEST
@@ -573,12 +571,16 @@ static void paint_treasury(Level *lvl, Room *r, int depth){
 
     for (int i = 0; i < n; i++) {
         int x, y, idx;
+        int tries = 0;
+
         do {
             x = rng_range(r->left + 1, r->right - 1);
             y = rng_range(r->top + 1, r->bottom - 1);
             idx = xy_to_idx(x, y);
+        } while ((lvl->map[idx] != TILE_EMPTY || level_heap_at(lvl, idx) != NULL) && ++tries < 100);
 
-        } while (lvl->map[idx] != TILE_EMPTY || level_heap_at(lvl, idx) != NULL);
+        if (tries >= 100)
+            break;
 
         HeapType type = (i == 0 && heap_type == HEAP_CHEST)
             ? HEAP_MIMIC
@@ -589,12 +591,17 @@ static void paint_treasury(Level *lvl, Room *r, int depth){
     if (heap_type == HEAP_NORMAL) {
         for (int i = 0; i < 6; i++) {
             int x, y, idx;
+            int tries = 0;
+
             do {
                 x = rng_range(r->left + 1, r->right - 1);
                 y = rng_range(r->top + 1, r->bottom - 1);
                 idx = xy_to_idx(x, y);
+            } while (lvl->map[idx] != TILE_EMPTY && ++tries < 100);
 
-            } while (lvl->map[idx] != TILE_EMPTY);
+            if (tries >= 100)
+                break;
+
             spawn_item_amount_heap(lvl, idx, depth, ITEM_GOLD, gold_amount(depth), heap_type);
         }
     }
@@ -640,8 +647,8 @@ static void paint_storage(Level *lvl, Room *r, int depth){
 
 static void paint_statue(Level *lvl, Room *r){
     paint_room_base(lvl, r, TILE_EMPTY);
-    int cx, cy;
-    room_center(r, &cx, &cy);
+    
+    Point c = room_center(r);
 
     level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
 
@@ -649,19 +656,19 @@ static void paint_statue(Level *lvl, Room *r){
 
     if (p.x == r->left) {
         fill_rect(lvl, r->right - 1, r->top + 1, 1, room_h(r) - 1, TILE_STATUE);
-        cx = r->right - 2;
+        c.x = r->right - 2;
     } else if (p.x == r->right) {
         fill_rect(lvl, r->left + 1, r->top + 1, 1, room_h(r) - 1, TILE_STATUE);
-        cx = r->left + 2;
+        c.x = r->left + 2;
     } else if (p.y == r->top) {
         fill_rect(lvl, r->left + 1, r->bottom - 1, room_w(r) - 1, 1, TILE_STATUE);
-        cy = r->bottom - 2;
+        c.y = r->bottom - 2;
     } else if (p.y == r->bottom) {
         fill_rect( lvl, r->left + 1, r->top + 1, room_w(r) - 1, 1, TILE_STATUE);
-        cy = r->top + 2;
+        c.y = r->top + 2;
     }
-    
-    /* TODO: spawn_mob(lvl, MOB_STATUE, cx, cy); */
+
+    mob_spawn(MOB_STATUE, xy_to_idx(c.x, c.y), NULL);
 }
 /* ══════════════════════════════════════════════════════════
    POOL ROOM  —  PoolPainter.paint()
@@ -704,10 +711,10 @@ static void paint_pool(Level *lvl, Room *r, int depth){
     }
     int idx = xy_to_idx(x, y);
     pool_prize(lvl, idx, depth);
-    set_tile(lvl, x, y, TILE_PEDESTAL);
+    set_tile(lvl, idx, TILE_PEDESTAL);
     level_add_item_to_spawn(lvl, ITEM_POTION_INVISIBILITY);
     for (int i = 0; i < N_PIRANHAS; i++) {
-        /* TODO: spawn_mob_random_in_room( lvl, MOB_PIRANHA, r, TILE_WATER);  */
+        mob_spawn(MOB_PIRANHA, idx - i, NULL); //test, redo as randow water tiles position
     }
 }
 /* ══════════════════════════════════════════════════════════
@@ -748,7 +755,7 @@ static void paint_pit(Level *lvl, Room *r, int depth){
         wx = (rng_int(2) == 0) ? r->left + 1 : r->right - 1;
         wy = r->top + 1;
     }
-    set_tile(lvl, wx, wy, TILE_EMPTY_WELL);
+    set_tile(lvl, xy_to_idx(wx, wy), TILE_EMPTY_WELL);
     int rx, ry, remains;
     do {
         rx = rng_range(r->left + 1, r->right - 1);
@@ -823,8 +830,8 @@ static void paint_rat_king(Level *lvl, Room *r, int depth){
         }
     }
     for (int tries = 0; tries < 200; tries++) {
-        int x = rng_range(r->left+1, r->right-1);
-        int y = rng_range(r->top+1, r->bottom-1);
+        int x = rng_range(r->left+2, r->right-2);
+        int y = rng_range(r->top+2, r->bottom-2);
 
         int idx = xy_to_idx(x,y);
 
@@ -891,13 +898,13 @@ static void paint_library(Level *lvl, Room *r, int depth){
 
         fill_rect(lvl, r->left + 1, r->top + 1, room_w(r) - 1, 1, TILE_BOOKSHELF);
     }
-    if (in_bounds(ax, ay) &&
-        lvl->map[xy_to_idx(ax, ay)] == TILE_EMPTY) {
-        set_tile(lvl, ax, ay, TILE_STATUE);
+    int aidx = xy_to_idx(ax, ay);
+    if (in_bounds(aidx) && lvl->map[aidx] == TILE_EMPTY) {
+        set_tile(lvl, aidx, TILE_STATUE);
     }
-    if (in_bounds(bx, by) &&
-        lvl->map[xy_to_idx(bx, by)] == TILE_EMPTY) {
-        set_tile(lvl, bx, by, TILE_STATUE);
+    int bidx = xy_to_idx(bx, by);
+    if (in_bounds(bidx) && lvl->map[bidx] == TILE_EMPTY) {
+        set_tile(lvl, bidx, TILE_STATUE);
     }
     int n = rng_range(2, 3);
     for (int i = 0; i < n; i++) {
@@ -957,8 +964,9 @@ static void paint_laboratory(Level *lvl, Room *r, int depth) {
         px = rng_int(2) ? r->left + 1 : r->right - 1;
         py = r->top + 1;
     }
-    if (in_bounds(px, py)) {
-        set_tile(lvl, px, py, TILE_ALCHEMY);
+    int pidx = xy_to_idx(px, py);
+    if (in_bounds(pidx)) {
+        set_tile(lvl, pidx, TILE_ALCHEMY);
         /* TODO:
            Alchemy alchemy = new Alchemy();
            alchemy.seed(pos,1);
@@ -1000,15 +1008,16 @@ static void paint_garden(Level *lvl, Room *r, int depth){
     } else {
         int bushes = (rng_int(5) == 0) ? 2 : 1;
         for (int i = 0; i < bushes; i++) {
-            int x, y;
+            int x, y, idx;
 
             int tries = 100;
             do {
                 x = rng_range(r->left + 1, r->right - 1);
                 y = rng_range(r->top + 1, r->bottom - 1);
-            } while (--tries && lvl->map[xy_to_idx(x, y)] != TILE_GRASS);
-            if (tries == 0) {return;}
-            set_tile(lvl, x, y, TILE_GRASS);
+                idx = xy_to_idx(x, y);
+            } while (--tries && lvl->map[idx] != TILE_GRASS);
+            if (tries == 0) break;
+            set_tile(lvl, idx, TILE_GRASS);
 
             /* TODO: plant_spawn(lvl, PLANT_SUNGRASS, x, y); */
         }
@@ -1029,33 +1038,30 @@ static Heap *crypt_prize(Level *lvl, int idx, int depth){
 
 static void paint_crypt(Level *lvl, Room *r, int depth){
     paint_room_base(lvl, r, TILE_EMPTY);
-    int cx, cy;
-    room_center(r, &cx, &cy);
-
     level_add_item_to_spawn(lvl, ITEM_KEY_IRON);
 
+    Point c = room_center(r);
     Point p = idx_to_xy(r->connections[0].pos);
 
     if (p.x == r->left) {
-        set_tile(lvl, r->right-1, r->top+1, TILE_STATUE);
-        set_tile(lvl, r->right-1, r->bottom-1, TILE_STATUE);
-        cx = r->right - 2;
+        set_tile(lvl, xy_to_idx(r->right-1, r->top   +1), TILE_STATUE);
+        set_tile(lvl, xy_to_idx(r->right-1, r->bottom-1), TILE_STATUE);
+        c.x = r->right - 2;
     } else if (p.x == r->right) {
-        set_tile(lvl, r->left+1, r->top+1, TILE_STATUE);
-        set_tile(lvl, r->left+1, r->bottom-1, TILE_STATUE);
-        cx = r->left + 2;
+        set_tile(lvl, xy_to_idx(r->left+1, r->top   +1), TILE_STATUE);
+        set_tile(lvl, xy_to_idx(r->left+1, r->bottom-1), TILE_STATUE);
+        c.x = r->left + 2;
     } else if (p.y == r->top) {
-        set_tile(lvl, r->left+1, r->bottom-1, TILE_STATUE);
-        set_tile(lvl, r->right-1, r->bottom-1, TILE_STATUE);
-        cy = r->bottom - 2;
+        set_tile(lvl, xy_to_idx(r->left +1, r->bottom-1), TILE_STATUE);
+        set_tile(lvl, xy_to_idx(r->right-1, r->bottom-1), TILE_STATUE);
+        c.y = r->bottom - 2;
     } else if (p.y == r->bottom) {
-        set_tile(lvl, r->left+1, r->top+1, TILE_STATUE);
-        set_tile(lvl, r->right-1, r->top+1, TILE_STATUE);
-        cy = r->top + 2;
+        set_tile(lvl, xy_to_idx(r->left +1, r->top+1), TILE_STATUE);
+        set_tile(lvl, xy_to_idx(r->right-1, r->top+1), TILE_STATUE);
+        c.y = r->top + 2;
     }
-    
-    int idx = xy_to_idx(cx, cy);
-    crypt_prize(lvl, idx, depth);
+
+    crypt_prize(lvl, xy_to_idx(c.x, c.y), depth);
 }
 /* ══════════════════════════════════════════════════════════
    BLACKSMITH ROOM — BlacksmithPainter.paint()
@@ -1082,13 +1088,13 @@ static void paint_blacksmith(Level *lvl, Room *r, int depth){
         Point p = idx_to_xy(r->connections[i].pos);
 
         if (p.x == r->left) {
-            set_tile(lvl, p.x + 1, p.y, TILE_EMPTY);
+            set_tile(lvl, xy_to_idx(p.x + 1, p.y), TILE_EMPTY);
         } else if (p.x == r->right) {
-            set_tile(lvl, p.x - 1, p.y, TILE_EMPTY);
+            set_tile(lvl, xy_to_idx(p.x - 1, p.y), TILE_EMPTY);
         } else if (p.y == r->top) {
-            set_tile(lvl, p.x, p.y + 1, TILE_EMPTY);
+            set_tile(lvl, xy_to_idx(p.x, p.y + 1), TILE_EMPTY);
         } else if (p.y == r->bottom) {
-            set_tile(lvl, p.x, p.y - 1, TILE_EMPTY);
+            set_tile(lvl, xy_to_idx(p.x, p.y - 1), TILE_EMPTY);
         }
     }
     for (int tries = 0; tries < 200; tries++) {
@@ -1121,23 +1127,29 @@ static void paint_armory(Level *lvl, Room *r, int depth){
         Point p = idx_to_xy(r->connections[0].pos);
 
         if (p.x == r->left) {
-            set_tile(lvl, r->right - 1, rng_int(2) ? r->top + 1 : r->bottom - 1, TILE_STATUE);
+            set_tile(lvl, xy_to_idx(r->right - 1, rng_int(2) ? r->top + 1 :  r->bottom - 1), TILE_STATUE);
         } else if (p.x == r->right) {
-            set_tile(lvl, r->left  + 1, rng_int(2) ? r->top + 1 : r->bottom - 1, TILE_STATUE);
+            set_tile(lvl, xy_to_idx(r->left  + 1, rng_int(2) ? r->top + 1 :  r->bottom - 1), TILE_STATUE);
         } else if (p.y == r->top) {
-            set_tile(lvl, rng_int(2) ? r->left + 1 : r->right - 1, r->bottom - 1, TILE_STATUE);
+            set_tile(lvl, xy_to_idx(rng_int(2) ? r->left + 1 : r->right - 1, r->bottom - 1), TILE_STATUE);
         } else if (p.y == r->bottom) {
-            set_tile(lvl, rng_int(2) ? r->left + 1 : r->right - 1, r->top    + 1, TILE_STATUE);
+            set_tile(lvl, xy_to_idx(rng_int(2) ? r->left + 1 : r->right - 1, r->top    + 1), TILE_STATUE);
         }
     }
     int n = 3 + (rng_int(4) == 0);
     for (int i = 0; i < n; i++) {
         int x, y, idx;
+        int tries = 0;
+
         do {
-            x = rng_range(r->left + 1, r->right  - 1);
-            y = rng_range(r->top  + 1, r->bottom - 1);
-            idx = xy_to_idx(x,y);
-        } while (lvl->map[idx] != TILE_EMPTY || level_heap_at(lvl, idx) != NULL);
+            x = rng_range(r->left + 1, r->right - 1);
+            y = rng_range(r->top + 1, r->bottom - 1);
+            idx = xy_to_idx(x, y);
+        } while ((lvl->map[idx] != TILE_EMPTY || level_heap_at(lvl, idx) != NULL) && ++tries < 100);
+
+        if (tries >= 100)
+            break;
+
         armory_prize(lvl, idx, depth);
     }
 
@@ -1195,10 +1207,10 @@ static void paint_traps(Level *lvl, Room *r, int depth){
     int idx = xy_to_idx(x, y);
     if (rng_int(3) == 0) {
         if (safe_tile == TILE_CHASM)
-            set_tile(lvl, x, y, TILE_EMPTY);
+            set_tile(lvl, idx, TILE_EMPTY);
         spawn_random_item_of_category_heap(lvl, idx, depth, rng_int(2) ? ITEMCAT_WEAPON : ITEMCAT_ARMOR, HEAP_CHEST);
     } else {
-        set_tile(lvl, x, y, TILE_PEDESTAL);
+        set_tile(lvl, idx, TILE_PEDESTAL);
         spawn_random_item_of_category(lvl, idx, depth, rng_int(2) ? ITEMCAT_WEAPON : ITEMCAT_ARMOR);
     }
     level_add_item_to_spawn(lvl, ITEM_POTION_LEVITATION);
@@ -1210,13 +1222,14 @@ static void paint_altar(Level *lvl, Room *r, int depth){ //REDO broken
     fill_rect(lvl, r->left, r->top, room_w(r)+1, room_h(r)+1, TILE_WALL);
     uint8_t floor = level_is_boss_depth(depth) ? TILE_HIGH_GRASS : TILE_CHASM;
     fill_rect(lvl, r->left + 1, r->top + 1, room_w(r)-1, room_h(r)-1, floor);
-    int cx, cy;
-    room_center(r, &cx, &cy);
+    
+    Point c = room_center(r);
+
     if (r->n_connections > 0) {
         Point p = idx_to_xy(r->connections[0].pos);
 
         if (p.x == r->left || p.x == r->right) {
-            int len = abs(p.x - cx) - 2;
+            int len = abs(p.x - c.x) - 2;
             draw_inside(lvl, r, p.x, p.y, len, TILE_EMPTY_SP);
             int x = p.x;
             int y = p.y;
@@ -1230,12 +1243,12 @@ static void paint_altar(Level *lvl, Room *r, int depth){ //REDO broken
             else if (p.y == r->bottom)
                 y -= len;
 
-            while (y != cy) {
-                y += y < cy ? 1 : -1;
-                set_tile(lvl, x, y, TILE_EMPTY_SP);
+            while (y != c.y) {
+                y += y < c.y ? 1 : -1;
+                set_tile(lvl, xy_to_idx(x, y), TILE_EMPTY_SP);
             }
         } else {
-            int len = abs(p.y - cy) - 2;
+            int len = abs(p.y - c.y) - 2;
             draw_inside(lvl, r, p.x, p.y, len, TILE_EMPTY_SP);
             int x = p.x;
             int y = p.y;
@@ -1249,14 +1262,14 @@ static void paint_altar(Level *lvl, Room *r, int depth){ //REDO broken
             else if (p.y == r->bottom)
                 y -= len;
 
-            while (x != cx) {
-                x += x < cx ? 1 : -1;
-                set_tile(lvl, x, y, TILE_EMPTY_SP);
+            while (x != c.x) {
+                x += x < c.x ? 1 : -1;
+                set_tile(lvl, xy_to_idx(x, y), TILE_EMPTY_SP);
             }
         }
     }
-    fill_rect(lvl, cx-1, cy-1, 3, 3, TILE_EMBERS);
-    set_tile( lvl, cx, cy, TILE_PEDESTAL);
+    fill_rect(lvl, c.x - 1, c.y - 1, 3, 3, TILE_EMBERS);
+    set_tile( lvl, xy_to_idx(c.x, c.y), TILE_PEDESTAL);
     /* TODO: SacrificialFire blob
        blob_seed(SACRIFICIAL_FIRE, xy_to_idx(cx,cy), 5 + depth*5); */
 }
@@ -1265,9 +1278,9 @@ static void paint_altar(Level *lvl, Room *r, int depth){ //REDO broken
    ══════════════════════════════════════════════════════════ */
 static void paint_magic_well(Level *lvl, Room *r) {
     paint_room_base(lvl, r, TILE_EMPTY);
-    int cx, cy;
-    room_center(r, &cx, &cy);
-    set_tile(lvl, cx, cy, TILE_EMPTY_WELL);
+    
+    Point c = room_center(r);
+    set_tile(lvl, xy_to_idx(c.x, c.y), TILE_EMPTY_WELL);
     switch (rng_int(3)) {
         case 0:
             /* TODO: Water of Awareness */
@@ -1371,8 +1384,8 @@ static uint8_t tunnel_tile(const Level *lvl){
 }
 static void paint_tunnel_room(Level *lvl, Room *r) {
     uint8_t floor = tunnel_tile(lvl);
-    int cx, cy;
-    room_center(r, &cx, &cy);
+    
+    Point c = room_center(r);
 
     int w  = room_w(r);   /* right - left */
     int h  = room_h(r);   /* bottom - top */
@@ -1390,33 +1403,33 @@ static void paint_tunnel_room(Level *lvl, Room *r) {
             Point p = idx_to_xy(r->connections[j].pos);
 
             if (p.x < 0 || p.y < 0) continue;
-            int step = (p.y < cy) ? +1 : -1;
+            int step = (p.y < c.y) ? +1 : -1;
 
             if (p.x == r->left) {
                 /* Door on left wall: stub goes from door.y toward cy
                    along the left interior column (left+1) */
                 from = r->left + 1;
-                for (int k=p.y; k != cy; k += step)
-                    set_tile(lvl, from, k, floor);
+                for (int k=p.y; k != c.y; k += step)
+                    set_tile(lvl, xy_to_idx(from, k), floor);
 
             } else if (p.x == r->right) {
                 /* Door on right wall: stub along right interior col */
                 to = r->right - 1;
-                for (int k=p.y; k != cy; k += step)
-                    set_tile(lvl, to, k, floor);
+                for (int k=p.y; k != c.y; k += step)
+                    set_tile(lvl, xy_to_idx(to, k), floor);
 
             } else {
                 /* Door on top/bottom: extend spine to this x,
                    draw stub from door.y+step toward cy */
                 if (p.x < from) from = p.x;
                 if (p.x > to)   to   = p.x;
-                for (int k=p.y+step; k != cy; k += step)
-                    set_tile(lvl, p.x, k, floor);
+                for (int k=p.y+step; k != c.y; k += step)
+                    set_tile(lvl, xy_to_idx(p.x, k), floor);
             }
         }
         /* Horizontal spine */
         for (int k=from; k<=to; k++)
-            set_tile(lvl, k, cy, floor);
+            set_tile(lvl, xy_to_idx(k, c.y), floor);
 
     } else {
         /* ── Vertical-primary tunnel (axes swapped) ─────── */
@@ -1427,28 +1440,28 @@ static void paint_tunnel_room(Level *lvl, Room *r) {
             Point p = idx_to_xy(r->connections[j].pos);
 
             if (p.x < 0 || p.y < 0) continue;
-            int step = (p.x < cx) ? +1 : -1;
+            int step = (p.x < c.x) ? +1 : -1;
 
             if (p.y == r->top) {
                 from = r->top + 1;
-                for (int k=p.x; k != cx; k += step)
-                    set_tile(lvl, k, from, floor);
+                for (int k=p.x; k != c.x; k += step)
+                    set_tile(lvl, xy_to_idx(k, from), floor);
 
             } else if (p.y == r->bottom) {
                 to = r->bottom - 1;
-                for (int k=p.x; k != cx; k += step)
-                    set_tile(lvl, k, to, floor);
+                for (int k=p.x; k != c.x; k += step)
+                    set_tile(lvl, xy_to_idx(k, to), floor);
 
             } else {
                 if (p.y < from) from = p.y;
                 if (p.y > to)   to   = p.y;
-                for (int k=p.x+step; k != cx; k += step)
-                    set_tile(lvl, k, p.y, floor);
+                for (int k=p.x+step; k != c.x; k += step)
+                    set_tile(lvl, xy_to_idx(k, p.y), floor);
             }
         }
         /* Vertical spine */
         for (int k=from; k<=to; k++)
-            set_tile(lvl, cx, k, floor);
+            set_tile(lvl, xy_to_idx(c.x, k), floor);
     }
 }
 
@@ -1469,20 +1482,22 @@ static int passage_xy2p(const Room *room, int width, int height, int x, int y){
     }
 }
 
-static void passage_p2xy(const Room *room, int width, int height, int p, int *x, int *y){
+static int passage_p2xy(const Room *room, int width, int height, int p){
+    Point point;
     if (p < width) {
-        *x = room->left + 1 + p;
-        *y = room->top + 1;
+        point.x = room->left + 1 + p;
+        point.y = room->top + 1;
     } else if (p < width + height) {
-        *x = room->right - 1;
-        *y = room->top + 1 + (p - width);
+        point.x = room->right - 1;
+        point.y = room->top + 1 + (p - width);
     } else if (p < width * 2 + height) {
-        *x = room->right - 1 - (p - width - height);
-        *y = room->bottom - 1;
+        point.x = room->right - 1 - (p - width - height);
+        point.y = room->bottom - 1;
     } else {
-        *x = room->left + 1;
-        *y = room->bottom - 1 - (p - width * 2 - height);
+        point.x = room->left + 1;
+        point.y = room->bottom - 1 - (p - width * 2 - height);
     }
+    return xy_to_idx(point.x, point.y);
 }
 
 static void paint_passage(Level *lvl, Room *room){
@@ -1524,17 +1539,12 @@ static void paint_passage(Level *lvl, Room *room){
     int p = joints[start];
 
     while (p != joints[end]) {
-        int x, y;
-        passage_p2xy(room, width, height, p, &x, &y);
-        set_tile(lvl, x, y, floor);
+        set_tile(lvl, passage_p2xy(room, width, height, p), floor);
 
         if (++p >= perimeter)
             p = 0;
     }
-
-    int x, y;
-    passage_p2xy(room, width, height, p, &x, &y);
-    set_tile(lvl, x, y, floor);
+    set_tile(lvl, passage_p2xy(room, width, height, p), floor);
 }
 
 void paint_tunnels(Level *lvl) {
@@ -1557,31 +1567,28 @@ void paint_doors(Level *lvl) {
             if (r->connections[j].room < i)
                 continue;
 
-            Point p = idx_to_xy(r->connections[j].pos);
-
             switch (r->connections[j].type) {
 
             case DOOR_EMPTY:
-                set_tile(lvl, p.x, p.y, TILE_EMPTY);
+                set_tile(lvl, r->connections[j].pos, TILE_EMPTY);
                 break;
             case DOOR_TUNNEL:
-                set_tile(lvl, p.x, p.y, tunnel_tile(lvl));
+                set_tile(lvl, r->connections[j].pos, tunnel_tile(lvl));
                 break;
             case DOOR_REGULAR:
-                set_tile(lvl, p.x, p.y, TILE_DOOR);
+                set_tile(lvl, r->connections[j].pos, TILE_DOOR);
                 break;
             case DOOR_UNLOCKED:
-                set_tile(lvl, p.x, p.y, TILE_DOOR);
+                set_tile(lvl, r->connections[j].pos, TILE_DOOR);
                 break;
             case DOOR_HIDDEN:
-                set_tile(lvl, p.x, p.y, TILE_SECRET_DOOR);
+                set_tile(lvl, r->connections[j].pos, TILE_SECRET_DOOR);
                 break;
             case DOOR_BARRICADE:
-                set_tile(lvl, p.x, p.y,
-                    rng_int(3) == 0 ? TILE_BOOKSHELF : TILE_BARRICADE);
+                set_tile(lvl, r->connections[j].pos, rng_int(3) == 0 ? TILE_BOOKSHELF : TILE_BARRICADE);
                 break;
             case DOOR_LOCKED:
-                set_tile(lvl, p.x, p.y, TILE_LOCKED_DOOR);
+                set_tile(lvl, r->connections[j].pos, TILE_LOCKED_DOOR);
                 break;
             }
         }
@@ -1672,12 +1679,12 @@ void paint_chasms_feeling(Level *lvl){
             }
 
             for (int x = r->left; x <= r->right; x++) {
-                set_tile(lvl, x, r->top, TILE_WALL);
-                set_tile(lvl, x, r->bottom, TILE_WALL);
+                set_tile(lvl, xy_to_idx(x, r->top), TILE_WALL);
+                set_tile(lvl, xy_to_idx(x, r->bottom), TILE_WALL);
             }
             for (int y = r->top; y <= r->bottom; y++) {
-                set_tile(lvl, r->left,  y, TILE_WALL);
-                set_tile(lvl, r->right, y, TILE_WALL);
+                set_tile(lvl, xy_to_idx(r->left,  y), TILE_WALL);
+                set_tile(lvl, xy_to_idx(r->right, y), TILE_WALL);
             }
         }
     }
@@ -1702,6 +1709,9 @@ void paint_chasms(Level *lvl){
                     break;
 
                 case TILE_EMPTY:
+                case TILE_EMPTY_DECO:
+                case TILE_GRASS:
+                case TILE_HIGH_GRASS:
                 case TILE_EMBERS: //stupid fix for altar (i really hate this room...)
                     lvl->map[cur] = TILE_CHASM_FLOOR;
                     break;

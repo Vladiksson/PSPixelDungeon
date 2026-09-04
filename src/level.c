@@ -54,11 +54,10 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     int entrance_r=-1, exit_r=-1, attempts=0;
     int min_dist = (int)sqrt((double)lvl->num_rooms);
     do {
-        do { entrance_r=rng_range(0,lvl->num_rooms-1); }
-        while (room_w(&lvl->rooms[entrance_r])<4 || room_h(&lvl->rooms[entrance_r])<4 ||
-            !entrance_has_large_neighbour(lvl, entrance_r));
-        do { exit_r=rng_range(0,lvl->num_rooms-1); }
-        while (exit_r==entrance_r || room_w(&lvl->rooms[exit_r])<4 || room_h(&lvl->rooms[exit_r])<4 || rooms_are_neighbours(lvl, entrance_r, exit_r));
+        do { entrance_r = rng_range(0,lvl->num_rooms-1); }
+        while (room_w(&lvl->rooms[entrance_r])<4 || room_h(&lvl->rooms[entrance_r])<4 || !entrance_has_large_neighbour(lvl, entrance_r));
+        do { exit_r = rng_range(0,lvl->num_rooms-1); }
+        while (exit_r == entrance_r || room_w(&lvl->rooms[exit_r])<4 || room_h(&lvl->rooms[exit_r])<4 || rooms_are_neighbours(lvl, entrance_r, exit_r));
         build_distance_map(lvl, exit_r);
         if (lvl->rooms[entrance_r].distance >= min_dist) break;
     } while (++attempts < 20);
@@ -109,7 +108,7 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     paint_rooms(lvl, depth);     
     paint_tunnels(lvl);   
 
-    
+    /*repaint tunels for lvl->feeling = FEELING_CHASM*/
     paint_chasms_feeling(lvl);
 
     /* 7 Assign door types*/
@@ -155,9 +154,10 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     }
     if (wgen>0) { patch_generate(wseed,wgen,wp); paint_water(lvl,wp); }
     if (ggen>0) { patch_generate(gseed,ggen,gp); paint_grass(lvl,gp); }
-    paint_chasms(lvl);
     decor(lvl);
-    
+
+    paint_chasms(lvl);
+
     /* 9 Scatter loot  */
     level_spawn_items(lvl, depth);
 

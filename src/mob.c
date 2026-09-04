@@ -244,12 +244,9 @@ static int mob_can_see(Mob *m, Char *target, Level *lvl){
 static int mob_try_step(Mob *m, Level *lvl, int dx, int dy) {
     if (dx == 0 && dy == 0) return 0;
 
-    Point p = idx_to_xy(m->base.pos);
-    int nx = p.x + dx;
-    int ny = p.y + dy;
-    if (!in_bounds(nx, ny)) return 0;
-
-    int npos = xy_to_idx(nx, ny);
+    int npos = m->base.pos + xy_to_idx(dx, dy);
+    if (!in_bounds(npos)) return 0;
+    
     if (!(gTileFlags[lvl->map[npos]] & TF_PASSABLE)) return 0;
     if (char_find_at(npos) != NULL) return 0;
 
@@ -285,7 +282,7 @@ static int mob_step_away_pos(Mob *m, Level *lvl, int from_pos) {
 
 static int mob_random_destination(Level *lvl) {
     for (int tries = 0; tries < 100; tries++) {
-        int pos = xy_to_idx(rng_int(LEVEL_W), rng_int(LEVEL_H));
+        int pos = rng_int(LEVEL_SIZE);
         if (gTileFlags[lvl->map[pos]] & TF_PASSABLE) return pos;
     }
     return -1;
@@ -529,9 +526,7 @@ int mob_spawn_random(Level *lvl, MobKind kind, int count, Char *target) {
     while (placed < count && attempts < max_attempts) {
         attempts++;
 
-        int x = rng_int(LEVEL_W);
-        int y = rng_int(LEVEL_H);
-        int pos = xy_to_idx(x, y);
+        int pos = rng_int(LEVEL_SIZE);
 
         if (pos == lvl->entrance || pos == lvl->exit) continue;
         if (!(gTileFlags[lvl->map[pos]] & TF_PASSABLE)) continue;

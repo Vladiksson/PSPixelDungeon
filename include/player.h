@@ -4,7 +4,7 @@
 #include "char.h"
 
 /* ── Hero starting stats ────────────────────────────────── */
-#define HERO_STARTING_HP         2000000 //test, original was 20
+#define HERO_STARTING_HP         2000 //test, original was 20
 #define HERO_STARTING_STR        1000000 //test, original was 10
 #define HERO_STARTING_ATTACK     10
 #define HERO_STARTING_DEFENSE     5
