@@ -4,10 +4,12 @@
 #include "item_spawn.h"
 #include <time.h>
 #include <math.h>
+
 /* ══════════════════════════════════════════════════════════
    LAST SHOP  —  LastShopLevel.java
    ══════════════════════════════════════════════════════════ */
 #define LAST_SHOP_MAX_ATTEMPTS 50
+#define ROOM_PICK_MAX_TRIES 300
 
 static int try_last_shop(Level *lvl, int depth, int quest_completed) {
     memset(lvl, 0, sizeof(*lvl));
@@ -30,13 +32,13 @@ static int try_last_shop(Level *lvl, int depth, int quest_completed) {
     do {
         int inner = 0;
         do {
-            if (++inner > 10) return 0;
+            if (++inner > ROOM_PICK_MAX_TRIES) return 0;
             entrance_r = rng_range(0, lvl->num_rooms - 1);
         } while (room_w(&lvl->rooms[entrance_r]) < 4 || room_h(&lvl->rooms[entrance_r]) < 4);
 
         inner = 0;
         do {
-            if (++inner > 10) return 0;
+            if (++inner > ROOM_PICK_MAX_TRIES) return 0;
             exit_r = rng_range(0, lvl->num_rooms - 1);
         } while (exit_r == entrance_r ||
                  room_w(&lvl->rooms[exit_r]) < 6 || room_h(&lvl->rooms[exit_r]) < 6 ||
@@ -44,6 +46,8 @@ static int try_last_shop(Level *lvl, int depth, int quest_completed) {
 
         build_distance_map(lvl, exit_r);
         plen = build_path(lvl, entrance_r, exit_r, path);
+
+        if (lvl->rooms[entrance_r].distance >= 10000) plen = 0;
 
         if (++outer > 10) return 0;
     } while (plen < min_dist);

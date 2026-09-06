@@ -11,12 +11,16 @@ Fog *dungeon_current_fog(Dungeon *d){
 }
 
 static void dungeon_create_floor(Dungeon *d, int depth){
-    uint32_t seed = d->world_seed + d->current_depth * 0x9E3779B9u;
+    uint32_t seed = d->world_seed + (uint32_t)depth * 0x9E3779B9u;
 
     mob_set_pool(&d->floors[depth].mob_pool);
     npc_set_pool(&d->floors[depth].npc_pool);
 
-    level_generate(&d->floors[depth], seed, get_theme(depth), d->current_depth, d->blacksmith_depth);
+    const int DUNGEON_FLOOR_MAX_ATTEMPTS = 5;
+    for (int attempt = 0; attempt < DUNGEON_FLOOR_MAX_ATTEMPTS; attempt++) {
+        if (level_generate(&d->floors[depth], seed + (uint32_t)attempt, get_theme(depth), depth, d->blacksmith_depth) == 0)
+            break;
+    }
     d->generated[depth] = 1;
 }
 

@@ -166,12 +166,11 @@ static void place_shopkeeper(Level *lvl, Room *room, int depth){
     const int shopkeeper = depth == LAST_SHOP_DEPTH ? NPC_IMP_SHOPKEEPER : NPC_SHOPKEEPER;
 
     for (int tries = 0; tries < 200; tries++) {
-        int x = rng_range(room->left+2, room->right-2);
-        int y = rng_range(room->top+2, room->bottom-2);
+        int idx = random_passable_in_box(lvl, room->left + 2, room->top + 2, room->right - 2, room->bottom - 2, -1);
 
-        int idx = xy_to_idx(x,y);
+        if (idx < 0)  continue;
 
-        if((gTileFlags[lvl->map[idx]] & TF_OPEN_FLOOR) && level_heap_at(lvl, idx) == NULL) { 
+        if(level_heap_at(lvl, idx) == NULL) { 
             npc_spawn_kind(shopkeeper, idx);
             return;
         }
@@ -629,12 +628,15 @@ static void paint_storage(Level *lvl, Room *r, int depth){
     int n = rng_range(3, 4);
     for (int i = 0; i < n; i++) {
         int x, y, idx;
+        int tries = 0;
         do {
             x = rng_range(r->left + 1, r->right - 1);
             y = rng_range(r->top + 1, r->bottom - 1);
             idx = xy_to_idx(x, y);
 
-        } while (lvl->map[idx] != TILE_EMPTY_SP);
+        } while (lvl->map[idx] != TILE_EMPTY_SP && ++tries < 100);
+        if (tries >= 100)
+            continue;
 
         storage_prize(lvl, idx, depth);
     }
@@ -714,7 +716,9 @@ static void paint_pool(Level *lvl, Room *r, int depth){
     set_tile(lvl, idx, TILE_PEDESTAL);
     level_add_item_to_spawn(lvl, ITEM_POTION_INVISIBILITY);
     for (int i = 0; i < N_PIRANHAS; i++) {
-        mob_spawn(MOB_PIRANHA, idx - i, NULL); //test, redo as randow water tiles position
+        int pos = room_random_passable_point(lvl, r, idx);
+        if (pos >= 0)
+            mob_spawn(MOB_PIRANHA, pos, NULL);
     }
 }
 /* ══════════════════════════════════════════════════════════
@@ -755,13 +759,14 @@ static void paint_pit(Level *lvl, Room *r, int depth){
         wx = (rng_int(2) == 0) ? r->left + 1 : r->right - 1;
         wy = r->top + 1;
     }
-    set_tile(lvl, xy_to_idx(wx, wy), TILE_EMPTY_WELL);
-    int rx, ry, remains;
-    do {
-        rx = rng_range(r->left + 1, r->right - 1);
-        ry = rng_range(r->top + 1, r->bottom - 1);
-    } while (rx == wx && ry == wy);
-    remains = xy_to_idx(rx, ry);
+    int widx = xy_to_idx(wx, wy);
+    set_tile(lvl, widx, TILE_EMPTY_WELL);
+
+    int remains = random_passable_in_box(lvl, r->left + 1, r->top + 1, r->right - 1, r->bottom - 1, widx);
+
+    if (remains < 0)
+        return;
+
     spawn_item_heap(lvl, remains, depth, ITEM_KEY_IRON, HEAP_SKELETON);
 
     if (rng_int(5) == 0) {
@@ -830,12 +835,11 @@ static void paint_rat_king(Level *lvl, Room *r, int depth){
         }
     }
     for (int tries = 0; tries < 200; tries++) {
-        int x = rng_range(r->left+2, r->right-2);
-        int y = rng_range(r->top+2, r->bottom-2);
+        int idx = random_passable_in_box(lvl, r->left + 2, r->top + 2, r->right - 2, r->bottom - 2, -1);
 
-        int idx = xy_to_idx(x,y);
+        if (idx < 0) continue;
 
-        if((gTileFlags[lvl->map[idx]] & TF_OPEN_FLOOR) && level_heap_at(lvl, idx) == NULL) { 
+        if(level_heap_at(lvl, idx) == NULL) { 
             npc_spawn_kind(NPC_RATKING, idx);
             return;
         }
@@ -999,12 +1003,14 @@ static void paint_garden(Level *lvl, Room *r, int depth){
 
     if (rng_int(2) == 0) {
         int x, y, idx;
+        int tries = 0;
         do {
             x = rng_range(r->left + 1, r->right - 1);
             y = rng_range(r->top + 1, r->bottom - 1);
             idx = xy_to_idx(x, y);
-        } while (level_heap_at(lvl, idx) != NULL);
-        spawn_item_heap(lvl, idx, depth, ITEM_HONEYPOT, HEAP_NORMAL);
+        } while (level_heap_at(lvl, idx) != NULL && ++tries < 100);
+        if (tries < 100)
+            spawn_item_heap(lvl, idx, depth, ITEM_HONEYPOT, HEAP_NORMAL);
     } else {
         int bushes = (rng_int(5) == 0) ? 2 : 1;
         for (int i = 0; i < bushes; i++) {
@@ -1098,12 +1104,11 @@ static void paint_blacksmith(Level *lvl, Room *r, int depth){
         }
     }
     for (int tries = 0; tries < 200; tries++) {
-        int x = rng_range(r->left+2, r->right-2);
-        int y = rng_range(r->top+2, r->bottom-2);
+        int idx = random_passable_in_box(lvl, r->left + 2, r->top + 2, r->right - 2, r->bottom - 2, -1);
 
-        int idx = xy_to_idx(x,y);
+        if (idx < 0) continue;
 
-        if((gTileFlags[lvl->map[idx]] & TF_OPEN_FLOOR) && level_heap_at(lvl, idx) == NULL) { 
+        if(level_heap_at(lvl, idx) == NULL) { 
             npc_spawn_kind(NPC_BLACKSMITH, idx);
             return;
         }

@@ -1,4 +1,3 @@
-
 #include "level_rooms.h"
 #include "item_spawn.h"
 
@@ -203,7 +202,7 @@ void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int exit_idx
                 if (already_connected(lvl, i, ni))
                     continue;
 
-                if (gRoomFlags[r->type] & ROOMF_SPECIAL)
+                if (gRoomFlags[n->type] & ROOMF_SPECIAL)
                     continue;
 
                 if (n->type == ROOM_PIT)

@@ -6,8 +6,8 @@
 
 /* ── Room constants ──────────────────────────────────── */
 #define MAX_ROOMS       64
-#define MAX_NEIGHBOURS   8   /* BSP rooms have 2-4 typically     */
-#define MAX_CONN_ROOM    8   /* max door-connections per room     */
+#define MAX_NEIGHBOURS   8
+#define MAX_CONN_ROOM    8
 
 typedef enum {
     ROOM_NULL       = 0,
@@ -134,6 +134,7 @@ static inline uint8_t get_tile_safe(const Level *lvl, int idx) {
 static inline int room_w     (const Room *r) { return r->right  - r->left; }
 static inline int room_h     (const Room *r) { return r->bottom - r->top;  }
 static inline int room_square(const Room *r) { return room_w(r) * room_h(r); }
-static inline int room_inside(const Room *r, int x, int y) {
-    return x > r->left && y > r->top && x < r->right && y < r->bottom;
+static inline int room_inside(const Room *r, int idx) {
+    Point p = idx_to_xy(idx);
+    return p.x > r->left && p.y > r->top && p.x < r->right && p.y < r->bottom;
 }

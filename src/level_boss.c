@@ -7,19 +7,7 @@
 #include <time.h>
 #include <math.h>
 
-static int random_passable_in_box(const Level *lvl, int left, int top, int right, int bottom, int exclude_idx) {
-    for (int tries = 0; tries < 100; tries++) {
-        int x = rng_range(left, right);
-        int y = rng_range(top, bottom);
-        int idx = xy_to_idx(x, y);
-        if (idx == exclude_idx) continue;
-        if (gTileFlags[lvl->map[idx]] & TF_PASSABLE) return idx;
-    }
-    return -1;
-}
-static int room_random_passable_point(const Level *lvl, const Room *r, int exclude_idx) {
-    return random_passable_in_box(lvl, r->left + 1, r->top + 1, r->right - 1, r->bottom - 1, exclude_idx);
-}
+#define ROOM_PICK_MAX_TRIES 300
 
 /* ══════════════════════════════════════════════════════════
    SEWERS  —  SewerBossLevel.java
@@ -46,13 +34,13 @@ static int try_sewers_boss(Level *lvl, int depth) {
     do {
         int inner = 0;
         do {
-            if (++inner > 10) return 0;
+            if (++inner > ROOM_PICK_MAX_TRIES) return 0;
             entrance_r = rng_range(0, lvl->num_rooms - 1);
         } while (room_w(&lvl->rooms[entrance_r]) < 4 || room_h(&lvl->rooms[entrance_r]) < 4);
 
         inner = 0;
         do {
-            if (++inner > 10) return 0;
+            if (++inner > ROOM_PICK_MAX_TRIES) return 0;
             exit_r = rng_range(0, lvl->num_rooms - 1);
         } while (exit_r == entrance_r ||
                  room_w(&lvl->rooms[exit_r]) < 6 || room_h(&lvl->rooms[exit_r]) < 6 ||
@@ -60,6 +48,8 @@ static int try_sewers_boss(Level *lvl, int depth) {
 
         build_distance_map(lvl, exit_r);
         distance = lvl->rooms[entrance_r].distance;
+
+        if (distance >= 10000) distance = 0;
 
         if (++outer > 10) return 0;
     } while (distance < min_dist);
@@ -174,13 +164,13 @@ static int try_prison_boss(Level *lvl, int depth) {
 
         int inner = 0;
         do {
-            if (++inner > 10) return 0;
+            if (++inner > ROOM_PICK_MAX_TRIES) return 0;
             entrance_r = rng_range(0, lvl->num_rooms - 1);
         } while (room_w(&lvl->rooms[entrance_r]) < 4 || room_h(&lvl->rooms[entrance_r]) < 4);
 
         inner = 0;
         do {
-            if (++inner > 10) return 0;
+            if (++inner > ROOM_PICK_MAX_TRIES) return 0;
             exit_r = rng_range(0, lvl->num_rooms - 1);
         } while (exit_r == entrance_r ||
                  room_w(&lvl->rooms[exit_r]) < 7 || room_h(&lvl->rooms[exit_r]) < 7 ||
@@ -527,8 +517,7 @@ void level_boss_event(Level *lvl, int depth, Player *player) {
             if (lvl->rooms[i].type == ROOM_BOSS_EXIT) { exit_room = &lvl->rooms[i]; break; }
         }
         if (!exit_room) return;
-        Point p = idx_to_xy(player->base.pos);
-        if (!room_inside(exit_room, p.x, p.y)) return;
+        if (!room_inside(exit_room, player->base.pos)) return;
         boss_pos = room_random_passable_point(lvl, exit_room, player->base.pos);
         break;
     }

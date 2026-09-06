@@ -10,6 +10,9 @@ int shop_on_level(int depth);
 
 void set_tile(Level *lvl, int idx, uint8_t t); 
 void fill_rect(Level *lvl, int x, int y, int w, int h, uint8_t t);
+int random_passable_in_box(const Level *lvl, int left, int top, int right, int bottom, int exclude_idx);
+int room_random_passable_point(const Level *lvl, const Room *r, int exclude_idx);
+
 
 int already_connected(Level *lvl, int a, int b);
 void room_connect(Level *lvl, int a, int b);

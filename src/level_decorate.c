@@ -3,25 +3,21 @@
 /* ══════════════════════════════════════════════════════════
    DECORATION  —  SewerLevel.decorate() etc.
    ══════════════════════════════════════════════════════════ */
-static void place_sign(Level *lvl){
-    Point ep=idx_to_xy(lvl->entrance);
-    for (int i=0; i<lvl->num_rooms; i++) {
-        if (!room_inside(&lvl->rooms[i], ep.x, ep.y)) continue;
-        for (int t=0; t<40; t++) {
-            Room *r=&lvl->rooms[i];
-            int rx=rng_range(r->left+1, r->right-1);
-            int ry=rng_range(r->top +1, r->bottom-1);
-            int idx=xy_to_idx(rx,ry);
-            uint8_t tile = lvl->map[idx];
+static void place_sign(Level *lvl) {
+    for (int i = 0; i < lvl->num_rooms; i++) {
+        Room *r = &lvl->rooms[i];
 
-            if (idx != lvl->entrance && (gTileFlags[tile] & TF_PASSABLE)){
-                lvl->map[idx] = TILE_SIGN;
-                return;
-            }
-        }
+        if (!room_inside(r, lvl->entrance))
+            continue;
+
+        int idx = room_random_passable_point(lvl, r, lvl->entrance);
+        if (idx >= 0)
+            lvl->map[idx] = TILE_SIGN;
+
         return;
     }
 }
+
 void decorate_sewers(Level *lvl) {
     for (int i=0; i<LEVEL_W; i++) {
         if (lvl->map[i]==TILE_WALL && lvl->map[i+LEVEL_W]==TILE_WATER && rng_int(4)==0)
@@ -295,13 +291,10 @@ void decorate_caves_boss(Level *lvl) {
         if (lvl->map[i] == TILE_WALL && rng_int(8) == 0)
             lvl->map[i] = TILE_WALL_DECO;
 
-    int sx, sy, sidx;
-    do {
-        sx = rng_range(CAVES_ARENA_LEFT, CAVES_ARENA_RIGHT);
-        sy = rng_range(CAVES_ARENA_TOP, CAVES_ARENA_BOTTOM);
-        sidx = xy_to_idx(sx, sy);
-    } while (sidx == lvl->entrance);
-    set_tile(lvl, sidx, TILE_SIGN);
+    int sidx = random_passable_in_box(lvl, CAVES_ARENA_LEFT, CAVES_ARENA_TOP, CAVES_ARENA_RIGHT, CAVES_ARENA_BOTTOM, lvl->entrance);
+
+    if (sidx >= 0)
+        set_tile(lvl, sidx, TILE_SIGN);
 }
 
 void decorate_city_boss(Level *lvl, int arena_door_idx) {

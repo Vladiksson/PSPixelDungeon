@@ -32,6 +32,18 @@ void fill_rect(Level *lvl, int x, int y, int w, int h, uint8_t t) {
             set_tile(lvl, xy_to_idx(c,r), t);
 }
 
+int random_passable_in_box(const Level *lvl, int left, int top, int right, int bottom, int exclude_idx) {
+    for (int tries = 0; tries < 100; tries++) {
+        int idx = xy_to_idx(rng_range(left, right), rng_range(top, bottom));
+        if (idx == exclude_idx) continue;
+        if (gTileFlags[lvl->map[idx]] & TF_PASSABLE) return idx;
+    }
+    return -1;
+}
+int room_random_passable_point(const Level *lvl, const Room *r, int exclude_idx) {
+    return random_passable_in_box(lvl, r->left + 1, r->top + 1, r->right - 1, r->bottom - 1, exclude_idx);
+}
+
 /* ══════════════════════════════════════════════════════════
    ROOM CONNECTION  —  Room.connect()
    ══════════════════════════════════════════════════════════ */
@@ -134,7 +146,7 @@ void build_neighbours(Level *lvl) {
    ══════════════════════════════════════════════════════════ */
 void build_distance_map(Level *lvl, int target) {
     for (int i=0; i<lvl->num_rooms; i++) lvl->rooms[i].distance = 10000;
-    int queue[MAX_ROOMS*4], head=0, tail=0;
+    int queue[MAX_ROOMS * MAX_ROOMS], head=0, tail=0; //mb rewrite? such queue gonna eat ram
     lvl->rooms[target].distance = 0;
     queue[tail++] = target;
     while (head < tail) {

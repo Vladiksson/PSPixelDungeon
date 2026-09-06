@@ -9,15 +9,10 @@
 /* ══════════════════════════════════════════════════════════
    PUBLIC: level_generate
    ══════════════════════════════════════════════════════════ */
-int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int blacksmith_depth) {
-    if (level_is_boss_depth(depth))
-        return level_generate_boss(lvl, seed, theme, depth);
-    if (depth == LAST_SHOP_DEPTH)
-        return level_generate_last_shop(lvl, seed, depth, 1);
-    if (depth == FINAL_LEVEL_DEPTH)
-        return level_generate_last(lvl, seed, depth);
+#define REGULAR_LEVEL_MAX_ATTEMPTS 50
+#define ROOM_PICK_MAX_TRIES 300
 
-    rng_state = seed ? seed : (uint32_t)time(NULL);
+static int try_regular_level(Level *lvl, DungeonTheme theme, int depth, int blacksmith_depth) {
     memset(lvl, 0, sizeof(*lvl));
     
     LevelGenState gen;
@@ -46,22 +41,46 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     do {
         lvl->num_rooms=0;
         bsp_split(lvl, 0, 0, LEVEL_W-1, LEVEL_H-1);
-        if (++retry > 10) return -1;
+        if (++retry > 10) return 0;
     } while (lvl->num_rooms < 8);
     build_neighbours(lvl);
 
-    /* 2 Entrance / exit (far apart, width/height ≥ 4) */
-    int entrance_r=-1, exit_r=-1, attempts=0;
+    /* 2 Entrance / exit */
+    int entrance_r=-1, exit_r=-1, attempts=0, found_pair=0;
     int min_dist = (int)sqrt((double)lvl->num_rooms);
     do {
-        do { entrance_r = rng_range(0,lvl->num_rooms-1); }
-        while (room_w(&lvl->rooms[entrance_r])<4 || room_h(&lvl->rooms[entrance_r])<4 || !entrance_has_large_neighbour(lvl, entrance_r));
-        do { exit_r = rng_range(0,lvl->num_rooms-1); }
-        while (exit_r == entrance_r || room_w(&lvl->rooms[exit_r])<4 || room_h(&lvl->rooms[exit_r])<4 || rooms_are_neighbours(lvl, entrance_r, exit_r));
+        int tries, ok;
+
+        ok = 0;
+        for (tries = 0; tries < ROOM_PICK_MAX_TRIES; tries++) {
+            entrance_r = rng_range(0,lvl->num_rooms-1);
+            if (room_w(&lvl->rooms[entrance_r])>=4 && room_h(&lvl->rooms[entrance_r])>=4 &&
+                entrance_has_large_neighbour(lvl, entrance_r)) {
+                ok = 1;
+                break;
+            }
+        }
+        if (!ok) continue;
+
+        ok = 0;
+        for (tries = 0; tries < ROOM_PICK_MAX_TRIES; tries++) {
+            exit_r = rng_range(0,lvl->num_rooms-1);
+            if (exit_r != entrance_r && room_w(&lvl->rooms[exit_r])>=4 && room_h(&lvl->rooms[exit_r])>=4 &&
+                !rooms_are_neighbours(lvl, entrance_r, exit_r)) {
+                ok = 1;
+                break;
+            }
+        }
+        if (!ok) continue;
+
         build_distance_map(lvl, exit_r);
-        if (lvl->rooms[entrance_r].distance >= min_dist) break;
+
+        if (lvl->rooms[entrance_r].distance >= min_dist && lvl->rooms[entrance_r].distance < 10000) {
+            found_pair = 1;
+            break;
+        }
     } while (++attempts < 20);
-    if (entrance_r<0 || exit_r<0) return -1;
+    if (!found_pair) return 0;
 
     /* 3 Two paths + random expansion */
     for (int i=0; i<lvl->num_rooms; i++) lvl->rooms[i].price=1;
@@ -92,9 +111,10 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
         Room *cr=&lvl->rooms[ci];
         if (cr->n_neighbours==0) continue;
         int ni=cr->neighbours[rng_range(0,cr->n_neighbours-1)];
-        int found=0; for(int k=0;k<n_conn;k++) if(conn_set[k]==ni){found=1;break;}
-        if (!found) { room_connect(lvl,ci,ni); add_set(ni); }
+        int found_ni=0; for(int k=0;k<n_conn;k++) if(conn_set[k]==ni){found_ni=1;break;}
+        if (!found_ni) { room_connect(lvl,ci,ni); add_set(ni); }
     }
+    #undef add_set
 
     /* 3.5*/
     place_special_near_entrance(lvl, entrance_r, depth, blacksmith_depth); //shop + blacksmith
@@ -164,5 +184,19 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
     /*10 mobs*/
     mob_spawn_initial(lvl, depth);
 
-    return 0;
+    return 1;
+}
+
+int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int blacksmith_depth) {
+    if (level_is_boss_depth(depth))
+        return level_generate_boss(lvl, seed, theme, depth);
+    if (depth == LAST_SHOP_DEPTH)
+        return level_generate_last_shop(lvl, seed, depth, 1);
+    if (depth == FINAL_LEVEL_DEPTH)
+        return level_generate_last(lvl, seed, depth);
+
+    rng_state = seed ? seed : (uint32_t)time(NULL);
+    for (int i = 0; i < REGULAR_LEVEL_MAX_ATTEMPTS; i++)
+        if (try_regular_level(lvl, theme, depth, blacksmith_depth)) return 0;
+    return -1;
 }
