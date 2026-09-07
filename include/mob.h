@@ -1,4 +1,5 @@
 #pragma once
+#include "char.h"
 #include "mob_db.h"
 
 typedef struct {

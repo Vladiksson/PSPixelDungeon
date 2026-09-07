@@ -24,7 +24,6 @@ typedef struct {
    int           mob_tex_cols[MOBTEX_COUNT];
 
    SDL_Texture  *npc_tex[NPCTEX_COUNT];
-   int           npc_tex_cols[NPCTEX_COUNT]; //TODO CANT REMEMBER IF FOR THOSE TEXTURES SRC PNG HAS MORE THAN 1 LINE....
 
    SDL_Texture  *items;
 
@@ -46,6 +45,6 @@ void render_items  (RenderCtx *ctx, const Level *lvl, const Camera *cam);
 void render_fog    (RenderCtx *ctx, const Fog    *fog, const Camera *cam);
 void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
 void render_mobs   (RenderCtx *ctx, const Camera *cam);
-void render_npcs   (RenderCtx *ctx, const Camera *cam);
+void render_npcs(RenderCtx *ctx, const Player *p, const Camera *cam);
 
 void render_present (RenderCtx *ctx);

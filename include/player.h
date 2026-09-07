@@ -2,6 +2,7 @@
 #include "level.h"
 #include "bag.h"
 #include "char.h"
+#include "animation_db.h"
 
 /* ── Hero starting stats ────────────────────────────────── */
 #define HERO_STARTING_HP         2000 //test, original was 20

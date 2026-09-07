@@ -252,7 +252,7 @@ int main(int argc, char *argv[]) {
         render_frame(&rctx, lvl, &cam);
         render_items(&rctx, lvl, &cam);
         render_mobs(&rctx, &cam);
-        render_npcs(&rctx, &cam);
+        render_npcs(&rctx, &player, &cam);
         render_fog(&rctx, fog, &cam);
         render_player(&rctx, &player, &cam);
 

@@ -1,6 +1,6 @@
 #pragma once
-#include "assets.h"
 #include "char.h"
+#include "animation_db.h"
 
 typedef struct NPC NPC;
 
@@ -86,6 +86,7 @@ typedef struct {
 
 extern const NpcSpriteInfo NPC_SPRITES[NPC_KIND_COUNT];
 extern const NpcTexId NPC_TEX_FOR_KIND[NPC_KIND_COUNT];
+extern const AnimClip *const MIRROR_HERO_CLIPS[NPC_ANIM_COUNT];
 
 /* ── Interaction (HeroAction.java's Interact case) ──────────── */
 void npc_interact(NPC *self, Char *player);

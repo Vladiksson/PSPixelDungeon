@@ -1,6 +1,5 @@
 #pragma once
-#include "assets.h"
-#include "char.h"
+#include "animation_db.h"
 
 typedef enum {
     MOB_RAT = 0,

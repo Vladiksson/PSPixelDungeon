@@ -8,20 +8,6 @@ typedef struct Level Level;
 typedef struct Char Char;
 typedef struct Buff Buff;
 
-/* ── Sprite facing/animation — shared by Player (player.h) and Mob
-   (mob.h), so it lives here rather than in either header ──────── */
-typedef enum {
-    FACE_RIGHT = 0,
-    FACE_LEFT  = 1
-} Facing;
-
-typedef struct {
-    const uint8_t *frames; /* column indices into the sheet, in play order */
-    int count;             /* number of entries in frames[]                */
-    int fps;               /* playback speed, frames per second            */
-    int loop;              /* 1 = repeat, 0 = play once and hold last frame */
-} AnimClip;
-
 typedef enum {
     DMGSRC_GENERIC = 0,
     DMGSRC_CHAR,     /* mirrors the original's broad `src instanceof Char` check in damage() */

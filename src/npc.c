@@ -146,7 +146,12 @@ void npc_animate_all(float dt) {
         if (n->kind < 0 || n->kind >= NPC_KIND_COUNT)
             continue;
 
-        const AnimClip *clip = &NPC_SPRITES[n->kind].clips[n->anim];
+        const AnimClip *clip;
+
+        if (n->kind == NPC_MIRROR_IMAGE)
+            clip = MIRROR_HERO_CLIPS[n->anim];
+        else
+            clip = &NPC_SPRITES[n->kind].clips[n->anim];
 
         if (n->anim_done || clip->fps <= 0 || clip->count <= 0)
             continue;
@@ -277,121 +282,6 @@ NPC *npc_spawn_kind(NpcKind kind, int pos) {
     if (n) n->kind = kind; /* npc_init() left this at the NPC_KIND_COUNT sentinel */
     return n;
 }
-
-
-const NpcTexId NPC_TEX_FOR_KIND[NPC_KIND_COUNT] = {
-    [NPC_GHOST]          = NPCTEX_GHOST,
-    [NPC_BLACKSMITH]     = NPCTEX_BLACKSMITH,
-    [NPC_IMP]            = NPCTEX_IMP,
-    [NPC_IMP_SHOPKEEPER] = NPCTEX_IMP,
-    [NPC_WANDMAKER]      = NPCTEX_WANDMAKER,
-    [NPC_BEE]            = NPCTEX_BEE,
-    [NPC_RATKING]        = NPCTEX_RATKING,
-    [NPC_SHOPKEEPER]     = NPCTEX_SHOPKEEPER,
-    /* NPC_MIRROR_IMAGE omitted */
-};
-
-/*═══════════════════════════════════════════════════════════════
-    NPC_SPRITES
-═══════════════════════════════════════════════════════════════*/
-static const uint8_t GHOST_IDLE[]      = {0,1};
-static const uint8_t GHOST_DIE[]       = {0};
-
-static const uint8_t BLACKSMITH_IDLE[] = {0,0,0,0,0,0,0,1,2,2,2,3};
-static const uint8_t BLACKSMITH_F0[]   = {0};
-
-static const uint8_t IMP_IDLE[] = {
-    0,1,2,3,0,1,2,3,0,0,0,4,4,4,4,4,4,4,4,4,4,
-    0,1,2,3,0,1,2,3,0,1,3,0,0,0,4,4,4,4,4,4,4,4,0,0,0,4,4,4,4,4,4,4,4
-};
-static const uint8_t IMP_F0[]  = {0};
-static const uint8_t IMP_DIE[] = {0,3,2,1,0,3,2,1,0};
-
-static const uint8_t WANDMAKER_IDLE[] = {
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,3,3,3,3,3,3,2,1
-};
-static const uint8_t WANDMAKER_F0[] = {0};
-
-static const uint8_t RATKING_IDLE[] = {0,0,0,1};
-static const uint8_t RATKING_RUN[]  = {2,3,4,5,6};
-static const uint8_t RATKING_F0[]   = {0};
-
-static const uint8_t BEE_IDLE[] = {0,1,1,0,2,2};
-static const uint8_t BEE_ATK[]  = {3,4,5,6};
-static const uint8_t BEE_DIE[]  = {7,8,9,10};
-
-static const uint8_t SHOPKEEPER_IDLE[] = {1,1,1,1,1,0,0,0,0};
-static const uint8_t SHOPKEEPER_DIE[]  = {0};
-
-const NpcSpriteInfo NPC_SPRITES[NPC_KIND_COUNT] = {
-    [NPC_GHOST] = {
-        .frame_w = 14, .frame_h = 15,
-        .clips = {
-            [NPC_ANIM_IDLE] = { GHOST_IDLE, 2, 5, 1 },
-            [NPC_ANIM_RUN]  = { GHOST_IDLE, 2, 10, 1 }, /* source: run == idle frames, just faster */
-            [NPC_ANIM_DIE]  = { GHOST_DIE, 1, 20, 0 },
-        },
-    },
-    [NPC_BLACKSMITH] = {
-        .frame_w = 13, .frame_h = 16,
-        .clips = {
-            [NPC_ANIM_IDLE] = { BLACKSMITH_IDLE, 12, 15, 1 },
-            [NPC_ANIM_RUN]  = { BLACKSMITH_F0, 1, 20, 1 },
-            [NPC_ANIM_DIE]  = { BLACKSMITH_F0, 1, 20, 0 },
-        },
-    },
-    [NPC_IMP] = {
-        .frame_w = 12, .frame_h = 14,
-        .clips = {
-            [NPC_ANIM_IDLE] = { IMP_IDLE, 54, 10, 1 },
-            [NPC_ANIM_RUN]  = { IMP_F0, 1, 20, 1 },
-            [NPC_ANIM_DIE]  = { IMP_DIE, 9, 10, 0 },
-        },
-    },
-    [NPC_IMP_SHOPKEEPER] = {
-        .frame_w = 12, .frame_h = 14,
-        .clips = {
-            [NPC_ANIM_IDLE] = { IMP_IDLE, 54, 10, 1 },
-            [NPC_ANIM_RUN]  = { IMP_F0, 1, 20, 1 },
-            [NPC_ANIM_DIE]  = { IMP_DIE, 9, 10, 0 },
-        },
-    },
-    [NPC_WANDMAKER] = {
-        .frame_w = 12, .frame_h = 14,
-        .clips = {
-            [NPC_ANIM_IDLE] = { WANDMAKER_IDLE, 24, 10, 1 },
-            [NPC_ANIM_RUN]  = { WANDMAKER_F0, 1, 20, 1 },
-            [NPC_ANIM_DIE]  = { WANDMAKER_F0, 1, 20, 0 },
-        },
-    },
-    [NPC_SHOPKEEPER] = {
-        .frame_w = 14, .frame_h = 14,
-        .clips = {
-            [NPC_ANIM_IDLE]   = { SHOPKEEPER_IDLE, 9, 10, 1 },
-            [NPC_ANIM_RUN]    = { SHOPKEEPER_IDLE, 9, 10, 1 }, /* source: run/attack are literal clones of idle */
-            [NPC_ANIM_ATTACK] = { SHOPKEEPER_IDLE, 9, 10, 1 },
-            [NPC_ANIM_DIE]    = { SHOPKEEPER_DIE, 1, 20, 0 },
-        },
-    },
-    [NPC_BEE] = {
-        .frame_w = 16, .frame_h = 16,
-        .clips = {
-            [NPC_ANIM_IDLE]   = { BEE_IDLE, 6, 12, 1 },
-            [NPC_ANIM_RUN]    = { BEE_IDLE, 6, 15, 1 }, /* source: run == idle frames, just faster */
-            [NPC_ANIM_ATTACK] = { BEE_ATK, 4, 20, 0 },
-            [NPC_ANIM_DIE]    = { BEE_DIE, 4, 20, 0 },
-        },
-    },
-    [NPC_RATKING] = {
-        .frame_w = 16, .frame_h = 16,
-        .clips = {
-            [NPC_ANIM_IDLE]   = { RATKING_IDLE, 4, 2, 1 },
-            [NPC_ANIM_RUN]    = { RATKING_RUN, 5, 10, 1 },
-            [NPC_ANIM_ATTACK] = { RATKING_F0, 1, 15, 0 },
-            [NPC_ANIM_DIE]    = { RATKING_F0, 1, 10, 0 },
-        },
-    },
-};
 
 /*═══════════════════════════════════════════════════════════════
     Interaction

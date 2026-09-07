@@ -184,6 +184,18 @@ static int try_regular_level(Level *lvl, DungeonTheme theme, int depth, int blac
     /*10 mobs*/
     mob_spawn_initial(lvl, depth);
 
+    /*NPC_GHOST = 0,
+    NPC_BLACKSMITH,
+    NPC_IMP,
+    NPC_IMP_SHOPKEEPER,
+    NPC_WANDMAKER,
+    NPC_MIRROR_IMAGE,
+    NPC_BEE,
+    NPC_RATKING,
+    NPC_SHOPKEEPER,
+    NPC_KIND_COUNT*/
+    npc_spawn_kind(NPC_MIRROR_IMAGE, lvl->entrance - 1); //test
+    npc_spawn_kind(NPC_GHOST, lvl->entrance + 1); //test
     return 1;
 }
 
