@@ -3,37 +3,50 @@
     Item database
 ═══════════════════════════════════════════════════════════════*/
 #define CELL(sprite) (sprite) % ITEMS_SHEET_COLS, (sprite) / ITEMS_SHEET_COLS
- 
+#define CELL_NULL (-1), (-1)
+
 const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
     /* ── weapons ──────────────────────────────────────────── */
     /* ── MELEE ──────────────────────────────────────────── */
     [ITEM_DAGGER]           = { "Dagger",        "A simple iron dagger with a well worn wooden handle.",
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_DAGGER),           0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_DAGGER),           0, 
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 1, .acu = 1.2f, .dly = 1.0f, .str = 10 } } },
     [ITEM_KNUCKLES]         = { "Knuckleduster", "A piece of iron shaped to fit around the knuckles.",
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_KNUCKLEDUSTER),    0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_KNUCKLEDUSTER),    0,
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 1, .acu = 1.0f, .dly = 0.5f, .str = 10 } } },
     [ITEM_QUARTERSTAFF]     = { "Quarterstaff",  "A staff of hardwood, its ends are shod with iron.",
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_QUARTERSTAFF),     0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_QUARTERSTAFF),     0,
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 2, .acu = 1.0f, .dly = 1.0f, .str = 12 } } },
     [ITEM_SPEAR]            = { "Spear",         "A slender wooden rod tipped with sharpened iron.",
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_SPEAR),            0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_SPEAR),            0,
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 2, .acu = 1.0f, .dly = 1.5f, .str = 12 } } },
     [ITEM_MACE]             = { "Mace",          "The iron head of this weapon inflicts substantial damage.", 
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_MACE),             0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_MACE),             0,
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 3, .acu = 1.0f, .dly = 0.8f, .str = 14 } } },
     [ITEM_SWORD]            = { "Sword",         "The razor-sharp length of steel blade shines reassuringly.",
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_SWORD),            0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_SWORD),            0,
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 3, .acu = 1.0f, .dly = 1.0f, .str = 14 } } },
     [ITEM_LONGSWORD]        = { "Longsword",     "This towering blade inflicts heavy damage by investing its heft into every cut.",
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_LONG_SWORD),       0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_LONG_SWORD),       0,
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 4, .acu = 1.0f, .dly = 1.0f, .str = 16 } } },
     [ITEM_BATTLE_AXE]       = { "Battle Axe",    "The enormous steel head of this battle axe puts considerable heft behind each stroke.",
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_BATTLE_AXE),       0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_BATTLE_AXE),       0,
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 4, .acu = 1.2f, .dly = 1.0f, .str = 16 } } },
     [ITEM_WAR_HAMMER]       = { "War Hammer",    "Few creatures can withstand the crushing blow of this towering mass of lead and steel, "
                                                  "but only the strongest of adventurers can use it effectively.",
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_WAR_HAMMER),       0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_WAR_HAMMER),       0,
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 5, .acu = 1.2f, .dly = 1.0f, .str = 18 } } },
     [ITEM_GLAIVE]           = { "Glaive",        "A polearm consisting of a sword blade on the end of a pole.", 
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_GLAIVE),           0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_GLAIVE),           0,
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 5, .acu = 1.0f, .dly = 1.0f, .str = 18 } } },
     [ITEM_SHORT_SWORD]      = { "Short Sword",   "It is indeed quite short, just a few inches longer, than a dagger.",
-                                                 ITEMCAT_WEAPON, CELL(SPRITE_SHORT_SWORD),      0 },
+                                                 ITEMCAT_WEAPON, CELL(SPRITE_SHORT_SWORD),      0,
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 1, .acu = 1.0f, .dly = 1.5f, .str = 11 } } },
     /* ── MISSILES ──────────────────────────────────────────── */
     [ITEM_DART]             = { "Dart",            "These simple metal spikes are weighted to fly true and "
 			                                       "sting their prey with a flick of the wrist.",   
-                                                   ITEMCAT_WEAPON, CELL(SPRITE_DART), 1 },
+                                                   ITEMCAT_WEAPON, CELL(SPRITE_DART), 1,
+                                                 .weapon = { .type = WEAPON_MISSILE} }, //TEST
     [ITEM_JAVELIN]          = { "Javelin",         "This length of metal is weighted to keep the spike " 
 			                                       "at its tip foremost as it sails through the air.",  
                                                    ITEMCAT_WEAPON, CELL(SPRITE_JAVELIN), 1 },
@@ -47,7 +60,7 @@ const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
 			                                       "when they hit a target. They can be thrown at very high rate.", 
                                                    ITEMCAT_WEAPON, CELL(SPRITE_SHURIKEN), 1 },
     [ITEM_BOOMERANG]        = { "Boomerang",       "Thrown to the enemy this flat curved wooden missile will return to the hands of its thrower.", 
-                                                   ITEMCAT_WEAPON, CELL(SPRITE_BOOMERANG), 1 },
+                                                   ITEMCAT_WEAPON, CELL(SPRITE_BOOMERANG), 0 },
     [ITEM_TAMAHAWK]         = { "Tamahawk",        "This throwing axe is not that heavy, but it still " 
 			                                       "requires significant strength to be used effectively.", 
                                                    ITEMCAT_WEAPON, CELL(SPRITE_TOMAHAWK), 1 },
@@ -66,167 +79,167 @@ const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
     /* ── wands — 12 shuffled onto the 12 wood looks, Magic Missile fixed ── */
     [ITEM_WAND_TELEPORTATION] = { "Wand of Teleportation", "A blast from this wand will teleport a creature against " 
 			                                               "its will to a random place on the current level.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_HOLLY),        0 },
+                                                           ITEMCAT_WAND, CELL_NULL,        0 },
     [ITEM_WAND_SLOWNESS]      = { "Wand of Slowness",      "This wand will cause a creature to move and attack " 
                                                            "at half its ordinary speed until the effect ends",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_YEW),          0 },
+                                                           ITEMCAT_WAND, CELL_NULL,          0 },
     [ITEM_WAND_FIREBOLT]      = { "Wand of Firebolt",      "This wand unleashes bursts of magical fire. It will ignite " 
                                                            "flammable terrain, and will damage and burn a creature it hits.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_EBONY),        0 },
+                                                           ITEMCAT_WAND, CELL_NULL,        0 },
     [ITEM_WAND_REGROWTH]      = { "Wand of Regrowth",      "\"When life ceases new life always begins to grow... The eternal cycle always remains!\"",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_CHERRY),       0 },
+                                                           ITEMCAT_WAND, CELL_NULL,       0 },
     [ITEM_WAND_POISON]        = { "Wand of Poison",        "The vile blast of this twisted bit of wood will imbue its target " 
                                                            "with a deadly venom. A creature that is poisoned will suffer periodic " 
                                                            "damage until the effect ends. The duration of the effect increases " 
                                                            "with the level of the staff.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_TEAK),         0 },
+                                                           ITEMCAT_WAND, CELL_NULL,         0 },
     [ITEM_WAND_BLINK]         = { "Wand of Blink",         "This wand will allow you to teleport in the chosen direction. " 
                                                            "Creatures and inanimate obstructions will block the teleportation.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_ROWAN),        0 },
+                                                           ITEMCAT_WAND, CELL_NULL,        0 },
     [ITEM_WAND_LIGHTNING]     = { "Wand of Lightning",     "This wand conjures forth deadly arcs of electricity, which deal damage " 
                                                            "to several creatures standing close to each other.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_WILLOW),       0 },
+                                                           ITEMCAT_WAND, CELL_NULL,       0 },
     [ITEM_WAND_AMOK]          = { "Wand of Amok",          "The purple light from this wand will make the target run amok "
                                                            "attacking random creatures in its vicinity.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_MAHOGANY),     0 },
+                                                           ITEMCAT_WAND, CELL_NULL,     0 },
     [ITEM_WAND_REACH]         = { "Wand of Reach",         "This utility wand can be used to grab objects from a distance and to switch places with enemies. " 
                                                            "Waves of magic force radiated from it will affect all cells on their way triggering traps, " 
                                                            "trampling high vegetation, opening closed doors and closing open ones.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_BAMBOO),       0 },
+                                                           ITEMCAT_WAND, CELL_NULL,       0 },
     [ITEM_WAND_FLOCK]         = { "Wand of Flock",         "A flick of this wand summons a flock of magic sheep, creating temporary impenetrable obstacle.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_PURPLEHEART),  0 },
+                                                           ITEMCAT_WAND, CELL_NULL,  0 },
     [ITEM_WAND_MAGIC_MISSILE] = { "Wand of Magic Missile", "This wand launches missiles of pure magical energy, dealing moderate damage to a target creature.",
                                                            ITEMCAT_WAND, CELL(SPRITE_WAND_MAGIC_MISSILE),0 },
     [ITEM_WAND_DISINTEGRATION]= { "Wand of Disintegration","This wand emits a beam of destructive energy, which pierces all creatures in its way. " 
                                                            "The more targets it hits, the more damage it inflicts to each of them.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_OAK),          0 },
+                                                           ITEMCAT_WAND, CELL_NULL,          0 },
     [ITEM_WAND_AVALANCHE]     = { "Wand of Avalanche",     "When a discharge of this wand hits a wall (or any other solid obstacle) it causes " 
                                                            "an avalanche of stones, damaging and stunning all creatures in the affected area.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_BIRCH),        0 },
+                                                           ITEMCAT_WAND, CELL_NULL,        0 },
     /* ── potions — 12 shuffled onto the 12 color looks ───────────────── */
     [ITEM_POTION_HEALING]      = { "Potion of Healing",      "An elixir that will instantly return you to full health and cure poison.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_TURQUOISE), 1 },
+                                                             ITEMCAT_POTION, CELL_NULL, 1 },
     [ITEM_POTION_EXPERIENCE]   = { "Potion of Experience",   "The storied experiences of multitudes of battles reduced to liquid form, " 
                                                              "this draught will instantly raise your experience level.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_CRIMSON),   1 },
+                                                             ITEMCAT_POTION, CELL_NULL,   1 },
     [ITEM_POTION_TOXIC_GAS]    = { "Potion of Toxic Gas",    "Uncorking or shattering this pressurized glass will cause " 
                                                              "its contents to explode into a deadly cloud of toxic green gas. " 
                                                              "You might choose to fling this potion at distant enemies " 
                                                              "instead of uncorking it by hand.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_AZURE),     1 },
+                                                             ITEMCAT_POTION, CELL_NULL,     1 },
     [ITEM_POTION_PARALYTIC_GAS]= { "Potion of Paralytic Gas","Upon exposure to open air, the liquid in this flask will vaporize " 
                                                              "into a numbing yellow haze. Anyone who inhales the cloud will be paralyzed " 
                                                              "instantly, unable to move for some time after the cloud dissipates. This " 
                                                              "item can be thrown at distant enemies to catch them within the effect of the gas.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_JADE),      1 },
+                                                             ITEMCAT_POTION, CELL_NULL,      1 },
     [ITEM_POTION_LIQUID_FLAME] = { "Potion of Liquid Flame", "This flask contains an unstable compound which will burst " 
                                                              "violently into flame upon exposure to open air.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_GOLDEN),    1 },
+                                                             ITEMCAT_POTION, CELL_NULL,    1 },
     [ITEM_POTION_LEVITATION]   = { "Potion of Levitation",   "Drinking this curious liquid will cause you to hover in the air, " 
                                                              "able to drift effortlessly over traps. Flames and gases " 
                                                              "fill the air, however, and cannot be bypassed while airborne.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_MAGENTA),   1 },
+                                                             ITEMCAT_POTION, CELL_NULL,   1 },
     [ITEM_POTION_STRENGTH]     = { "Potion of Strength",     "This powerful liquid will course through your muscles, " 
                                                              "permanently increasing your strength by one point.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_CHARCOAL),  1 },
+                                                             ITEMCAT_POTION, CELL_NULL,  1 },
     [ITEM_POTION_MIND_VISION]  = { "Potion of Mind Vision",  "After drinking this, your mind will become attuned to the psychic signature " 
                                                              "of distant creatures, enabling you to sense biological presences through walls. " 
                                                              "Also this potion will permit you to see through nearby walls and doors.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_IVORY),     1 },
+                                                             ITEMCAT_POTION, CELL_NULL,     1 },
     [ITEM_POTION_PURITY]       = { "Potion of Purity",       "This reagent will quickly neutralize all harmful gases in the area of effect. " 
                                                              "Drinking it will give you a temporary immunity to such gases.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_AMBER),     1 },
+                                                             ITEMCAT_POTION, CELL_NULL,     1 },
     [ITEM_POTION_INVISIBILITY] = { "Potion of Invisibility", "Drinking this potion will render you temporarily invisible. While invisible, " 
                                                              "enemies will be unable to see you. Attacking an enemy, as well as using a wand or a scroll " 
                                                              "before enemy's eyes, will dispel the effect.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_BISTRE),    1 },
+                                                             ITEMCAT_POTION, CELL_NULL,    1 },
     [ITEM_POTION_MIGHT]        = { "Potion of Might",        "This powerful liquid will course through your muscles, permanently " 
                                                              "increasing your strength by one point and health by five points.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_INDIGO),    1 },
+                                                             ITEMCAT_POTION, CELL_NULL,    1 },
     [ITEM_POTION_FROST]        = { "Potion of Frost",        "Upon exposure to open air, this chemical will evaporate into a freezing cloud, causing " 
                                                              "any creature that contacts it to be frozen in place, unable to act and move.",
-                                                             ITEMCAT_POTION, CELL(SPRITE_POTION_SILVER),    1 },
+                                                             ITEMCAT_POTION, CELL_NULL,    1 },
     /* ── scrolls — 12 shuffled onto the 12 rune looks ────────────────── */
     [ITEM_SCROLL_IDENTIFY]      = { "Scroll of Identify",     "Permanently reveals all of the secrets of a single item.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_KAUNAN),   1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,   1 },
     [ITEM_SCROLL_TELEPORTATION] = { "Scroll of Teleportation","The spell on this parchment instantly transports the reader " 
                                                               "to a random location on the dungeon level. It can be used " 
                                                               "to escape a dangerous situation, but the unlucky reader might " 
                                                               "find himself in an even more dangerous place.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_SOWILO),   1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,   1 },
     [ITEM_SCROLL_REMOVE_CURSE]  = { "Scroll of Remove Curse", "The incantation on this scroll will instantly strip from " 
                                                               "the reader's weapon, armor, rings and carried items any evil " 
                                                               "enchantments that might prevent the wearer from removing them.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_LAGUZ),    1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,    1 },
     [ITEM_SCROLL_RECHARGING]    = { "Scroll of Recharging",   "The raw magical power bound up in this parchment will, when released, " 
                                                               "recharge all of the reader's wands to full power.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_YNGVI),    1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,    1 },
     [ITEM_SCROLL_MAGIC_MAPPING] = { "Scroll of Magic Mapping","When this scroll is read, an image of crystal clarity will be etched into your memory, " 
                                                               "alerting you to the precise layout of the level and revealing all hidden secrets. " 
                                                               "The locations of items and creatures will remain unknown.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_GYFU),     1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,     1 },
     [ITEM_SCROLL_CHALLENGE]     = { "Scroll of Challenge",    "When read aloud, this scroll will unleash a challenging roar " 
                                                               "that will awaken all monsters and alert them to the reader's location.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_RAIDO),    1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,    1 },
     [ITEM_SCROLL_TERROR]        = { "Scroll of Terror",       "A flash of red light will overwhelm all creatures in your field of view with terror, " 
                                                               "and they will turn and flee. Attacking a fleeing enemy will dispel the effect.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_ISAZ),     1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,     1 },
     [ITEM_SCROLL_LULLABY]       = { "Scroll of Lullaby",      "A soothing melody will put all creatures in your field of view into a deep sleep, " 
                                                               "giving you a chance to flee or make a surprise attack on them.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_MANNAZ),   1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,   1 },
     [ITEM_SCROLL_PSIONIC_BLAST] = { "Scroll of Psionic Blast","This scroll contains destructive energy, that can be psionically channeled to inflict a " 
                                                               "massive damage to all creatures within a field of view. An accompanying flash of light will " 
                                                               "temporarily blind everybody in the area of effect including the reader of the scroll.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_NAUDIZ),   1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,   1 },
     [ITEM_SCROLL_MIRROR_IMAGE]  = { "Scroll of Mirror Image", "The incantation on this scroll will create illusionary twins of the reader, which will chase his enemies.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_BERKANAN), 1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL, 1 },
     [ITEM_SCROLL_UPGRADE]       = { "Scroll of Upgrade",      "This scroll will upgrade a single item, improving its quality. A wand will " 
                                                               "increase in power and in number of charges; a weapon will inflict more damage " 
                                                               "or find its mark more frequently; a suit of armor will deflect additional blows; " 
                                                               "the effect of a ring on its wearer will intensify. Weapons and armor will also " 
                                                               "require less strength to use, and any curses on the item will be lifted.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_ODAL),     1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,     1 },
     [ITEM_SCROLL_ENCHANTMENT]   = { "Scroll of Enchantment",  "This scroll is able to imbue a weapon or an armor " 
                                                               "with a random enchantment, granting it a special power.",
-                                                              ITEMCAT_SCROLL, CELL(SPRITE_SCROLL_TIWAZ),    1 },
+                                                              ITEMCAT_SCROLL, CELL_NULL,    1 },
     /* ── rings — 12 shuffled onto the 12 gem looks ───────────────────── */
     [ITEM_RING_MENDING]    = { "Ring of Mending",   "This ring increases the body's regenerative properties, allowing " 
                                                     "one to recover lost health at an accelerated rate. Degraded rings will " 
                                                     "decrease or even halt one's natural regeneration.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_DIAMOND),    0 },
+                                                    ITEMCAT_RING, CELL_NULL,    0 },
     [ITEM_RING_DETECTION]  = { "Ring of Detection", "Wearing this ring will allow the wearer to notice hidden secrets - " 
                                                     "traps and secret doors - without taking time to search. Degraded rings of detection " 
                                                     "will dull your senses, making it harder to notice secrets even when actively searching for them.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_OPAL),       0 },
+                                                    ITEMCAT_RING, CELL_NULL,       0 },
     [ITEM_RING_SHADOWS]    = { "Ring of Shadows",   "Enemies will be less likely to notice you if you wear this ring. Degraded rings " 
                                                     "of shadows will alert enemies who might otherwise not have noticed your presence.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_GARNET),     0 },
+                                                    ITEMCAT_RING, CELL_NULL,     0 },
     [ITEM_RING_POWER]      = { "Ring of Power",     "Your wands will become more powerful in the energy field " 
                                                     "that radiates from this ring. Degraded rings of power will instead weaken your wands.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_RUBY),       0 },
+                                                    ITEMCAT_RING, CELL_NULL,       0 },
     [ITEM_RING_HERBALISM]  = { "Ring of Herbalism", "This ring increases your chance to gather dew and seeds from trampled grass.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_AMETHYST),   0 },
+                                                    ITEMCAT_RING, CELL_NULL,   0 },
     [ITEM_RING_ACCURACY]   = { "Ring of Accuracy",  "This ring increases your chance to hit the enemy.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_TOPAZ),      0 },
+                                                    ITEMCAT_RING, CELL_NULL,      0 },
     [ITEM_RING_EVASION]    = { "Ring of Evasion",   "This ring increases your chance to dodge enemy attack.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_ONYX),       0 },
+                                                    ITEMCAT_RING, CELL_NULL,       0 },
     [ITEM_RING_SATIETY]    = { "Ring of Satiety",   "Wearing this ring you can go without food longer. Degraded rings of satiety will cause the opposite effect.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_TOURMALINE), 0 },
+                                                    ITEMCAT_RING, CELL_NULL, 0 },
     [ITEM_RING_HASTE]      = { "Ring of Haste",     "This ring accelerates the wearer's flow of time, allowing one to perform all actions a little faster.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_EMERALD),    0 },
+                                                    ITEMCAT_RING, CELL_NULL,    0 },
     [ITEM_RING_ELEMENTS]   = { "Ring of Elements",  "This ring provides resistance to different elements, such as fire, "
                                                     "electricity, gases etc. Also it decreases duration of negative effects.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_SAPPHIRE),   0 },
+                                                    ITEMCAT_RING, CELL_NULL,   0 },
     [ITEM_RING_HAGGLER]    = { "Ring of Haggler",   "In fact this ring doesn't provide any magic effect, but it demonstrates " 
                                                     "to shopkeepers and vendors, that the owner of the ring is a member of " 
                                                     "The Thieves' Guild. Usually they are glad to give a discount in exchange " 
                                                     "for temporary immunity guarantee. Upgrading this ring won't give any additional " 
                                                     "bonuses.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_QUARTZ),     0 },
+                                                    ITEMCAT_RING, CELL_NULL,     0 },
     [ITEM_RING_THORNS]     = { "Ring of Thorns",    "Though this ring doesn't provide real thorns, an enemy that attacks you " 
                                                     "will itself be wounded by a fraction of the damage that it inflicts. " 
                                                     "Upgrading this ring won't give any additional bonuses.",
-                                                    ITEMCAT_RING, CELL(SPRITE_RING_AGATE),      0 },
+                                                    ITEMCAT_RING, CELL_NULL,      0 },
     /* ── seeds — fixed sprites ────────────────────────────── */
     [ITEM_SEED_FIREBLOOM]  = { "Firebloom Seed", "When something touches a Firebloom, it bursts into flames.",
                                                  ITEMCAT_SEED, CELL(SPRITE_SEED_FIREBLOOM),  1 },

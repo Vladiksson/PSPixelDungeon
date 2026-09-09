@@ -73,7 +73,7 @@
 /* ══════════════════════════════════════════════════════════
    UI state
    ══════════════════════════════════════════════════════════  */
-void inventory_ui_open (InventoryUI *ui) { ui->open = 1; ui->cursor = 0; ui->active_bag = BAG_BACKPACK; }
+void inventory_ui_open (InventoryUI *ui) { ui->open = 1; ui->cursor = 0; ui->active_bag = BAG_BACKPACK; ui->pending_ring = -1; }
 void inventory_ui_close(InventoryUI *ui) { ui->open = 0; }
 
 void inventory_ui_desc_open (InventoryUI *ui) { ui->desc_open = 1; }

@@ -29,8 +29,7 @@ int level_take_spawn_item(Level *lvl, ItemType *out) {
 /* ══════════════════════════════════════════════════════════
    LEVEL POPULATION  —  called once, at the end of level_generate
    ══════════════════════════════════════════════════════════ */
-static int tile_free_for_item(const Level *lvl, int x, int y) {
-    int idx = xy_to_idx(x, y);
+static int tile_free_for_item(const Level *lvl, int idx) {
     if (idx == lvl->entrance || idx == lvl->exit) 
         return 0;
     return (gTileFlags[lvl->map[idx]] & TF_OPEN_FLOOR) != 0;
@@ -43,15 +42,17 @@ void level_spawn_items(Level *lvl, int depth) {
     int attempts = 0;
     while (lvl->num_heaps < target && attempts < 200) {
         attempts++;
-        int x = rng_range(0, LEVEL_W - 1);
-        int y = rng_range(0, LEVEL_H - 1);
-        if (!tile_free_for_item(lvl, x, y))
+        int idx = xy_to_idx(rng_range(0, LEVEL_W - 1), rng_range(0, LEVEL_H - 1));
+
+        if (!tile_free_for_item(lvl, idx))
             continue;
+
         ItemType type;
+
         if (level_take_spawn_item(lvl, &type))
-            spawn_item(lvl, xy_to_idx(x, y), depth, type);
+            spawn_item(lvl, idx, depth, type);
         else
-            spawn_random_item(lvl, xy_to_idx(x, y), depth);
+            spawn_random_item(lvl, idx, depth);
     }
 }
  

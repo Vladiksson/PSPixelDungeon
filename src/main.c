@@ -104,7 +104,22 @@ int main(int argc, char *argv[]) {
                 inventory_ui_open(&inv);
         }
         if (inv.open) {
-            if (!inv.desc_open && !inv.pending_ring) {
+            /* ── Pending ring slot selection ───────────── */
+            if (inv.pending_ring >= 0) {
+                Bag *bag = &player.bags[inv.active_bag];
+                int slot = inv.pending_ring;
+
+                if (btn_pressed(&inp, BTN_L)) {
+                    player_equip_ring(&player, bag, slot, EQUIP_RING1);
+                    inv.pending_ring = -1;
+                } 
+                else if (btn_pressed(&inp, BTN_R)) {
+                    player_equip_ring(&player, bag, slot, EQUIP_RING2);
+                    inv.pending_ring = -1;
+                }
+            }
+            /* ── Normal inventory input ────────────────── */
+            else if (!inv.desc_open) {
                 if (btn_pressed(&inp, BTN_UP))
                     inventory_ui_move(&inv, 0, -1);
                 if (btn_pressed(&inp, BTN_DOWN))
@@ -118,10 +133,10 @@ int main(int argc, char *argv[]) {
                         Bag *bag = &player.bags[inv.active_bag];
                         item_identify(&bag->items[inv.cursor]);//TEST
 
-                        int res = player_equip_item(&player, &player.bags[inv.active_bag], inv.cursor);
+                        int res = player_equip_item(&player, bag, inv.cursor);
 
-                        if (res == 2) {
-                            inv.pending_ring = inv.cursor + 1;
+                        if (res == EQUIP_RING_SELECT) {
+                            inv.pending_ring = inv.cursor;
                         }
                     } else {
                         switch (inv.cursor) {
@@ -154,19 +169,10 @@ int main(int argc, char *argv[]) {
                     inventory_ui_next_tab(&inv, &player);
                 if (btn_pressed(&inp, BTN_L))
                     inventory_ui_prev_tab(&inv, &player);
-            }
-            if (inv.pending_ring){
-                if (btn_pressed(&inp, BTN_L)) {
-                    player_equip_ring(&player, &player.bags[inv.active_bag], inv.pending_ring - 1, EQUIP_RING1);
-                    inv.pending_ring = 0;
-                }
-                if (btn_pressed(&inp, BTN_R)) {
-                    player_equip_ring(&player, &player.bags[inv.active_bag], inv.pending_ring - 1, EQUIP_RING2);
-                    inv.pending_ring = 0;
-                }
-            }
+            }    
             if (btn_pressed(&inp, BTN_CIRCLE)) {
-                if (inv.pending_ring) { inv.pending_ring = 0; }
+                if (inv.pending_ring >= 0)
+                    inv.pending_ring = -1;
                 if (inv.desc_open) {
                     inventory_ui_desc_close(&inv);
                 } else if (inv.cursor >= 0 && inv.cursor < MAX_INVENTORY) {

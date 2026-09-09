@@ -49,7 +49,10 @@ static int hero_dr(Char *self) {
 
     /* Placeholder for armor.DR() */
     if (p->armor.type == ITEM_NONE) return 0;
-    int dr = 2 + item_effective_level(&p->armor) * 2;
+
+    int tier = ITEM_DB[p->weapon.type].weapon.melee.tier; //test
+
+    int dr = tier * (2 + item_effective_level(&p->armor)); // TODO add + (glyph == null ? 0 : 1));
     return dr < 0 ? 0 : dr;
 }
 
@@ -229,6 +232,9 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->attack_target       = NULL;
 
     /* STARTING ITEMS */
+    player_add_item(p, ITEM_WAR_HAMMER, 1);//TEST
+    player_add_item(p, ITEM_DART, 1);//TEST
+    player_add_item(p, ITEM_PLATE_ARMOR, 1);//TEST
     player_add_item(p, ITEM_SCROLL_UPGRADE, 1);//TEST
     player_add_item(p, ITEM_BAG_KEYRING, 1);
 
@@ -417,37 +423,70 @@ int player_find_item(const Player *p, ItemType type) {
 ═══════════════════════════════════════════════════════════════*/
 int player_equip_item(Player *p, Bag *bag, int slot) {
     if (player_is_busy(p))
-        return 0;
+        return EQUIP_FAILED;
     if (!bag || slot < 0 || slot >= bag->count)
-        return 0;
+        return EQUIP_FAILED;
 
     ItemStack incoming = bag->items[slot];
     ItemCategory cat = ITEM_DB[incoming.type].cat;
 
+    /* Rings are handled separately because the player must choose a slot. */
+    if (cat == ITEMCAT_RING)
+        return EQUIP_RING_SELECT;
+
     EquipSlot target;
-    if (cat == ITEMCAT_WEAPON) {
+
+    if (cat == ITEMCAT_WEAPON && ITEM_DB[incoming.type].weapon.type == WEAPON_MELEE) {
         target = EQUIP_WEAPON;
     } else if (cat == ITEMCAT_ARMOR) {
         target = EQUIP_ARMOR;
-    } else if (cat == ITEMCAT_RING) {
-        if (p->ring1.type == ITEM_NONE)
-            target = EQUIP_RING1;
-        else if (p->ring2.type == ITEM_NONE)
-            target = EQUIP_RING2;
-        else
-            return 2; // redo
     } else {
-        return 0;
+        return EQUIP_FAILED;
     }
 
     ItemStack *dst = equip_slot_ptr(p, target);
 
-    if (dst->type != ITEM_NONE && dst->cursed) {
-        return 0;
-    }
+    if (dst->type != ITEM_NONE && dst->cursed)
+        return EQUIP_FAILED;
 
-    if (!bag_remove_item(bag, slot, 1)) 
-        return 0;
+    if (!bag_remove_item(bag, slot, 1))
+        return EQUIP_FAILED;
+
+    if (dst->type != ITEM_NONE) {
+        if (!player_add_stack(p, *dst)) {
+            player_add_stack(p, incoming);
+            return EQUIP_FAILED;
+        }
+    }
+    *dst = incoming;
+    dst->quantity = 1;
+    dst->cursed_known = 1;
+
+    player_sort_inventory(p);
+    return EQUIP_OK;
+}
+
+int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target) {
+    if (player_is_busy(p))
+        return EQUIP_FAILED;
+
+    if (!bag || slot < 0 || slot >= bag->count)
+        return EQUIP_FAILED;
+
+    if (target != EQUIP_RING1 && target != EQUIP_RING2)
+        return EQUIP_FAILED;
+
+    ItemStack *dst = equip_slot_ptr(p, target);
+    if (!dst)
+        return EQUIP_FAILED;
+
+    if (dst->type != ITEM_NONE && dst->cursed)
+        return EQUIP_FAILED;
+
+    ItemStack incoming = bag->items[slot];
+
+    if (!bag_remove_item(bag, slot, 1))
+        return EQUIP_FAILED;
 
     if (dst->type != ITEM_NONE) {
         if (!player_add_stack(p, *dst)) {
@@ -455,14 +494,14 @@ int player_equip_item(Player *p, Bag *bag, int slot) {
             return 0;
         }
     }
+
     *dst = incoming;
-    dst->quantity = 1; /*TODO MB REWRITE??? equipped gear is always exactly one unit, even if it came off a stack of stackable weapons */
+    dst->quantity = 1;
     dst->cursed_known = 1;
 
     player_sort_inventory(p);
     return 1;
 }
-
 int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
     if (player_is_busy(p))
         return 0;
@@ -491,34 +530,6 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
     }
 
     return 0; 
-}
-
-int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target) {
-    if (player_is_busy(p))
-        return 0;
-    if (!bag || slot < 0 || slot >= bag->count)
-        return 0;
-
-    ItemStack *dst = equip_slot_ptr(p, target);
-
-    if (dst->type != ITEM_NONE && dst->cursed)
-        return 0;
-
-    ItemStack incoming = bag->items[slot];
-
-    if (!bag_remove_item(bag, slot, 1))
-        return 0;
-
-    if (dst->type != ITEM_NONE)
-        player_add_stack(p, *dst);
-
-    *dst = incoming;
-    dst->quantity = 1;
-    dst->cursed_known = 1;
-
-    player_sort_inventory(p);
-
-    return 1;
 }
 /*═══════════════════════════════════════════════════════════════
     Bags

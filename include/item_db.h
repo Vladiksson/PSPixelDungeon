@@ -325,12 +325,48 @@ typedef enum {
 
 #define ITEM_NONE ((ItemType)-1)
 
+typedef enum {
+   WEAPON_MELEE,
+   WEAPON_MISSILE
+} WeaponType;
+
+typedef struct {
+   uint8_t tier;
+   float acu;
+   float dly;
+   uint8_t str;
+} MeleeWeaponDef;
+
+typedef struct {
+   uint8_t str;
+} MissileWeaponDef;
+
+typedef struct {
+   WeaponType type;
+   union {
+      MeleeWeaponDef melee;
+      MissileWeaponDef missile;
+   };
+} WeaponDef;
+
+//typedef struct { } ArmorDef;
+
 typedef struct {
    const char  *name;
    const char  *description;
    ItemCategory cat;
    uint8_t      sprite_col, sprite_row;  /* cell in items.png (16px grid) */
    uint8_t      stackable;
+
+   union {
+      WeaponDef weapon;
+      /*ArmorDef armor;   PLACEHOLDER
+      PotionDef potion;
+      WandDef wand;
+      RingDef ring;
+      FoodDef food;*/
+   };
+
 } ItemDef;
 
 

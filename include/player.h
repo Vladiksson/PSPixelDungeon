@@ -5,7 +5,7 @@
 #include "animation_db.h"
 
 /* ── Hero starting stats ────────────────────────────────── */
-#define HERO_STARTING_HP         2000 //test, original was 20
+#define HERO_STARTING_HP         20 //test, original was 20
 #define HERO_STARTING_STR        1000000 //test, original was 10
 #define HERO_STARTING_ATTACK     10
 #define HERO_STARTING_DEFENSE     5
@@ -59,6 +59,12 @@ typedef enum {
    EQUIP_RING2,
    EQUIP_SLOT_COUNT
 } EquipSlot;
+
+typedef enum {
+    EQUIP_FAILED = 0,
+    EQUIP_OK = 1,
+    EQUIP_RING_SELECT = 2,
+} EquipResult;
 
 typedef enum {
    PLAYER_BUMP_BLOCKED    = 0,
