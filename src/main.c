@@ -10,6 +10,7 @@
 #include "dungeon.h"
 #include "ui_inventory.h" //REDO TEMPORARY
 #include "ui_hud.h" //REDO TEMPORARY
+#include "ui_stats.h" //REDO TEMPORARY
 
 /* ── PSP kernel module metadata ────────────────────────── */
 PSP_HEAP_SIZE_KB(16384); // 16 MB, in other case sdl gonna eat all of ram, shitty temporary solution
@@ -71,6 +72,7 @@ int main(int argc, char *argv[]) {
     player_init(&player, lvl, 0);
 
     InventoryUI inv = {0};
+    StatsUI stats = {0};
 
     Camera cam;
     camera_center_on(&cam, player.base.pos);
@@ -102,6 +104,12 @@ int main(int argc, char *argv[]) {
                 inventory_ui_close(&inv);
             else
                 inventory_ui_open(&inv);
+        }
+        if (btn_pressed(&inp, BTN_START)) {
+            if (stats.open)
+                stats_ui_close(&stats);
+            else
+                stats_ui_open(&stats);
         }
         if (inv.open) {
             /* ── Pending ring slot selection ───────────── */
@@ -254,7 +262,8 @@ int main(int argc, char *argv[]) {
         player_animate(&player, dt);
         mob_animate_all(dt);
         npc_animate_all(dt);
-        /* Draw: tiles → items → mobs → npcs → fog → player → present */
+
+        
         render_frame(&rctx, lvl, &cam);
         render_items(&rctx, lvl, &cam);
         render_mobs(&rctx, &cam);
@@ -266,6 +275,8 @@ int main(int argc, char *argv[]) {
 
         if (inv.open)
             render_inventory(&rctx, &player, &inv);
+        if (stats.open)
+            render_stats_screen(&rctx, &player);
         render_present(&rctx);
         
         SDL_Delay(1);

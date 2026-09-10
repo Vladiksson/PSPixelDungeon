@@ -125,7 +125,7 @@ NinePatch chrome_tab_set(SDL_Texture *tex) {
         .top = 7,
         .right = 7,
         .bottom = 7,
-        .scale = 1.5
+        .scale = 1.6
     };
 }
 
@@ -137,7 +137,7 @@ NinePatch chrome_tab_selected(SDL_Texture *tex) {
         .top = 7,
         .right = 4,
         .bottom = 6,
-        .scale = 1.4
+        .scale = 1.6
     };
 }
 
@@ -149,7 +149,7 @@ NinePatch chrome_tab_unselected(SDL_Texture *tex) {
         .top = 7,
         .right = 4,
         .bottom = 6,
-        .scale = 1.4
+        .scale = 1.6
     };
 }
 

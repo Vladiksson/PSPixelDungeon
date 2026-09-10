@@ -3,6 +3,7 @@ project(pspixeldungeon C)
 
 add_executable(${PROJECT_NAME}
     src/main.c
+    src/tiles.c
     src/level.c
     src/level_utils.c
     src/level_paint.c
@@ -10,33 +11,33 @@ add_executable(${PROJECT_NAME}
     src/level_boss.c
     src/level_last.c
     src/level_rooms.c
-    src/tiles.c
-    src/render.c
-    src/input.c
-    src/camera.c
-    src/player.c
-    src/fov.c
     src/dungeon.c
     src/item.c
     src/item_db.c
     src/item_spawn.c
     src/item_identify.c
     src/item_generator.c
-    src/font.c
-    src/icons.c
     src/bag.c
     src/actor.c
     src/char.c
+    src/player.c
     src/mob.c
     src/mob_db.c
     src/mob_bestiary.c
-    src/rng.c
-    src/ui_inventory.c
-    src/ui_ninepatch.c
-    src/ui_hud.c
     src/pathfinder.c
     src/npc.c
     src/animation_db.c
+    src/rng.c
+    src/font.c
+    src/icons.c
+    src/ui_inventory.c
+    src/ui_ninepatch.c
+    src/ui_hud.c
+    src/ui_stats.c
+    src/fov.c
+    src/input.c
+    src/camera.c
+    src/render.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O2 -G0 -Wall)
