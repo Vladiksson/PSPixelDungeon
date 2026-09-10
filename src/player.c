@@ -44,15 +44,16 @@ static int hero_defense_skill(Char *self, Char *enemy) {
     return (int)(p->base_defense_skill * evasion);
 }
 
+int get_armor_tier(const Player *p) {
+    return ITEM_DB[p->armor.type].armor.tier;
+}
+
 static int hero_dr(Char *self) {
     Player *p = (Player *)self;
 
-    /* Placeholder for armor.DR() */
     if (p->armor.type == ITEM_NONE) return 0;
 
-    int tier = ITEM_DB[p->weapon.type].weapon.melee.tier; //test
-
-    int dr = tier * (2 + item_effective_level(&p->armor)); // TODO add + (glyph == null ? 0 : 1));
+    int dr = get_armor_tier(p) * (2 + item_effective_level(&p->armor)); // TODO add + (glyph == null ? 0 : 1));
     return dr < 0 ? 0 : dr;
 }
 

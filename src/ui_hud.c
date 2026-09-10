@@ -134,7 +134,7 @@ void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d) {
         if (hero_tex) { 
             SDL_Rect src = { 
                 0, 
-                HERO_ARMOR_TIER * TILESET_HERO_H, 
+                get_armor_tier(p) * TILESET_HERO_H, 
                 TILESET_HERO_W, 
                 TILESET_HERO_H 
             }; 

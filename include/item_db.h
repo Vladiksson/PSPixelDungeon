@@ -219,6 +219,10 @@ typedef enum {
    ITEM_MAIL_ARMOR,
    ITEM_SCALE_ARMOR,
    ITEM_PLATE_ARMOR,
+   ITEM_ROGUE_ARMOR,
+   ITEM_WARRIOR_ARMOR,
+   ITEM_MAGE_ARMOR,
+   ITEM_HUNTRESS_ARMOR,
    /* ── Wands ──────────────────────────────────────────────────── */
    ITEM_WAND_TELEPORTATION,
    ITEM_WAND_SLOWNESS,
@@ -339,6 +343,11 @@ typedef struct {
 
 typedef struct {
    uint8_t str;
+   float   acu;
+   float   dly;
+   uint8_t dmg_min;
+   uint8_t dmg_max;
+   uint8_t upgradable;
 } MissileWeaponDef;
 
 typedef struct {
@@ -349,7 +358,18 @@ typedef struct {
    };
 } WeaponDef;
 
-//typedef struct { } ArmorDef;
+typedef struct {
+    uint8_t tier;
+    uint8_t str;
+} ArmorDef;
+
+typedef struct {
+   uint8_t initial_charges;  /* 2 for every wand except Magic Missile (3) */
+} WandDef;
+
+typedef struct {
+   float nutrition;
+} FoodDef;
 
 typedef struct {
    const char  *name;
@@ -360,15 +380,12 @@ typedef struct {
 
    union {
       WeaponDef weapon;
-      /*ArmorDef armor;   PLACEHOLDER
-      PotionDef potion;
+      ArmorDef armor;
       WandDef wand;
-      RingDef ring;
-      FoodDef food;*/
+      FoodDef food;
    };
 
 } ItemDef;
-
 
 extern const ItemDef ITEM_DB[ITEM_TYPE_COUNT];
 extern const float SPAWN_CATEGORY_WEIGHT[ITEMCAT_COUNT];

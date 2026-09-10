@@ -116,23 +116,13 @@ static void special_remove(RoomType *specials, int *count, RoomType t){
     (*count)--;
 }
 
-static void shuffle_specials(RoomType *arr, int count){ //redo duplication of code
-    for (int i = count - 1; i > 0; i--) {
-        int j = rng_int(i + 1);
-        RoomType t = arr[i];
-        arr[i] = arr[j];
-        arr[j] = t;
-    }
-}
-
-
 void init_special_rooms(LevelGenState *gen, int depth){
     memset(gen, 0, sizeof(*gen));
 
     gen->num_specials = sizeof(default_specials) / sizeof(default_specials[0]);
 
     memcpy(gen->specials, default_specials, sizeof(default_specials));
-    shuffle_specials(gen->specials, gen->num_specials);
+    RNG_SHUFFLE(gen->specials, gen->num_specials);
 
     if (level_is_boss_depth(depth+1))
                special_remove(gen->specials, &gen->num_specials, ROOM_WEAK_FLOOR);

@@ -46,76 +46,117 @@ const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
     [ITEM_DART]             = { "Dart",            "These simple metal spikes are weighted to fly true and "
 			                                       "sting their prey with a flick of the wrist.",   
                                                    ITEMCAT_WEAPON, CELL(SPRITE_DART), 1,
-                                                 .weapon = { .type = WEAPON_MISSILE} }, //TEST
+                                                   .weapon = { .type = WEAPON_MISSILE, .missile = { .str = 10, .acu = 1.0f, .dly = 1.0f, .dmg_min = 1, .dmg_max = 4, .upgradable = 0 } } },
     [ITEM_JAVELIN]          = { "Javelin",         "This length of metal is weighted to keep the spike " 
 			                                       "at its tip foremost as it sails through the air.",  
-                                                   ITEMCAT_WEAPON, CELL(SPRITE_JAVELIN), 1 },
+                                                   ITEMCAT_WEAPON, CELL(SPRITE_JAVELIN), 1,
+                                                   .weapon = { .type = WEAPON_MISSILE, .missile = { .str = 15, .acu = 1.0f, .dly = 1.0f, .dmg_min = 2, .dmg_max = 15, .upgradable = 0 } } },
     [ITEM_INCENDIARY_DART]  = { "Incendiary Dart", "The spike on each of these darts is designed to pin it to its target " 
 			                                       "while the unstable compounds strapped to its length burst into brilliant flames.", 
-                                                   ITEMCAT_WEAPON, CELL(SPRITE_INCENDIARY_DART),  1 },
+                                                   ITEMCAT_WEAPON, CELL(SPRITE_INCENDIARY_DART),  1,
+                                                   .weapon = { .type = WEAPON_MISSILE, .missile = { .str = 12, .acu = 1.0f, .dly = 1.0f, .dmg_min = 1, .dmg_max = 2, .upgradable = 0 } } },
     [ITEM_CURARE_DART]      = { "Curare Dart",     "These little evil darts don't do much damage but they can paralyze " 
 			                                       "the target leaving it helpless and motionless for some time.", 
-                                                   ITEMCAT_WEAPON, CELL(SPRITE_CURARE_DART), 1 },
+                                                   ITEMCAT_WEAPON, CELL(SPRITE_CURARE_DART), 1,
+                                                   .weapon = { .type = WEAPON_MISSILE, .missile = { .str = 14, .acu = 1.0f, .dly = 1.0f, .dmg_min = 1, .dmg_max = 3, .upgradable = 0 } } },
     [ITEM_SHURIKEN]         = { "Shuriken",        "Star-shaped pieces of metal with razor-sharp blades do significant damage " 
 			                                       "when they hit a target. They can be thrown at very high rate.", 
-                                                   ITEMCAT_WEAPON, CELL(SPRITE_SHURIKEN), 1 },
+                                                   ITEMCAT_WEAPON, CELL(SPRITE_SHURIKEN), 1,
+                                                   .weapon = { .type = WEAPON_MISSILE, .missile = { .str = 13, .acu = 1.0f, .dly = 0.5f, .dmg_min = 2, .dmg_max = 6, .upgradable = 0 } } },
     [ITEM_BOOMERANG]        = { "Boomerang",       "Thrown to the enemy this flat curved wooden missile will return to the hands of its thrower.", 
-                                                   ITEMCAT_WEAPON, CELL(SPRITE_BOOMERANG), 0 },
+                                                   ITEMCAT_WEAPON, CELL(SPRITE_BOOMERANG), 0,
+                                                   .weapon = { .type = WEAPON_MISSILE, .missile = { .str = 10, .acu = 1.0f, .dly = 1.0f, .dmg_min = 1, .dmg_max = 4, .upgradable = 1 } } },
     [ITEM_TAMAHAWK]         = { "Tamahawk",        "This throwing axe is not that heavy, but it still " 
 			                                       "requires significant strength to be used effectively.", 
-                                                   ITEMCAT_WEAPON, CELL(SPRITE_TOMAHAWK), 1 },
+                                                   ITEMCAT_WEAPON, CELL(SPRITE_TOMAHAWK), 1,
+                                                   .weapon = { .type = WEAPON_MISSILE, .missile = { .str = 17, .acu = 1.0f, .dly = 1.0f, .dmg_min = 4, .dmg_max = 20, .upgradable = 0 } } },
     /* ── armor ────────────────────────────────────────────── */
     [ITEM_CLOTH_ARMOR]      = { "Cloth Armor",   "This lightweight armor offers basic protection.",
-                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_CLOTH),   0 },
+                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_CLOTH),   0,
+                                                 .armor = { .tier = 1, .str = 9 } },
     [ITEM_LEATHER_ARMOR]    = { "Leather Armor", "Armor made from tanned monster hide. Not as light as cloth armor but provides better protection.",
-                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_LEATHER), 0 },
+                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_LEATHER), 0,
+                                                 .armor = { .tier = 2, .str = 11 } },
     [ITEM_MAIL_ARMOR]       = { "Mail Armor",    "Interlocking metal links make for a tough but flexible suit of armor.",
-                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_MAIL),    0 },
+                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_MAIL),    0,
+                                                 .armor = { .tier = 3, .str = 13 } },
     [ITEM_SCALE_ARMOR]      = { "Scale Armor",   "The metal scales sewn onto a leather vest create a flexible, yet protective armor.",
-                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_SCALE),   0 },
+                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_SCALE),   0,
+                                                 .armor = { .tier = 4, .str = 15 } },
     [ITEM_PLATE_ARMOR]      = { "Plate Armor",   "Enormous plates of metal are joined together into a suit that provides " 
 		                                         "unmatched protection to any adventurer strong enough to bear its staggering weight.",
-                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_PLATE),   0 },
+                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_PLATE),   0,
+                                                 .armor = { .tier = 5, .str = 17 } },
+    [ITEM_ROGUE_ARMOR]      = { "Rogue Garb",   "Wearing this dark garb, a rogue can perform a trick, that is called \"smoke bomb\" "
+			                                    "(though no real explosives are used): he blinds enemies who could see him and jumps aside.",
+                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_ROGUE),   0,
+                                                 .armor = { .tier = 6, .str = 19 } },
+    [ITEM_WARRIOR_ARMOR]    = { "Warrior Suit of Armor", "While this armor looks heavy, it allows a warrior to perform heroic leap towards "
+			                                    "a targeted location, slamming down to stun all neighbouring enemies.",
+                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_WARRIOR),   0,
+                                                 .armor = { .tier = 6, .str = 19 } },
+    [ITEM_MAGE_ARMOR]       = { "Mage Robe",    "Wearing this gorgeous robe, a mage can cast a spell of molten earth: all the enemies "
+			                                    "in his field of view will be set on fire and unable to move at the same time.",
+                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_MAGE),   0,
+                                                 .armor = { .tier = 6, .str = 19 } },
+    [ITEM_HUNTRESS_ARMOR]   = { "Huntress Cloak","A huntress in such cloak can create a fan of spectral blades. Each of these blades "
+                                                 "will target a single enemy in the huntress's field of view, inflicting damage depending "
+                                                 "on her currently equipped melee weapon.",
+                                                 ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_HUNTRESS),   0,
+                                                 .armor = { .tier = 6, .str = 19 } },                                             
     /* ── wands — 12 shuffled onto the 12 wood looks, Magic Missile fixed ── */
     [ITEM_WAND_TELEPORTATION] = { "Wand of Teleportation", "A blast from this wand will teleport a creature against " 
 			                                               "its will to a random place on the current level.",
-                                                           ITEMCAT_WAND, CELL_NULL,        0 },
+                                                           ITEMCAT_WAND, CELL_NULL,        0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_SLOWNESS]      = { "Wand of Slowness",      "This wand will cause a creature to move and attack " 
                                                            "at half its ordinary speed until the effect ends",
-                                                           ITEMCAT_WAND, CELL_NULL,          0 },
+                                                           ITEMCAT_WAND, CELL_NULL,          0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_FIREBOLT]      = { "Wand of Firebolt",      "This wand unleashes bursts of magical fire. It will ignite " 
                                                            "flammable terrain, and will damage and burn a creature it hits.",
-                                                           ITEMCAT_WAND, CELL_NULL,        0 },
+                                                           ITEMCAT_WAND, CELL_NULL,        0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_REGROWTH]      = { "Wand of Regrowth",      "\"When life ceases new life always begins to grow... The eternal cycle always remains!\"",
-                                                           ITEMCAT_WAND, CELL_NULL,       0 },
+                                                           ITEMCAT_WAND, CELL_NULL,       0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_POISON]        = { "Wand of Poison",        "The vile blast of this twisted bit of wood will imbue its target " 
                                                            "with a deadly venom. A creature that is poisoned will suffer periodic " 
                                                            "damage until the effect ends. The duration of the effect increases " 
                                                            "with the level of the staff.",
-                                                           ITEMCAT_WAND, CELL_NULL,         0 },
+                                                           ITEMCAT_WAND, CELL_NULL,         0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_BLINK]         = { "Wand of Blink",         "This wand will allow you to teleport in the chosen direction. " 
                                                            "Creatures and inanimate obstructions will block the teleportation.",
-                                                           ITEMCAT_WAND, CELL_NULL,        0 },
+                                                           ITEMCAT_WAND, CELL_NULL,        0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_LIGHTNING]     = { "Wand of Lightning",     "This wand conjures forth deadly arcs of electricity, which deal damage " 
                                                            "to several creatures standing close to each other.",
-                                                           ITEMCAT_WAND, CELL_NULL,       0 },
+                                                           ITEMCAT_WAND, CELL_NULL,       0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_AMOK]          = { "Wand of Amok",          "The purple light from this wand will make the target run amok "
                                                            "attacking random creatures in its vicinity.",
-                                                           ITEMCAT_WAND, CELL_NULL,     0 },
+                                                           ITEMCAT_WAND, CELL_NULL,     0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_REACH]         = { "Wand of Reach",         "This utility wand can be used to grab objects from a distance and to switch places with enemies. " 
                                                            "Waves of magic force radiated from it will affect all cells on their way triggering traps, " 
                                                            "trampling high vegetation, opening closed doors and closing open ones.",
-                                                           ITEMCAT_WAND, CELL_NULL,       0 },
+                                                           ITEMCAT_WAND, CELL_NULL,       0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_FLOCK]         = { "Wand of Flock",         "A flick of this wand summons a flock of magic sheep, creating temporary impenetrable obstacle.",
-                                                           ITEMCAT_WAND, CELL_NULL,  0 },
+                                                           ITEMCAT_WAND, CELL_NULL,  0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_MAGIC_MISSILE] = { "Wand of Magic Missile", "This wand launches missiles of pure magical energy, dealing moderate damage to a target creature.",
-                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_MAGIC_MISSILE),0 },
+                                                           ITEMCAT_WAND, CELL(SPRITE_WAND_MAGIC_MISSILE),0,
+                                                           .wand = { .initial_charges = 3 } },
     [ITEM_WAND_DISINTEGRATION]= { "Wand of Disintegration","This wand emits a beam of destructive energy, which pierces all creatures in its way. " 
                                                            "The more targets it hits, the more damage it inflicts to each of them.",
-                                                           ITEMCAT_WAND, CELL_NULL,          0 },
+                                                           ITEMCAT_WAND, CELL_NULL,          0,
+                                                           .wand = { .initial_charges = 2 } },
     [ITEM_WAND_AVALANCHE]     = { "Wand of Avalanche",     "When a discharge of this wand hits a wall (or any other solid obstacle) it causes " 
                                                            "an avalanche of stones, damaging and stunning all creatures in the affected area.",
-                                                           ITEMCAT_WAND, CELL_NULL,        0 },
+                                                           ITEMCAT_WAND, CELL_NULL,        0,
+                                                           .wand = { .initial_charges = 2 } },
     /* ── potions — 12 shuffled onto the 12 color looks ───────────────── */
     [ITEM_POTION_HEALING]      = { "Potion of Healing",      "An elixir that will instantly return you to full health and cure poison.",
                                                              ITEMCAT_POTION, CELL_NULL, 1 },
@@ -262,18 +303,24 @@ const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
     /* ── food — fixed sprites ─────────────────────────────── */
     [ITEM_RATION]           = { "Ration of Food",        "Nothing fancy here: dried meat, " 
                                                          "some biscuits - things like that.",
-                                                         ITEMCAT_FOOD, CELL(SPRITE_RATION),     1 },
+                                                         ITEMCAT_FOOD, CELL(SPRITE_RATION),     1,
+                                                         .food = { .nutrition = 260.0f } },
     [ITEM_PASTY]            = { "Pasty",                 "This is authentic Cornish pasty with traditional filling of beef and potato.",
-                                                         ITEMCAT_FOOD, CELL(SPRITE_PASTY),      1 },
+                                                         ITEMCAT_FOOD, CELL(SPRITE_PASTY),      1,
+                                                         .food = { .nutrition = 360.0f } },
     [ITEM_MYSTERY_MEAT]     = { "Mystery Meat",          "Eat at your own risk!",
-                                                         ITEMCAT_FOOD, CELL(SPRITE_MEAT),       1 },
+                                                         ITEMCAT_FOOD, CELL(SPRITE_MEAT),       1,
+                                                         .food = { .nutrition = 100.0f } },
     [ITEM_STEAK]            = { "Chargrilled meat",      "It looks like a decent steak.",
-                                                         ITEMCAT_FOOD, CELL(SPRITE_STEAK),      1 },
+                                                         ITEMCAT_FOOD, CELL(SPRITE_STEAK),      1,
+                                                         .food = { .nutrition = 100.0f } },
     [ITEM_OVERPRICED]       = { "Overpriced Food Ration","It looks exactly like a standard ration of food but smaller.",
-                                                         ITEMCAT_FOOD, CELL(SPRITE_OVERPRICED), 1 },
+                                                         ITEMCAT_FOOD, CELL(SPRITE_OVERPRICED), 1,
+                                                         .food = { .nutrition = 100.0f } },
     [ITEM_FROZEN_CARPACCIO] = { "Frozen Carpaccio",      "It's a piece of frozen raw meat. The only way to eat it is " 
                                                          "by cutting thin slices of it. And this way it's suprisingly good.",
-                                                         ITEMCAT_FOOD, CELL(SPRITE_CARPACCIO),  1 },
+                                                         ITEMCAT_FOOD, CELL(SPRITE_CARPACCIO),  1,
+                                                         .food = { .nutrition = 100.0f } },
     /* ── misc ─────────────────────────────────────────────── */ //TODO mb split into subcategories?
     [ITEM_ANKH]     = { "Ankh",           "The ancient symbol of immortality grants an ability to return to life after death. " 
                                           "Upon resurrection all non-equipped items are lost.",
@@ -384,7 +431,9 @@ const float SPAWN_ITEM_WEIGHT[ITEM_TYPE_COUNT] = {
     /* Armor */
     [ITEM_CLOTH_ARMOR]     = 1,  [ITEM_LEATHER_ARMOR]   = 1,
     [ITEM_MAIL_ARMOR]      = 1,  [ITEM_SCALE_ARMOR]     = 1,
-    [ITEM_PLATE_ARMOR]     = 1,
+    [ITEM_PLATE_ARMOR]     = 1,  [ITEM_ROGUE_ARMOR]     = 0,
+    [ITEM_WARRIOR_ARMOR]   = 0,  [ITEM_MAGE_ARMOR]      = 0,
+    [ITEM_HUNTRESS_ARMOR]  = 0,
  
     /* Wands */
     [ITEM_WAND_TELEPORTATION]  = 10, [ITEM_WAND_SLOWNESS]  = 10,
@@ -433,4 +482,3 @@ const float SPAWN_ITEM_WEIGHT[ITEM_TYPE_COUNT] = {
  
     [ITEM_GOLD] = 1,
 };
- 

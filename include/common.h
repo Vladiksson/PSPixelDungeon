@@ -31,8 +31,6 @@ void TileSize_Update(void);
 #define TILESET_HERO_W       12
 #define TILESET_HERO_H       15
 
-#define HERO_ARMOR_TIER 6 // TEST, REMOVE AFTER ADDING ARMOR TIER
-
 /* ── ITEM ICON ───────────────────────────────── */
 #define ICON_SIZE  16
 

@@ -379,12 +379,14 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
 
  
 /* ── render_player ────────────────────────────────── */
+static int hero_armor_tier = 0;
+
 static SDL_Rect hero_frame_rect(const AnimClip *clip, int frame) {
     uint8_t col = clip->frames[frame % clip->count];
 
     SDL_Rect src = {
         col * TILESET_HERO_W,
-        HERO_ARMOR_TIER * TILESET_HERO_H,
+        hero_armor_tier * TILESET_HERO_H,
         TILESET_HERO_W,
         TILESET_HERO_H
     };
@@ -425,6 +427,8 @@ void render_player(RenderCtx *ctx, const Player *p, const Camera *cam) {
 
     Point pos = idx_to_xy(p->base.pos);
     Point screen = camera_tile_to_screen(cam, pos.x, pos.y);
+
+    hero_armor_tier = get_armor_tier(p);
     SDL_Rect src = player_frame_rect(p);
 
     render_char_sprite(ctx->renderer, tex, src, screen, size.x, size.y, p->facing); 
@@ -582,6 +586,8 @@ static void render_mirror_npc(RenderCtx *ctx, const Player *p, const Camera *cam
 
     Point size = hero_draw_size();
     Point screen = camera_tile_to_screen(cam, pos.x, pos.y);
+
+    hero_armor_tier = get_armor_tier(p);
     SDL_Rect src = hero_frame_rect(clip, n->frame);
 
     render_char_sprite(ctx->renderer, tex, src, screen, size.x, size.y, n->facing);

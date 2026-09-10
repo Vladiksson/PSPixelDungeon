@@ -114,14 +114,14 @@ static const ShuffledCategory *shuffled_category_for(ItemType type) {
  
 static void shuffle_looks(const ShuffledCategory *sc) {
     uint8_t perm[LOOK_COUNT];
-    for (int i = 0; i < LOOK_COUNT; i++) perm[i] = (uint8_t)i;
-    for (int i = LOOK_COUNT - 1; i > 0; i--) {
-        int j = rng_int(i + 1);
-        uint8_t tmp = perm[i]; perm[i] = perm[j]; perm[j] = tmp;
-    }
-    for (int i = 0; i < LOOK_COUNT; i++) {
+
+    for (int i = 0; i < LOOK_COUNT; i++)
+        perm[i] = (uint8_t)i;
+
+    RNG_SHUFFLE(perm, LOOK_COUNT);
+
+    for (int i = 0; i < LOOK_COUNT; i++)
         gLookIndex[sc->types[i]] = perm[i];
-    }
 }
  
 void item_status_reset(void) {

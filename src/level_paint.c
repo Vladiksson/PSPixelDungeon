@@ -126,22 +126,13 @@ static int shop_build_inventory(ItemType *items, int depth){
     return n;
 }
 
-static void shuffle_items(ItemType *a, int n){//TODO transfer to the item.c + redo duplication of code
-    for(int i = n-1; i>0; i--){
-        int j = rng_int(i+1);
-        ItemType t = a[i];
-        a[i] = a[j];
-        a[j] = t;
-    }
-}
-
 static void place_shop_items(Level *lvl, Room *room, int depth){
     int per = perimeter_length(room);
 
     ItemType items[16];
     int count = shop_build_inventory(items, depth);
 
-    shuffle_items(items, count);
+    RNG_SHUFFLE(items, count);
 
     int pos = shop_xy2p(room, room->connections[0].pos);
     pos += (per - count) / 2;

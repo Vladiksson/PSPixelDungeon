@@ -110,6 +110,8 @@ typedef struct {
    Char *attack_target;
 } Player;
 
+int get_armor_tier(const Player *p);
+
 void player_init(Player *p, const Level *lvl, HeroClass cls);
  
 int player_move(Player *p, Level *lvl, int dx, int dy);
