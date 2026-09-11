@@ -41,10 +41,10 @@ int  render_init  (RenderCtx *ctx);
 void render_free  (RenderCtx *ctx);
 
 void render_frame  (RenderCtx *ctx, const Level *lvl, const Camera *cam);
-void render_items  (RenderCtx *ctx, const Level *lvl, const Camera *cam);
-void render_fog    (RenderCtx *ctx, const Fog    *fog, const Camera *cam);
+void render_items  (RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam);
+void render_fog    (RenderCtx *ctx, const Fog *fog, const Camera *cam);
 void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
-void render_mobs   (RenderCtx *ctx, const Camera *cam);
-void render_npcs(RenderCtx *ctx, const Player *p, const Camera *cam);
+void render_mobs   (RenderCtx *ctx, const Fog *fog, const Camera *cam);
+void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *cam);
 
 void render_present (RenderCtx *ctx);

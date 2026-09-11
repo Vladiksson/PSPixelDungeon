@@ -25,36 +25,22 @@ typedef struct {
 #define MOVE_REPEAT_DELAY  4.5f
 #define MOVE_REPEAT_SPEED  9.0f
 
-static uint32_t move_repeat_delay_ms(const Player *p)
-{
+static uint32_t move_repeat_delay_ms(const Player *p) {
     float speed = char_speed((Char *)&p->base);
-
     if (speed <= 0.0f)
         speed = 0.01f;
-
     return (uint32_t)((1000.0f / speed) / MOVE_REPEAT_DELAY);
 }
 
-static uint32_t move_repeat_rate_ms(const Player *p)
-{
+static uint32_t move_repeat_rate_ms(const Player *p) {
     float speed = char_speed((Char *)&p->base);
-
     if (speed <= 0.0f)
         speed = 0.01f;
-
     return (uint32_t)((1000.0f / speed) / MOVE_REPEAT_SPEED);
 }
 
 
-static int move_repeat_update(
-    MoveRepeat *mr,
-    uint32_t now,
-    Player *p,
-    Level *lvl,
-    Camera *cam,
-    int dx,
-    int dy
-) {
+static int move_repeat_update(MoveRepeat *mr, uint32_t now, Player *p, Level *lvl, Camera *cam, int dx, int dy) {
     if (dx == 0 && dy == 0) {
         mr->held    = 0;
         mr->blocked = 0;
@@ -294,9 +280,9 @@ int main(int argc, char *argv[]) {
 
         
         render_frame(&rctx, lvl, &cam);
-        render_items(&rctx, lvl, &cam);
-        render_mobs(&rctx, &cam);
-        render_npcs(&rctx, &player, &cam);
+        render_items(&rctx, lvl, fog, &cam);
+        render_mobs(&rctx, fog, &cam);
+        render_npcs(&rctx, &player, fog, &cam);
         render_fog(&rctx, fog, &cam);
         render_player(&rctx, &player, &cam);
 

@@ -4,12 +4,19 @@
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
-/*camera helper*/
+/*visibility helpers*/
 static bool is_visible_on_camera(const Camera *cam, Point pos) {
     return pos.x >= cam->tile_x &&
            pos.x <= cam->tile_x + gViewCols &&
            pos.y >= cam->tile_y &&
            pos.y <= cam->tile_y + gViewRows;
+}
+static bool is_visible(const Fog *fog, const Camera *cam, Point pos) {
+    if (!is_visible_on_camera(cam, pos))
+        return false;
+
+    int idx = xy_to_idx(pos.x, pos.y);
+    return fog->visible[idx];
 }
 
 /* ── INIT ─────────────────────────────────────── */
@@ -296,7 +303,7 @@ void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
 }
 
 /* ── render_items ──────────────────────────────────── */
-void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
+void render_items(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam) {
     SDL_Texture *tex = ctx->items;
     if (!tex) return;
  
@@ -306,7 +313,7 @@ void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
 
         Point pos = idx_to_xy(h->pos);
 
-        if (!is_visible_on_camera(cam, pos))
+        if (!is_visible(fog, cam, pos))
             continue;
  
         uint8_t col, row;
@@ -462,7 +469,7 @@ static SDL_Rect mob_frame_rect(RenderCtx *ctx, const Mob *m, MobTexId tex_id) {
     return src;
 }
 
-void render_mobs(RenderCtx *ctx, const Camera *cam) {
+void render_mobs(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
     for (int i = 0; i < mob_count(); i++) {
         Mob *m = mob_at_index(i);
         if (!m)
@@ -473,7 +480,7 @@ void render_mobs(RenderCtx *ctx, const Camera *cam) {
 
         Point pos = idx_to_xy(m->base.pos);
 
-        if (!is_visible_on_camera(cam, pos))
+        if (!is_visible(fog, cam, pos))
             continue;
 
         MobTexId tex_id = MOB_TEX_FOR_KIND[m->kind];
@@ -592,7 +599,7 @@ static void render_mirror_npc(RenderCtx *ctx, const Player *p, const Camera *cam
     render_char_sprite(ctx->renderer, tex, src, screen, size.x, size.y, n->facing);
 }
 
-void render_npcs(RenderCtx *ctx, const Player *p, const Camera *cam) {
+void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *cam) {
     for (int i = 0; i < npc_count(); ++i) {
         NPC *n = npc_at_index(i);
         if (!n)
@@ -606,7 +613,7 @@ void render_npcs(RenderCtx *ctx, const Player *p, const Camera *cam) {
 
         Point pos = idx_to_xy(n->base.pos);
 
-        if (!is_visible_on_camera(cam, pos))
+        if (!is_visible(fog, cam, pos))
             continue;
 
         if (n->kind == NPC_MIRROR_IMAGE) {
