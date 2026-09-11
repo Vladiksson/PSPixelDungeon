@@ -2,17 +2,14 @@
 #include "level.h"
 #include "bag.h"
 #include "char.h"
-#include "animation_db.h"
+#include "sprite_db.h"
 
 /* ── Hero starting stats ────────────────────────────────── */
-#define HERO_STARTING_HP         20 //test, original was 20
-#define HERO_STARTING_STR        1000000 //test, original was 10
+#define HERO_STARTING_HP         200 //test, original was 20
+#define HERO_STARTING_STR        100 //test, original was 10
 #define HERO_STARTING_ATTACK     10
 #define HERO_STARTING_DEFENSE     5
 #define HERO_STARTING_AWARENESS  0.1f
-
-#define PLAYER_TIME_TO_UNLOCK  2.0f
-#define PLAYER_TIME_TO_REST    1.0f
 
 /* ── Hero class ───────────────────────────────────────*/
 typedef enum {
@@ -144,12 +141,10 @@ int player_pickup(Player *p, Level *lvl);
 
 int player_drop_item(Player *p, Level *lvl, int slot);
 
-int player_equip_item(Player *p, Bag *bag, int slot);
-
+int player_equip_item(Player *p, Bag *bag, int slot, int spend_time);
+int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target, int spend_time);
 int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 
-
-int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target);
 
 void player_sort_inventory(Player *p);
 /*

@@ -1,4 +1,4 @@
-#include "animation_db.h"
+#include "sprite_db.h"
 #include "player.h"
 #include "npc.h"
 #include "mob_db.h"

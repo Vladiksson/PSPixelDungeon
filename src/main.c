@@ -16,15 +16,45 @@
 PSP_HEAP_SIZE_KB(16384); // 16 MB, in other case sdl gonna eat all of ram, shitty temporary solution
 
 /* ── Movement repeat ──────────────────────────────────── */
-#define REPEAT_DELAY_MS  220
-#define REPEAT_RATE_MS   (REPEAT_DELAY_MS / 2) 
 typedef struct {
     uint32_t next_ms;
     int held;
     int blocked;
 } MoveRepeat;
- 
-static int move_repeat_update(MoveRepeat *mr, uint32_t now, Player *p, Level *lvl, Camera *cam, int dx, int dy) {
+
+#define MOVE_REPEAT_DELAY  4.5f
+#define MOVE_REPEAT_SPEED  9.0f
+
+static uint32_t move_repeat_delay_ms(const Player *p)
+{
+    float speed = char_speed((Char *)&p->base);
+
+    if (speed <= 0.0f)
+        speed = 0.01f;
+
+    return (uint32_t)((1000.0f / speed) / MOVE_REPEAT_DELAY);
+}
+
+static uint32_t move_repeat_rate_ms(const Player *p)
+{
+    float speed = char_speed((Char *)&p->base);
+
+    if (speed <= 0.0f)
+        speed = 0.01f;
+
+    return (uint32_t)((1000.0f / speed) / MOVE_REPEAT_SPEED);
+}
+
+
+static int move_repeat_update(
+    MoveRepeat *mr,
+    uint32_t now,
+    Player *p,
+    Level *lvl,
+    Camera *cam,
+    int dx,
+    int dy
+) {
     if (dx == 0 && dy == 0) {
         mr->held    = 0;
         mr->blocked = 0;
@@ -33,17 +63,16 @@ static int move_repeat_update(MoveRepeat *mr, uint32_t now, Player *p, Level *lv
     if (!mr->held) {
         int result = player_bump(p, lvl, dx, dy);
         mr->held = 1;
-        mr->next_ms = now + REPEAT_DELAY_MS;
+        mr->next_ms = now + move_repeat_delay_ms(p);
         mr->blocked = (result == PLAYER_BUMP_BLOCKED);
 
-        if (result == PLAYER_BUMP_MOVED) {
+        if (result == PLAYER_BUMP_MOVED)
             camera_center_on(cam, p->base.pos);
-        }
         return result;
     }
     if (now >= mr->next_ms) {
         int result = player_bump(p, lvl, dx, dy);
-        mr->next_ms = now + REPEAT_RATE_MS;
+        mr->next_ms += move_repeat_rate_ms(p);
         mr->blocked = (result == PLAYER_BUMP_BLOCKED);
 
         if (result == PLAYER_BUMP_MOVED)
@@ -118,11 +147,11 @@ int main(int argc, char *argv[]) {
                 int slot = inv.pending_ring;
 
                 if (btn_pressed(&inp, BTN_L)) {
-                    player_equip_ring(&player, bag, slot, EQUIP_RING1);
+                    player_equip_ring(&player, bag, slot, EQUIP_RING1, 1);
                     inv.pending_ring = -1;
                 } 
                 else if (btn_pressed(&inp, BTN_R)) {
-                    player_equip_ring(&player, bag, slot, EQUIP_RING2);
+                    player_equip_ring(&player, bag, slot, EQUIP_RING2, 1);
                     inv.pending_ring = -1;
                 }
             }
@@ -141,7 +170,7 @@ int main(int argc, char *argv[]) {
                         Bag *bag = &player.bags[inv.active_bag];
                         item_identify(&bag->items[inv.cursor]);//TEST
 
-                        int res = player_equip_item(&player, bag, inv.cursor);
+                        int res = player_equip_item(&player, bag, inv.cursor, 1);
 
                         if (res == EQUIP_RING_SELECT) {
                             inv.pending_ring = inv.cursor;

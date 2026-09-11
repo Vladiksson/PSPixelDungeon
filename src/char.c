@@ -3,10 +3,7 @@
 #include "rng.h"
 #include <string.h>
 /* ══════════════════════════════════════════════════════════
-   Level-derived geometry — adjacency/distance/random-neighbour,
-   built from xy_to_idx()/idx_to_xy()/in_bounds() (confirmed in use
-   by player.c/dungeon.c) rather than assumed Level-side helpers.
-   Chebyshev distance matches 8-directional movement.
+   Level-derived geometry HELPERS  //TODO REMOVE SOMEWHERE + USE IT ALREADY
    ══════════════════════════════════════════════════════════ */
 static int char_cell_distance(int a, int b) {
     Point pa = idx_to_xy(a);
@@ -18,21 +15,22 @@ static int char_cell_distance(int a, int b) {
 static int char_cells_adjacent(int a, int b) {
     return char_cell_distance(a, b) == 1;
 }
-/* One of the 8 neighbours of `pos`, chosen at random — mirrors
-   `pos + Level.NEIGHBOURS8[Random.Int(8)]`. Returns -1 if that
-   neighbour would fall off the map (the original relies on a
-   guaranteed solid border so this never happens there; this port
-   checks explicitly instead of assuming your level always has one). */
-static int char_random_neighbour(int pos) { //REDO
+
+int char_neighbour_idx(int pos, int dx, int dy) {
+    Point p = idx_to_xy(pos);
+    int nx = p.x + dx;
+    int ny = p.y + dy;
+    if (!in_bounds_xy(nx, ny))
+        return -1;
+    return xy_to_idx(nx, ny);
+}
+
+static int char_random_neighbour(int pos) {
     static const int dx8[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
     static const int dy8[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
-    Point p = idx_to_xy(pos);
+
     int i = rng_int(8);
-    int nx = p.x + dx8[i];
-    int ny = p.y + dy8[i];
-    int idx = xy_to_idx(nx, ny);
-    if (!in_bounds(idx)) return -1;
-    return idx;
+    return char_neighbour_idx(pos, dx8[i], dy8[i]);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -76,6 +74,7 @@ static int         default_defense_skill(Char *self, Char *enemy)  { (void)self;
 static const char *default_defense_verb(Char *self)                { (void)self; return "dodged"; }
 static int         default_dr(Char *self)                          { (void)self; return 0; }
 static int         default_damage_roll(Char *self)                 { (void)self; return 1; }
+static float       default_speed(Char *self) { return char_buff(self, BUFF_CRIPPLE) ? self->base_speed * 0.5f : self->base_speed; }
 static int         default_attack_proc(Char *self, Char *enemy, int dmg)     { (void)self; (void)enemy; return dmg; }
 static int         default_defense_proc(Char *self, Char *attacker, int dmg) { (void)self; (void)attacker; return dmg; }
 static uint32_t    default_resistances(Char *self) { (void)self; return 0; }
@@ -93,6 +92,7 @@ const CharVTable CHAR_DEFAULT_VTABLE = {
     .defense_verb    = default_defense_verb,
     .dr              = default_dr,
     .damage_roll     = default_damage_roll,
+    .speed           = default_speed,
     .attack_proc     = default_attack_proc,
     .defense_proc    = default_defense_proc,
     .resistances     = default_resistances,
@@ -416,7 +416,7 @@ void char_damage(Char *self, int dmg, void *src, DamageSource src_type) {
 }
 
 float char_speed(Char *self) {
-    return char_buff(self, BUFF_CRIPPLE) ? self->base_speed * 0.5f : self->base_speed;
+    return self->vt->speed(self);
 }
 
 void char_spend(Char *self, float time) {
@@ -479,10 +479,11 @@ void char_end_attack_anim(Char *self) {
     }
 }
 
+/* Placeholder for the case when those actions gonna do something more than actor_next only...
 void char_on_motion_complete(Char *self)  { actor_next(&self->base); }
 void char_on_attack_complete(Char *self)  { actor_next(&self->base); }
 void char_on_operate_complete(Char *self) { actor_next(&self->base); }
-
+*/
 
 
 

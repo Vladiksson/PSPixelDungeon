@@ -226,9 +226,9 @@ static void draw_inside(Level *lvl, Room *r, int dx, int dy, int len, uint8_t ti
         x += sx;
         y += sy;
 
-        int idx = xy_to_idx(x,y);
-        if (!in_bounds(idx))
+        if (!in_bounds_xy(x, y))
             break;
+        int idx = xy_to_idx(x, y);
         set_tile(lvl, idx, tile);
     }
 }
@@ -329,9 +329,10 @@ static void paint_graveyard(Level *lvl, Room *r, int depth){
             y = r->top + 1 + shift + i * 2;
         }
 
-        int idx = xy_to_idx(x,y);
-        if (!in_bounds(idx))
+        if (!in_bounds_xy(x, y))
             continue;
+
+        int idx = xy_to_idx(x, y);
         if (i == index)
             spawn_item_heap(lvl, idx, depth, random_item(), HEAP_TOMB);
         else
@@ -893,13 +894,15 @@ static void paint_library(Level *lvl, Room *r, int depth){
 
         fill_rect(lvl, r->left + 1, r->top + 1, room_w(r) - 1, 1, TILE_BOOKSHELF);
     }
-    int aidx = xy_to_idx(ax, ay);
-    if (in_bounds(aidx) && lvl->map[aidx] == TILE_EMPTY) {
-        set_tile(lvl, aidx, TILE_STATUE);
+    if (in_bounds_xy(ax, ay)) {
+        int aidx = xy_to_idx(ax, ay);
+        if (lvl->map[aidx] == TILE_EMPTY)
+            set_tile(lvl, aidx, TILE_STATUE);
     }
-    int bidx = xy_to_idx(bx, by);
-    if (in_bounds(bidx) && lvl->map[bidx] == TILE_EMPTY) {
-        set_tile(lvl, bidx, TILE_STATUE);
+    if (in_bounds_xy(bx, by)) {
+        int bidx = xy_to_idx(bx, by);
+        if (lvl->map[bidx] == TILE_EMPTY)
+            set_tile(lvl, bidx, TILE_STATUE);
     }
     int n = rng_range(2, 3);
     for (int i = 0; i < n; i++) {
@@ -959,8 +962,8 @@ static void paint_laboratory(Level *lvl, Room *r, int depth) {
         px = rng_int(2) ? r->left + 1 : r->right - 1;
         py = r->top + 1;
     }
-    int pidx = xy_to_idx(px, py);
-    if (in_bounds(pidx)) {
+    if (in_bounds_xy(px, py)) {
+        int pidx = xy_to_idx(px, py);
         set_tile(lvl, pidx, TILE_ALCHEMY);
         /* TODO:
            Alchemy alchemy = new Alchemy();

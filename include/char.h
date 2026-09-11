@@ -83,6 +83,7 @@ typedef struct CharVTable {
    const char *(*defense_verb)(Char *self);                        /* default: "dodged" */
    int         (*dr)(Char *self);                                  /* default: 0 */
    int         (*damage_roll)(Char *self);                         /* default: 1 */
+   float       (*speed)(Char *self);                                /* default: baseSpeed, halved by Cripple */
    int         (*attack_proc)(Char *self, Char *enemy, int damage);    /* default: passthrough */
    int         (*defense_proc)(Char *self, Char *attacker, int damage); /* default: passthrough */
    uint32_t    (*resistances)(Char *self);                         /* default: 0 */
@@ -165,6 +166,7 @@ void char_die_default(Char *self, void *src, DamageSource src_type);
 void char_clear(void);
 
 /* ── Position / movement ─────────────────────────────────────── */
+int char_neighbour_idx(int pos, int dx, int dy);
 
 Char *char_find_at(int pos);
 
@@ -230,10 +232,11 @@ int   char_is_charmed_by(Char *self, Char *ch);
 void char_set_turn_started_hook(void (*fn)(Char *self));
 int  char_base_act(Char *self);
 
+/*
 void char_on_motion_complete(Char *self);
 void char_on_attack_complete(Char *self);
 void char_on_operate_complete(Char *self);
-
+*/
 
 
 

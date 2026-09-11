@@ -277,11 +277,9 @@ void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
 
     for (int ty = cam->tile_y; ty <= cam->tile_y + gViewRows; ty++) {
         for (int tx = cam->tile_x; tx <= cam->tile_x + gViewCols; tx++) {
-
-            int idx = xy_to_idx(tx, ty);
-            if (!in_bounds(idx))
+            if (!in_bounds_xy(tx, ty)) 
                 continue;
-            uint8_t tile = lvl->map[idx];
+            uint8_t tile = lvl->map[xy_to_idx(tx, ty)];
 
             Point screen  = camera_tile_to_screen(cam, tx, ty);
             if (tile == TILE_CHASM_WATER) {
@@ -333,7 +331,7 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
 
     for (int ty = cam->tile_y - 1; ty < cam->tile_y + gViewRows + 1; ++ty) {
         for (int tx = cam->tile_x - 1; tx < cam->tile_x + gViewCols + 1; ++tx) {
-            int idx = xy_to_idx(tx, ty);
+            
             Point screen = camera_tile_to_screen(cam, tx, ty);
 
             SDL_Rect visited_rect = {
@@ -350,18 +348,19 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
                 visited_rect.h + pad * 2
             };
 
-            if (!in_bounds(idx)) {
+            if (!in_bounds_xy(tx, ty)) {
                 SDL_SetTextureColorMod(ctx->shadow, 0, 0, 0);
                 SDL_SetTextureAlphaMod(ctx->shadow, 255);
                 SDL_RenderCopy(ctx->renderer, ctx->shadow, NULL, &invisible_rect);
                 continue;
             }
+            int idx = xy_to_idx(tx, ty);
             if (fog->visible[idx])
                 continue;
             if (fog->visited[idx]) {
-                /* VISITED = 0xCC111111 (ARGB) */
+                /* VISITED = 0xCC111111 (ARGB), textures was moded as well as color here */
                 SDL_SetTextureColorMod(ctx->shadow, 0x11, 0x11, 0x11);
-                SDL_SetTextureAlphaMod(ctx->shadow, 0xCC);
+                SDL_SetTextureAlphaMod(ctx->shadow, 0xAA);
                 SDL_RenderCopy(ctx->renderer, ctx->shadow, NULL, &visited_rect);
             }
             else {

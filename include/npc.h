@@ -1,6 +1,6 @@
 #pragma once
 #include "char.h"
-#include "animation_db.h"
+#include "sprite_db.h"
 
 typedef struct NPC NPC;
 

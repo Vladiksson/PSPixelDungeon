@@ -120,4 +120,5 @@ typedef struct { int x, y; } Point;
 
 static inline int   xy_to_idx (int x, int y) { return y * LEVEL_W + x; }
 static inline Point idx_to_xy (int idx)      { return (Point){ idx % LEVEL_W, idx / LEVEL_W }; }
-static inline int   in_bounds (int idx)      { return idx >= 0 && idx < LEVEL_SIZE; }
+static inline int   in_bounds (int idx)      { return idx >= 0 && idx < LEVEL_SIZE; } // mb it was really stupid mistake to rewrite point to idx...
+static inline int   in_bounds_xy(int x, int y)  { return x >= 0 && x < LEVEL_W && y >= 0 && y < LEVEL_H; }

@@ -123,7 +123,7 @@ static void mob_resolve_attack(Mob *m) {
     } else {
         m->target = NULL;
     }
-    char_on_attack_complete(&m->base);
+    actor_next(&m->base.base);
 }
 
 void mob_play_anim(Mob *m, MobAnimState anim) {
@@ -241,12 +241,19 @@ static int mob_can_see(Mob *m, Char *target, Level *lvl){
 ═══════════════════════════════════════════════════════════════*/
 #define MOB_TIME_TO_WAKE_UP 1.0f
 
-static int mob_try_step(Mob *m, Level *lvl, int dx, int dy) {
-    if (dx == 0 && dy == 0) return 0;
-
-    int npos = m->base.pos + xy_to_idx(dx, dy);
+static int mob_try_step(Mob *m, Level *lvl, int npos) {
+    if (m->base.rooted) return 0;
     if (!in_bounds(npos)) return 0;
-    
+    if (npos == m->base.pos) return 0;
+
+    Point mp = idx_to_xy(m->base.pos);
+    Point np = idx_to_xy(npos);
+
+    int dx = np.x - mp.x;
+    int dy = np.y - mp.y;
+
+    /* Must be an adjacent tile. */
+    if (dx < -1 || dx > 1 || dy < -1 || dy > 1) return 0;
     if (!(gTileFlags[lvl->map[npos]] & TF_PASSABLE)) return 0;
     if (char_find_at(npos) != NULL) return 0;
 
@@ -259,25 +266,17 @@ static int mob_try_step(Mob *m, Level *lvl, int dx, int dy) {
 }
 
 static int mob_step_toward_pos(Mob *m, Level *lvl, int dest_pos) {
-    if (m->base.rooted) return 0;
-
     int next = pathfinder_get_step(lvl, m->base.pos, dest_pos);
-    if (next == -1) return 0;
-
-    Point mp = idx_to_xy(m->base.pos);
-    Point np = idx_to_xy(next);
-    return mob_try_step(m, lvl, np.x - mp.x, np.y - mp.y);
+    if (next == -1)
+        return 0;
+    return mob_try_step(m, lvl, next);
 }
 
 static int mob_step_away_pos(Mob *m, Level *lvl, int from_pos) {
-    if (m->base.rooted) return 0;
-
     int next = pathfinder_get_step_back(lvl, m->base.pos, from_pos);
-    if (next == -1) return 0;
-
-    Point mp = idx_to_xy(m->base.pos);
-    Point np = idx_to_xy(next);
-    return mob_try_step(m, lvl, np.x - mp.x, np.y - mp.y);
+    if (next == -1)
+        return 0;
+    return mob_try_step(m, lvl, next);
 }
 
 static int mob_random_destination(Level *lvl) {

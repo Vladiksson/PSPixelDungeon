@@ -26,7 +26,7 @@ add_executable(${PROJECT_NAME}
     src/mob_bestiary.c
     src/pathfinder.c
     src/npc.c
-    src/animation_db.c
+    src/sprite_db.c
     src/rng.c
     src/font.c
     src/icons.c

@@ -2,8 +2,7 @@
 #include <string.h>
 
 static int blocks_light(const Level *lvl, int idx) {
-    if (!in_bounds(idx)) return 1;
-    return gTileFlags[lvl->map[idx]] & TF_LOS_BLOCKING;
+    return (gTileFlags[lvl->map[idx]] & TF_LOS_BLOCKING) != 0;
 }
 
 static int fov_radius(int depth) {
@@ -40,8 +39,13 @@ static void cast_octant(uint8_t *vis, const Level *lvl, int idx, int row, float 
         while (dx <= 0) {
             dx++;
             Point c = idx_to_xy(idx);
+
             int ax = c.x + dx * xx + dy * xy;
             int ay = c.y + dx * yx + dy * yy;
+
+            if (!in_bounds_xy(ax, ay))
+                continue;
+
             int aidx = xy_to_idx(ax, ay);
 
             /* Slopes for the left and right edges of this tile */
@@ -52,7 +56,7 @@ static void cast_octant(uint8_t *vis, const Level *lvl, int idx, int row, float 
             if (end   > l_slope) break;      /* past the end of our range  */
 
             /* Tile is in the light beam — mark visible if within radius */
-            if ((float)(dx*dx + dy*dy) < r2 && in_bounds(aidx))
+            if ((float)(dx*dx + dy*dy) < r2)
                 vis[aidx] = 1;
 
             if (blocked) {
