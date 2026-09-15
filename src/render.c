@@ -268,13 +268,49 @@ static int water_sprite(const Level *lvl, int tx, int ty) { //mirror Level.java 
 }
 
 static void render_water_fill(RenderCtx *ctx, int tx, int ty, int px, int py) {
-    SDL_Rect dst = {px, py, gTileSize, gTileSize};
     SDL_Texture *tex = ctx->water[(int)ctx->active_theme];
     if (!tex) 
         return;
 
-    SDL_Rect src = {(tx*gTileSize)%32, (ty*gTileSize)%32, gTileSize, gTileSize};
-    SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
+    const int TEX_SIZE = 32;
+
+    int sx = (tx * gTileSize) % TEX_SIZE;
+    int sy = ((ty * gTileSize) + (int)ctx->water_offset_y) % TEX_SIZE;
+
+    if (sx < 0)
+        sx += TEX_SIZE;
+
+    if (sy < 0)
+        sy += TEX_SIZE;
+
+    int remaining_h = gTileSize;
+
+    int src_y = sy;
+    int dst_y = py;
+
+    while (remaining_h > 0) {
+        int chunk_h = TEX_SIZE - src_y;
+        if (chunk_h > remaining_h)
+            chunk_h = remaining_h;
+
+        SDL_Rect src = {
+            sx,
+            src_y,
+            gTileSize,
+            chunk_h
+        };
+        SDL_Rect dst = {
+            px,
+            dst_y,
+            gTileSize,
+            chunk_h
+        };
+
+        SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
+        remaining_h -= chunk_h;
+        dst_y += chunk_h;
+        src_y = 0;
+    }
 }
 
 void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
@@ -300,6 +336,13 @@ void render_frame(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
             }
         }
     }
+}
+
+void render_update_water(RenderCtx *ctx, float elapsed) { //MB TRANSFER SOMEWHERE???
+    ctx->water_offset_y -= 10.0f * elapsed; //ORIGINAL WAS 5
+
+    if (ctx->water_offset_y <= -32.0f)
+        ctx->water_offset_y += 32.0f;
 }
 
 /* ── render_items ──────────────────────────────────── */

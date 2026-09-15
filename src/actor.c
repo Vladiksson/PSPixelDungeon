@@ -49,7 +49,7 @@ void actor_postpone(Actor *a, float time) {
     }
 }
 
-float actor_cooldown(const Actor *a) {//DO I REALLY NEED COOLDOWN? (BREAK MOBS AFTER CHANGING LEVELS)
+float actor_cooldown(const Actor *a) {
     return a->time - now;
 }
 

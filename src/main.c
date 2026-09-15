@@ -5,104 +5,27 @@
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
-#include "render.h"
-#include "input.h"
-#include "dungeon.h"
-#include "ui_inventory.h" //REDO TEMPORARY
-#include "ui_hud.h" //REDO TEMPORARY
-#include "ui_stats.h" //REDO TEMPORARY
+#include "game.h"
 
 /* ── PSP kernel module metadata ────────────────────────── */
 PSP_HEAP_SIZE_KB(16384); // 16 MB, in other case sdl gonna eat all of ram, shitty temporary solution
-
-/* ── Movement repeat ──────────────────────────────────── */
-typedef struct {
-    uint32_t next_ms;
-    int held;
-    int blocked;
-} MoveRepeat;
-
-#define MOVE_REPEAT_DELAY  4.5f
-#define MOVE_REPEAT_SPEED  9.0f
-
-static uint32_t move_repeat_delay_ms(const Player *p) {
-    float speed = char_speed((Char *)&p->base);
-    if (speed <= 0.0f)
-        speed = 0.01f;
-    return (uint32_t)((1000.0f / speed) / MOVE_REPEAT_DELAY);
-}
-
-static uint32_t move_repeat_rate_ms(const Player *p) {
-    float speed = char_speed((Char *)&p->base);
-    if (speed <= 0.0f)
-        speed = 0.01f;
-    return (uint32_t)((1000.0f / speed) / MOVE_REPEAT_SPEED);
-}
-
-
-static int move_repeat_update(MoveRepeat *mr, uint32_t now, Player *p, Level *lvl, Camera *cam, int dx, int dy) {
-    if (dx == 0 && dy == 0) {
-        mr->held    = 0;
-        mr->blocked = 0;
-        return 0;
-    }
-    if (!mr->held) {
-        int result = player_bump(p, lvl, dx, dy);
-        mr->held = 1;
-        mr->next_ms = now + move_repeat_delay_ms(p);
-        mr->blocked = (result == PLAYER_BUMP_BLOCKED);
-
-        if (result == PLAYER_BUMP_MOVED)
-            camera_center_on(cam, p->base.pos);
-        return result;
-    }
-    if (now >= mr->next_ms) {
-        int result = player_bump(p, lvl, dx, dy);
-        mr->next_ms += move_repeat_rate_ms(p);
-        mr->blocked = (result == PLAYER_BUMP_BLOCKED);
-
-        if (result == PLAYER_BUMP_MOVED)
-            camera_center_on(cam, p->base.pos);
-        return result;
-    }
-    return 0;
-}
 
 /* ── Main ─────────────────────────────────────────────── */
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
 
-    gTileSize = TILE_SIZE_MIN;
-    TileSize_Update();
-
-    Terrain_InitFlags(); 
-
-    static Dungeon dungeon;
-    dungeon_init(&dungeon);
-
-    Level *lvl = dungeon_current_level(&dungeon);
-    Fog *fog = dungeon_current_fog(&dungeon);
-
-    Player player;
-    player_init(&player, lvl, 0);
-
-    InventoryUI inv = {0};
-    StatsUI stats = {0};
-
-    Camera cam;
-    camera_center_on(&cam, player.base.pos);
+    static Game game;
+    game_init(&game);
 
     RenderCtx rctx;
     if (render_init(&rctx) != 0) {
         SDL_Quit();
         return -1;
     }
- 
+
     InputState inp;
     input_init(&inp);
-    
-    MoveRepeat mr = {0};
-    
+
     uint32_t last = SDL_GetTicks();
     /* ── Game loop ──────────────────────────────────── */
     while (!inp.quit) {
@@ -113,187 +36,11 @@ int main(int argc, char *argv[]) {
             dt = 0.1f;
 
         input_update(&inp);
-        
-        if (btn_pressed(&inp, BTN_SELECT)) {
-            if (inv.open)
-                inventory_ui_close(&inv);
-            else
-                inventory_ui_open(&inv);
-        }
-        if (btn_pressed(&inp, BTN_START)) {
-            if (stats.open)
-                stats_ui_close(&stats);
-            else
-                stats_ui_open(&stats);
-        }
-        if (inv.open) {
-            /* ── Pending ring slot selection ───────────── */
-            if (inv.pending_ring >= 0) {
-                Bag *bag = &player.bags[inv.active_bag];
-                int slot = inv.pending_ring;
 
-                if (btn_pressed(&inp, BTN_L)) {
-                    player_equip_ring(&player, bag, slot, EQUIP_RING1, 1);
-                    inv.pending_ring = -1;
-                } 
-                else if (btn_pressed(&inp, BTN_R)) {
-                    player_equip_ring(&player, bag, slot, EQUIP_RING2, 1);
-                    inv.pending_ring = -1;
-                }
-            }
-            /* ── Normal inventory input ────────────────── */
-            else if (!inv.desc_open) {
-                if (btn_pressed(&inp, BTN_UP))
-                    inventory_ui_move(&inv, 0, -1);
-                if (btn_pressed(&inp, BTN_DOWN))
-                    inventory_ui_move(&inv, 0, 1);
-                if (btn_pressed(&inp, BTN_LEFT))
-                    inventory_ui_move(&inv, -1, 0);
-                if (btn_pressed(&inp, BTN_RIGHT))
-                    inventory_ui_move(&inv, 1, 0);
-                if (btn_pressed(&inp, BTN_CROSS)) {
-                    if (inv.cursor >= 0 && inv.cursor < MAX_INVENTORY) {
-                        Bag *bag = &player.bags[inv.active_bag];
-                        item_identify(&bag->items[inv.cursor]);//TEST
+        game_input(&game, &inp, now);
+        game_update(&game, &rctx, dt);
+        game_render(&game, &rctx);
 
-                        int res = player_equip_item(&player, bag, inv.cursor, 1);
-
-                        if (res == EQUIP_RING_SELECT) {
-                            inv.pending_ring = inv.cursor;
-                        }
-                    } else {
-                        switch (inv.cursor) {
-                        case CURSOR_WEAPON:
-                            player_unequip(&player, EQUIP_WEAPON, lvl);
-                            break;
-                        case CURSOR_ARMOR:
-                            player_unequip(&player, EQUIP_ARMOR, lvl);
-                            break;
-                        case CURSOR_RING1:
-                            player_unequip(&player, EQUIP_RING1, lvl);
-                            break;
-                        case CURSOR_RING2:
-                            player_unequip(&player, EQUIP_RING2, lvl);
-                            break;
-                        }
-                    }
-                }
-                if (btn_pressed(&inp, BTN_SQUARE))
-                    player_drop_from_bag(&player, lvl, &player.bags[inv.active_bag], inv.cursor);
-                if (btn_pressed(&inp, BTN_TRIANGLE)) {
-                    Bag *bag = &player.bags[inv.active_bag];
-
-                    item_identify(&bag->items[inv.cursor]);//TEST
-                    if (item_consume(&bag->items[inv.cursor]) == ITEM_USE_CONSUMED) {//TEST
-                            bag_remove_item(bag, inv.cursor, 1);
-                    }
-                }
-                if (btn_pressed(&inp, BTN_R))
-                    inventory_ui_next_tab(&inv, &player);
-                if (btn_pressed(&inp, BTN_L))
-                    inventory_ui_prev_tab(&inv, &player);
-            }    
-            if (btn_pressed(&inp, BTN_CIRCLE)) {
-                if (inv.pending_ring >= 0)
-                    inv.pending_ring = -1;
-                if (inv.desc_open) {
-                    inventory_ui_desc_close(&inv);
-                } else if (inv.cursor >= 0 && inv.cursor < MAX_INVENTORY) {
-                    Bag *bag = &player.bags[inv.active_bag];
-
-                    if (bag->items[inv.cursor].type != ITEM_NONE)
-                        inventory_ui_desc_open(&inv);
-                } else {
-                    ItemStack *item = NULL;
-
-                    switch (inv.cursor) {
-                    case CURSOR_WEAPON:
-                        item = &player.weapon;
-                        break;
-                    case CURSOR_ARMOR:
-                        item = &player.armor;
-                        break;
-                    case CURSOR_RING1:
-                        item = &player.ring1;
-                        break;
-                    case CURSOR_RING2:
-                        item = &player.ring2;
-                        break;
-                    }
-
-                    if (item && item->type != ITEM_NONE)
-                        inventory_ui_desc_open(&inv);
-                }
-            }  
-        } else {
-            if (btn_pressed(&inp, BTN_L)) {
-                if (gTileSize == TILE_SIZE_MIN) {
-                    gTileSize = TILE_SIZE_MAX;
-                } else {
-                    gTileSize = TILE_SIZE_MIN;
-                }
-                TileSize_Update();
-                camera_center_on(&cam, player.base.pos);
-            }
-            /* Player movement — d-pad */
-            int dx, dy;
-            input_get_move(&inp, &dx, &dy);
-
-            int moving_input = (dx != 0 || dy != 0);
-
-            int moved = move_repeat_update(&mr, now, &player, lvl, &cam, dx, dy);
-            if (moved == PLAYER_BUMP_MOVED) {
-                if (moving_input)
-                    player_set_moving(&player, 1);
-
-                if (!player_operate(&player, lvl))
-                    player_pickup(&player, lvl);
-
-                if (player.base.pos == lvl->exit) {
-                    dungeon_go_down(&dungeon, &player, &cam);
-                    lvl = dungeon_current_level(&dungeon);
-                    fog = dungeon_current_fog(&dungeon);
-                    continue;
-                }
-                if (player.base.pos == lvl->entrance) {
-                    dungeon_go_up(&dungeon, &player, &cam);
-                    lvl = dungeon_current_level(&dungeon);
-                    fog = dungeon_current_fog(&dungeon);
-                    continue;
-                }
-                dungeon_event(&dungeon, &player);
-
-            } else if (moved == PLAYER_BUMP_ATTACKED) {
-                /* Attack already started; player_animate() will resolve it. */
-            } else if (!moving_input || mr.blocked) {
-                player_set_moving(&player, 0);
-            }
-        }
-        actor_process();
-
-        fog_update(fog, lvl, player.base.pos, dungeon.current_depth);
-        hud_update(&rctx, &player);
-
-        player_animate(&player, dt);
-        mob_animate_all(dt);
-        npc_animate_all(dt);
-
-        
-        render_frame(&rctx, lvl, &cam);
-        render_items(&rctx, lvl, fog, &cam);
-        render_mobs(&rctx, fog, &cam);
-        render_npcs(&rctx, &player, fog, &cam);
-        render_fog(&rctx, fog, &cam);
-        render_player(&rctx, &player, &cam);
-
-        render_hud(&rctx, &player, &dungeon);
-
-        if (inv.open)
-            render_inventory(&rctx, &player, &inv);
-        if (stats.open)
-            render_stats_screen(&rctx, &player);
-        render_present(&rctx);
-        
         SDL_Delay(1);
     }
 

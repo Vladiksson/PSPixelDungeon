@@ -1,4 +1,4 @@
-#include "ui_inventory.h"
+#include "ui.h"
 #include "ui_ninepatch.h"
 #include "icons.h"
 #include "common.h"
@@ -6,12 +6,6 @@
 /* ══════════════════════════════════════════════════════════
    UI state
    ══════════════════════════════════════════════════════════  */
-void inventory_ui_open (InventoryUI *ui) { ui->open = 1; ui->cursor = 0; ui->active_bag = BAG_BACKPACK; ui->pending_ring = -1; }
-void inventory_ui_close(InventoryUI *ui) { ui->open = 0; }
-
-void inventory_ui_desc_open (InventoryUI *ui) { ui->desc_open = 1; }
-void inventory_ui_desc_close(InventoryUI *ui) { ui->desc_open = 0; }
-
 void inventory_ui_move(InventoryUI *ui, int dx, int dy) {
     int backpack_tab = (ui->active_bag == BAG_BACKPACK);
     int cols       = backpack_tab ? INV_COLS : BAG_COLS;
@@ -87,6 +81,33 @@ int inventory_ui_try_open_bag(InventoryUI *ui, const Player *p) {
     ui->active_bag = (BagType)type;
     ui->cursor = 0;
     return 1;
+}
+
+/* ══════════════════════════════════════════════════════════
+   INVENTORY HELPER
+   ══════════════════════════════════════════════════════════  */
+static ItemStack inventory_get_stack(const Player *p, BagType shown, int cursor, int slot_count) {
+    const Bag *bag = &p->bags[shown];
+
+    if (cursor < slot_count) {
+        if (shown == BAG_BACKPACK && cursor == GOLD_SLOT) {
+            ItemStack stack = item_stack_none();
+            stack.type = ITEM_GOLD;
+            stack.quantity = p->gold;
+            return stack;
+        }
+        if (cursor < bag->count)
+            return bag->items[cursor];
+        return item_stack_none();
+    }
+
+    switch (cursor) {
+        case CURSOR_WEAPON: return p->weapon;
+        case CURSOR_ARMOR:  return p->armor;
+        case CURSOR_RING1:  return p->ring1;
+        case CURSOR_RING2:  return p->ring2;
+        default:            return item_stack_none();
+    }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -279,9 +300,14 @@ static void draw_selected_tab(RenderCtx *ctx, const Player *p, BagType active) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   Description screen
+   Description screen (POPUP)
    ══════════════════════════════════════════════════════════  */
-static void render_item_description(RenderCtx *ctx, ItemStack stack) {
+void render_item_description(RenderCtx *ctx, const InventoryUI *ui, const Player *p) {
+    BagType shown = (ui->active_bag == BAG_BACKPACK || player_has_bag(p, ui->active_bag)) ? ui->active_bag : BAG_BACKPACK;
+    int slot_count = shown == BAG_BACKPACK ? MAX_INVENTORY : bag_capacity_for_type(shown);
+
+    ItemStack stack = inventory_get_stack(p, shown, ui->cursor, slot_count);
+
     NinePatch window = chrome_window(ctx->ui.chrome);
     ninepatch_draw(ctx->renderer, &window, DESC_PANEL_X, DESC_PANEL_Y, DESC_PANEL_W, DESC_PANEL_H);
     
@@ -298,7 +324,6 @@ static void render_item_description(RenderCtx *ctx, ItemStack stack) {
    Inventory screen
    ══════════════════════════════════════════════════════════  */
 void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
-    if (!ui->open) return;
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
 
     BagType shown = (ui->active_bag == BAG_BACKPACK || player_has_bag(p, ui->active_bag)) ? ui->active_bag : BAG_BACKPACK;
@@ -306,7 +331,6 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
     int backpack_tab = (shown == BAG_BACKPACK);
     int grid_cols     = backpack_tab ? INV_COLS : BAG_COLS;
     int slot_count    = backpack_tab ? MAX_INVENTORY : bag_capacity_for_type(shown);
-    const Bag *bag    = &p->bags[shown];
     
     draw_unselected_tab(ctx, p, shown);
 
@@ -323,13 +347,7 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
         int x = INV_GRID_X + col * (INV_SLOT + INV_GAP);
         int y = INV_GRID_Y + row * (INV_SLOT + INV_GAP);
 
-        ItemStack stack = item_stack_none();
-        if (backpack_tab && i == GOLD_SLOT) {
-            stack.type = ITEM_GOLD;
-            stack.quantity = p->gold;
-        } else if (i < bag->count) {
-            stack = bag->items[i];
-        }
+        ItemStack stack = inventory_get_stack(p, shown, i, slot_count);
         draw_slot(ctx, x, y, INV_SLOT, stack, i == ui->cursor);
     }
 
@@ -338,23 +356,7 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
     draw_equip_slot(ctx, EQUIP_PANEL_X, EQUIP_PANEL_Y + 2 * (INV_SLOT + INV_GAP), INV_SLOT, p->ring1,  SPRITE_RING,   ui->cursor == CURSOR_RING1 );
     draw_equip_slot(ctx, EQUIP_PANEL_X, EQUIP_PANEL_Y + 3 * (INV_SLOT + INV_GAP), INV_SLOT, p->ring2,  SPRITE_RING,   ui->cursor == CURSOR_RING2 );
     
-    ItemStack stack = item_stack_none();
- 
-    if (ui->cursor < slot_count) {
-        if (backpack_tab && ui->cursor == GOLD_SLOT ) {
-            stack.type = ITEM_GOLD;
-            stack.quantity = p->gold;
-        } else if (ui->cursor < bag->count) {
-            stack = bag->items[ui->cursor];
-        }
-    } else {
-        switch (ui->cursor) {
-            case CURSOR_WEAPON: stack = p->weapon; break;
-            case CURSOR_ARMOR:  stack = p->armor;  break;
-            case CURSOR_RING1:  stack = p->ring1;  break;
-            case CURSOR_RING2:  stack = p->ring2;  break;
-        }
-    }
+    ItemStack stack = inventory_get_stack(p, shown, ui->cursor, slot_count);
 
     if (stack.type != ITEM_NONE) {
         char name_buf[64];
@@ -367,8 +369,260 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
             snprintf(name_buf, sizeof(name_buf), "%s", item_name);
 
         draw_text(ctx, NAME_X, NAME_Y, COL_TEXT, name_buf);
-        if (ui->desc_open)
-            render_item_description(ctx, stack);
     }
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
+}
+
+/* ══════════════════════════════════════════════════════════
+   STATS SCREEN (POPUP)
+   ══════════════════════════════════════════════════════════  */
+void render_stats_screen(RenderCtx *ctx, const Player *p) {
+    SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
+
+    NinePatch window = chrome_window(ctx->ui.chrome);
+    ninepatch_draw(ctx->renderer, &window, DESC_PANEL_X, DESC_PANEL_Y, DESC_PANEL_W, DESC_PANEL_H);
+    
+    /*label*/
+    const char *class_name = "Unknown";
+
+    switch (p->cls) {
+        case HERO_WARRIOR:
+            switch (p->sub_class) {
+                case HERO_SUB_BERSERKER:  class_name = "Berserker";  break;
+                case HERO_SUB_GLADIATOR:  class_name = "Gladiator";  break;
+                default:                  class_name = "Warrior";    break;
+            }
+            break;
+        case HERO_MAGE:
+            switch (p->sub_class) {
+                case HERO_SUB_WARLOCK:    class_name = "Warlock";    break;
+                case HERO_SUB_BATTLEMAGE: class_name = "Battlemage"; break;
+                default:                  class_name = "Mage";       break;
+            }
+            break;
+        case HERO_ROGUE:
+            switch (p->sub_class) {
+                case HERO_SUB_FREERUNNER: class_name = "Freerunner"; break;
+                case HERO_SUB_ASSASSIN:   class_name = "Assassin";   break;
+                default:                  class_name = "Rogue";      break;
+            }
+            break;
+        case HERO_HUNTRESS:
+            switch (p->sub_class) {
+                case HERO_SUB_SNIPER: class_name = "Sniper";  break;
+                case HERO_SUB_WARDEN: class_name = "Warden";  break;
+                default:              class_name = "Huntress"; break;
+            }
+            break;
+        default:
+            class_name = "Unknown";
+            break;
+    }
+
+    int lvl = p->lvl;
+    char current_lvl[64];
+    snprintf(current_lvl, sizeof(current_lvl), "LEVEL %d %s", lvl, class_name);
+    font_draw_text(ctx->renderer, &ctx->font, 160, 50, 1.6, COL_GOLD_TEXT, current_lvl);
+
+    /*str*/
+    int str = p->STR;
+    char current_str[32];
+    snprintf(current_str, sizeof(current_str), "Strength: %d", str);
+    font_draw_text(ctx->renderer, &ctx->font, 160, 80, 1.5, COL_WHITE, current_str);
+
+    /*hp*/
+    int hp = p->base.HP;
+    int max_hp = p->base.HT;
+
+    if (hp < 0) hp = 0;
+    if (hp > max_hp) hp = max_hp;
+
+    char current_hp[32];
+    snprintf(current_hp, sizeof(current_hp), "Health: %d/%d", hp, max_hp);
+    font_draw_text(ctx->renderer, &ctx->font, 160, 95, 1.5, COL_WHITE, current_hp);
+
+    /*exp*/
+    int exp = p->exp;
+    int max_exp = player_max_exp(p);
+
+    if (exp < 0) exp = 0;
+    if (exp > max_exp) exp = max_exp;
+
+    char current_exp[32];
+    snprintf(current_exp, sizeof(current_exp), "Experience: %d/%d", exp, max_exp);
+    font_draw_text(ctx->renderer, &ctx->font, 160, 110, 1.5, COL_WHITE, current_exp);
+
+    SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
+}
+
+/* ══════════════════════════════════════════════════════════
+   HUD
+   ══════════════════════════════════════════════════════════  */
+
+   //TODO BUFFS
+static void render_busy_indicator(RenderCtx *ctx, const Player *p) {
+    if (!char_is_alive(&p->base)) // || p->ready)
+        return;
+    uint8_t sx, sy, sw, sh;
+    icon_sprite(ICON_BUSY, &sx, &sy, &sw, &sh);
+
+    SDL_Rect src = { sx, sy, sw, sh };
+    SDL_Rect dst = { 0,  50, sw * 2, sh * 2 };
+
+    SDL_SetTextureBlendMode(ctx->icons, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureAlphaMod(ctx->icons, 128);
+
+    SDL_Point center = { dst.w / 2, dst.h / 2 };
+
+    SDL_RenderCopyEx(ctx->renderer, ctx->icons, &src, &dst, ctx->busy_angle, &center, SDL_FLIP_NONE);
+    SDL_SetTextureAlphaMod(ctx->icons, 255);
+}
+
+//test
+void hud_update(RenderCtx *ctx, const Player *p) {
+    if (!p || !char_is_alive(&p->base)) { //|| p->ready) {
+        ctx->busy_angle = 0.0f;
+        return;
+    }
+    ctx->busy_angle = fmodf(actor_now() * 45.0f, 360.0f);
+}
+
+void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d) {
+    /* ── Status panel ───────────────────────────────────── */
+    NinePatch status = status_panel(ctx->ui.status);
+    ninepatch_draw(ctx->renderer, &status, 0, 0, 480, 96); //SCREEN_W, TEXTURE HIGH * SCALE
+
+    /* ── HP bar ──────────────────────────────────────────── */
+    if (ctx->ui.hp_bar && p && p->base.HT > 0) {
+        int hp = p->base.HP;
+        int max_hp = p->base.HT;
+        if (hp < 0)
+            hp = 0;
+        if (hp > max_hp)
+            hp = max_hp;
+
+        float hp_ratio = (float)hp / (float)max_hp;
+
+        const int bar_x = 45;
+        const int bar_y = 4;
+        const int bar_w = 70; //original texture size 64X4
+        const int bar_h = 6;
+
+        int tex_w = 0;
+        int tex_h = 0;
+
+        SDL_QueryTexture(ctx->ui.hp_bar, NULL, NULL, &tex_w, &tex_h);
+
+        if (tex_w > 0 && tex_h > 0) {
+            int fill_w = (int)(bar_w * hp_ratio);
+            if (fill_w > 0) {
+                SDL_Rect src = {
+                    0,
+                    0,
+                    (int)(tex_w * hp_ratio),
+                    tex_h
+                };
+                SDL_Rect dst = {
+                    bar_x,
+                    bar_y,
+                    fill_w,
+                    bar_h
+                };
+                SDL_RenderCopy(ctx->renderer, ctx->ui.hp_bar, &src, &dst);
+            }
+        }
+    }
+    /* ── XP bar ──────────────────────────────────────────── */
+    if (ctx->ui.xp_bar && p) {
+        int exp = p->exp;
+        int max_exp = player_max_exp(p);
+
+        if (exp < 0) exp = 0;
+        if (exp > max_exp) exp = max_exp;
+
+        float exp_ratio = (float)exp / (float)max_exp;
+
+        const int bar_x = 0;
+        const int bar_y = 0;
+        const int bar_w = 480;
+        const int bar_h = 1;
+
+        int tex_w = 0;
+        int tex_h = 0;
+
+        SDL_QueryTexture(ctx->ui.xp_bar, NULL, NULL, &tex_w, &tex_h);
+
+        if (tex_w > 0 && tex_h > 0) {
+            const int fill_tex_w = tex_w / 2; //stupid fix of broken color gradient 
+            int fill_w = (int)(bar_w * exp_ratio);
+
+            if (fill_w > 0) {
+                SDL_Rect src = {
+                    0,
+                    0,
+                    fill_tex_w,
+                    tex_h
+                };
+
+                SDL_Rect dst = {
+                    bar_x,
+                    bar_y,
+                    fill_w,
+                    bar_h
+                };
+
+                SDL_RenderCopy(ctx->renderer, ctx->ui.xp_bar, &src, &dst);
+            }
+        }
+    }
+    /* ── player sprite ───────────────────────────────────────── */
+    if (p) { 
+        SDL_Texture *hero_tex = ctx->heroes[p->cls]; 
+        if (hero_tex) { 
+            SDL_Rect src = { 
+                0, 
+                get_armor_tier(p) * TILESET_HERO_H, 
+                TILESET_HERO_W, 
+                TILESET_HERO_H 
+            }; 
+            const int icon_h = TILESET_HERO_H * 2; 
+            const int icon_w = TILESET_HERO_W * 2; 
+            SDL_Rect dst = { 
+                9, 
+                9, 
+                icon_w, 
+                icon_h 
+            }; 
+            SDL_RenderCopy(ctx->renderer, hero_tex, &src, &dst ); 
+        } 
+    }
+    /* ── player lvl ──────────────────────────────────────────── */
+    char current_lvl[8];
+    snprintf(current_lvl, sizeof(current_lvl), "%d", p->lvl);
+
+    int dx = 0;
+    if(p->lvl > 9) 
+        dx = 3;
+    font_draw_text(ctx->renderer, &ctx->font, 38 - dx, 38, 1.39, COL_WHITE, current_lvl);
+    /* ── dungeon lvl ──────────────────────────────────────────── */
+    char current_floor[16];
+    snprintf(current_floor, sizeof(current_floor), "%d", d->current_depth + 1);
+    int dt = 0;
+    if(d->current_depth + 1 > 9) 
+        dt = 7;
+    font_draw_text(ctx->renderer, &ctx->font, 435 - dt, 9, 1.5, COL_WHITE, current_floor);
+    /* ── keys counter ──────────────────────────────────────────── */
+    //TODO rewrite after locking keys to its current floor
+    const Bag *keyring = &p->bags[BAG_KEYRING];
+    int keys = 0;
+    for (int i = 0; i < keyring->count; i++)
+        keys += keyring->items[i].quantity;
+
+    char key_count[16];
+    snprintf(key_count, sizeof(key_count), "%d", keys);
+
+    font_draw_text(ctx->renderer, &ctx->font, 459, 9, 1.5, COL_WHITE, key_count);
+
+    /* ── busy indicator ───────────────────────────────── */
+    render_busy_indicator(ctx, p);
 }

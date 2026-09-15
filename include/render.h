@@ -17,7 +17,8 @@ typedef struct {
 
    SDL_Texture  *tilesets[TILESET_COUNT];
    SDL_Texture  *water[TILESET_COUNT];
-   
+   float water_offset_y;
+
    SDL_Texture  *heroes[HERO_CLASS_COUNT];
 
    SDL_Texture  *mob_tex[MOBTEX_COUNT];
@@ -39,6 +40,8 @@ typedef struct {
 
 int  render_init  (RenderCtx *ctx);
 void render_free  (RenderCtx *ctx);
+
+void render_update_water(RenderCtx *ctx, float elapsed);
 
 void render_frame  (RenderCtx *ctx, const Level *lvl, const Camera *cam);
 void render_items  (RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam);

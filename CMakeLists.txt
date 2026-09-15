@@ -3,6 +3,7 @@ project(pspixeldungeon C)
 
 add_executable(${PROJECT_NAME}
     src/main.c
+    src/game.c
     src/tiles.c
     src/level.c
     src/level_utils.c
@@ -30,10 +31,8 @@ add_executable(${PROJECT_NAME}
     src/rng.c
     src/font.c
     src/icons.c
-    src/ui_inventory.c
+    src/ui.c
     src/ui_ninepatch.c
-    src/ui_hud.c
-    src/ui_stats.c
     src/fov.c
     src/input.c
     src/camera.c
