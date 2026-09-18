@@ -41,7 +41,7 @@ const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
                                                  .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 5, .acu = 1.0f, .dly = 1.0f, .str = 18 } } },
     [ITEM_SHORT_SWORD]      = { "Short Sword",   "It is indeed quite short, just a few inches longer, than a dagger.",
                                                  ITEMCAT_WEAPON, CELL(SPRITE_SHORT_SWORD),      0,
-                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 1, .acu = 1.0f, .dly = 1.5f, .str = 11 } } },
+                                                 .weapon = { .type = WEAPON_MELEE, .melee = { .tier = 1, .acu = 1.0f, .dly = 1.0f, .str = 11 } } },
     /* ── MISSILES ──────────────────────────────────────────── */
     [ITEM_DART]             = { "Dart",            "These simple metal spikes are weighted to fly true and "
 			                                       "sting their prey with a flick of the wrist.",   
@@ -73,37 +73,37 @@ const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
     /* ── armor ────────────────────────────────────────────── */
     [ITEM_CLOTH_ARMOR]      = { "Cloth Armor",   "This lightweight armor offers basic protection.",
                                                  ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_CLOTH),   0,
-                                                 .armor = { .tier = 1, .str = 9 } },
+                                                 .armor = { .tier = 1, .str = 9, .dr = 2 } },
     [ITEM_LEATHER_ARMOR]    = { "Leather Armor", "Armor made from tanned monster hide. Not as light as cloth armor but provides better protection.",
                                                  ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_LEATHER), 0,
-                                                 .armor = { .tier = 2, .str = 11 } },
+                                                 .armor = { .tier = 2, .str = 11, .dr = 4 } },
     [ITEM_MAIL_ARMOR]       = { "Mail Armor",    "Interlocking metal links make for a tough but flexible suit of armor.",
                                                  ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_MAIL),    0,
-                                                 .armor = { .tier = 3, .str = 13 } },
+                                                 .armor = { .tier = 3, .str = 13, .dr = 6 } },
     [ITEM_SCALE_ARMOR]      = { "Scale Armor",   "The metal scales sewn onto a leather vest create a flexible, yet protective armor.",
                                                  ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_SCALE),   0,
-                                                 .armor = { .tier = 4, .str = 15 } },
+                                                 .armor = { .tier = 4, .str = 15, .dr = 8 } },
     [ITEM_PLATE_ARMOR]      = { "Plate Armor",   "Enormous plates of metal are joined together into a suit that provides " 
 		                                         "unmatched protection to any adventurer strong enough to bear its staggering weight.",
                                                  ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_PLATE),   0,
-                                                 .armor = { .tier = 5, .str = 17 } },
+                                                 .armor = { .tier = 5, .str = 17, .dr = 10 } },
     [ITEM_ROGUE_ARMOR]      = { "Rogue Garb",   "Wearing this dark garb, a rogue can perform a trick, that is called \"smoke bomb\" "
 			                                    "(though no real explosives are used): he blinds enemies who could see him and jumps aside.",
                                                  ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_ROGUE),   0,
-                                                 .armor = { .tier = 6, .str = 19 } },
+                                                 .armor = { .tier = 6, .str = 19, .dr = 12 } },
     [ITEM_WARRIOR_ARMOR]    = { "Warrior Suit of Armor", "While this armor looks heavy, it allows a warrior to perform heroic leap towards "
 			                                    "a targeted location, slamming down to stun all neighbouring enemies.",
                                                  ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_WARRIOR),   0,
-                                                 .armor = { .tier = 6, .str = 19 } },
+                                                 .armor = { .tier = 6, .str = 19, .dr = 12 } },
     [ITEM_MAGE_ARMOR]       = { "Mage Robe",    "Wearing this gorgeous robe, a mage can cast a spell of molten earth: all the enemies "
 			                                    "in his field of view will be set on fire and unable to move at the same time.",
                                                  ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_MAGE),   0,
-                                                 .armor = { .tier = 6, .str = 19 } },
+                                                 .armor = { .tier = 6, .str = 19, .dr = 12 } },
     [ITEM_HUNTRESS_ARMOR]   = { "Huntress Cloak","A huntress in such cloak can create a fan of spectral blades. Each of these blades "
                                                  "will target a single enemy in the huntress's field of view, inflicting damage depending "
                                                  "on her currently equipped melee weapon.",
                                                  ITEMCAT_ARMOR, CELL(SPRITE_ARMOR_HUNTRESS),   0,
-                                                 .armor = { .tier = 6, .str = 19 } },                                             
+                                                 .armor = { .tier = 6, .str = 19, .dr = 12 } },                                             
     /* ── wands — 12 shuffled onto the 12 wood looks, Magic Missile fixed ── */
     [ITEM_WAND_TELEPORTATION] = { "Wand of Teleportation", "A blast from this wand will teleport a creature against " 
 			                                               "its will to a random place on the current level.",
@@ -350,9 +350,7 @@ const ItemDef ITEM_DB[ITEM_TYPE_COUNT] = {
     [ITEM_HONEYPOT] = { "Honeypot",       "There is not much honey in this small honeypot, but there is a golden bee there and it doesn't want to leave it.",
                                           ITEMCAT_MISC, CELL(SPRITE_HONEYPOT), 0 },
     /* ── currency ─────────────────────────────────────────── */
-    [ITEM_GOLD] = { "Gold", "A pile of gold coins. " //ORIGINAL A pile of %d gold coins. + there was unique text for 1 coint
-                            "Collect gold coins to spend them later in a shop.",
-                            ITEMCAT_GOLD, CELL(SPRITE_GOLD), 1 },
+    [ITEM_GOLD] = { "Gold", "", ITEMCAT_GOLD, CELL(SPRITE_GOLD), 1 },
     /* ── keys — vault-specific, not in the random loot pool ──────── */
     [ITEM_KEY_IRON]     = { "Iron Key",    "The notches on this ancient iron key are well worn; its leather lanyard " 
                                            "is battered by age. What door might it open?",

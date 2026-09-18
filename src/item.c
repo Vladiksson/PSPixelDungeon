@@ -79,10 +79,8 @@ void item_stack_init(ItemStack *stack, ItemType type, int quantity) {
     stack->level    = 0; 
     stack->cursed = 0;
  
-    ItemCategory cat = ITEM_DB[type].cat;
-    stack->level_known = (cat == ITEMCAT_WEAPON || cat == ITEMCAT_ARMOR) ? 1 : 0;
     if (!ITEM_DB[type].stackable) {
-        switch (cat) {
+        switch (ITEM_DB[type].cat) {
             case ITEMCAT_WEAPON:
                 generate_weapon(stack);
                 break;
@@ -99,7 +97,16 @@ void item_stack_init(ItemStack *stack, ItemType type, int quantity) {
                 break;
         }
     }
+    stack->level_known  = 0; 
     stack->cursed_known = 0;
+    stack->durability = (int16_t)item_max_durability(type, stack->level);
+}
+
+void item_stack_init_start(ItemStack *stack, ItemType type, int quantity) {
+    stack->type     = type;
+    stack->quantity = quantity;
+    stack->level = stack->cursed = 0;
+    stack->level_known = stack->cursed_known = 1; 
     stack->durability = (int16_t)item_max_durability(type, stack->level);
 }
 

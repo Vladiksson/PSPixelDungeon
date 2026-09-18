@@ -1690,39 +1690,35 @@ void paint_chasms_feeling(Level *lvl){
 }
 
 void paint_chasms(Level *lvl){
-    for (int y = 1; y < LEVEL_H; y++) {
-        for (int x = 0; x < LEVEL_W; x++) {
+    for (int cur = 0; cur < LEVEL_SIZE; cur++) {
+        int above = cur - LEVEL_W;
 
-            int cur   = xy_to_idx (x, y);
-            int above = xy_to_idx (x, y - 1);
+        if (lvl->map[cur] != TILE_CHASM)
+            continue;
 
-            if (lvl->map[cur] != TILE_CHASM)
-                continue;
+        switch (lvl->map[above]) {
+            case TILE_WALL:
+            case TILE_WALL_DECO:
+            case TILE_DOOR:
+            case TILE_OPEN_DOOR:
+                lvl->map[cur] = TILE_CHASM_WALL;
+                break;
 
-            switch (lvl->map[above]) {
-                case TILE_WALL:
-                case TILE_WALL_DECO:
-                case TILE_DOOR:
-                case TILE_OPEN_DOOR:
-                    lvl->map[cur] = TILE_CHASM_WALL;
-                    break;
+            case TILE_EMPTY:
+            case TILE_EMPTY_DECO:
+            case TILE_GRASS:
+            case TILE_HIGH_GRASS:
+            case TILE_EMBERS: //stupid fix for altar (i really hate this room...)
+                lvl->map[cur] = TILE_CHASM_FLOOR;
+                break;
 
-                case TILE_EMPTY:
-                case TILE_EMPTY_DECO:
-                case TILE_GRASS:
-                case TILE_HIGH_GRASS:
-                case TILE_EMBERS: //stupid fix for altar (i really hate this room...)
-                    lvl->map[cur] = TILE_CHASM_FLOOR;
-                    break;
+            case TILE_EMPTY_SP:
+                lvl->map[cur] = TILE_CHASM_FLOOR_SP;
+                break;
 
-                case TILE_EMPTY_SP:
-                    lvl->map[cur] = TILE_CHASM_FLOOR_SP;
-                    break;
-
-                case TILE_WATER:
-                    lvl->map[cur] = TILE_CHASM_WATER;
-                    break;
-            }
+            case TILE_WATER:
+                lvl->map[cur] = TILE_CHASM_WATER;
+                break;
         }
     }
 }

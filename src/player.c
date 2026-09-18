@@ -45,6 +45,14 @@ static void weapon_min_max(ItemStack *w, int *out_min, int *out_max) {
     }
 }
 
+int weapon_average_damage(ItemStack *w) {
+    int min, max;
+    weapon_min_max(w, &min, &max);
+
+    return (min + (max - min) / 2);
+}
+
+
 static int armor_str_req(ItemStack *a) {
     return ITEM_DB[a->type].armor.str - item_effective_level(a);
 }
@@ -118,11 +126,15 @@ int get_armor_tier(const Player *p) {
     return ITEM_DB[p->armor.type].armor.tier;
 }
 
+int armor_dr(ItemStack *stack) {
+    int dr = ITEM_DB[stack->type].armor.tier * (2 + item_effective_level(stack)); // TODO add + (glyph == null ? 0 : 1));
+    return dr < 0 ? 0 : dr;
+}
+
 static int hero_dr(Char *self) {
     Player *p = (Player *)self;
 
-    int dr = get_armor_tier(p) * (2 + item_effective_level(&p->armor)); // TODO add + (glyph == null ? 0 : 1));
-    return dr < 0 ? 0 : dr;
+    return armor_dr(&p->armor);
 }
 
 static int hero_damage_roll(Char *self) {
@@ -345,40 +357,40 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->resting             = 0;
     p->attack_target       = NULL;
 
-    player_add_item(p, ITEM_CLOTH_ARMOR, 1);
+    player_init_item(p, ITEM_CLOTH_ARMOR, 1);
     equip_from_bag(p, ITEM_CLOTH_ARMOR);
-    player_add_item(p, ITEM_RATION, 1);
-    player_add_item(p, ITEM_BAG_KEYRING, 1);
+    player_init_item(p, ITEM_RATION, 1);
+    player_init_item(p, ITEM_BAG_KEYRING, 1);
 
-    player_add_item(p, ITEM_WARRIOR_ARMOR, 1);//TEST
-    player_add_item(p, ITEM_WAR_HAMMER, 1);//TEST
-    player_add_item(p, ITEM_SCROLL_UPGRADE, 10);//TEST
+    player_init_item(p, ITEM_WARRIOR_ARMOR, 1);//TEST
+    player_init_item(p, ITEM_WAR_HAMMER, 1);//TEST
+    player_init_item(p, ITEM_SCROLL_UPGRADE, 10);//TEST
 
     switch (p->cls) {
     case HERO_WARRIOR:
         p->STR += 1;                             /* Warriors start with 11 STR */
-        player_add_item(p, ITEM_SHORT_SWORD, 1);
+        player_init_item(p, ITEM_SHORT_SWORD, 1);
         equip_from_bag(p, ITEM_SHORT_SWORD);
-        player_add_item(p, ITEM_DART, 8);
+        player_init_item(p, ITEM_DART, 8);
         break;
     case HERO_MAGE:
-        player_add_item(p, ITEM_KNUCKLES, 1);
+        player_init_item(p, ITEM_KNUCKLES, 1);
         equip_from_bag(p, ITEM_KNUCKLES);
-        player_add_item(p, ITEM_WAND_MAGIC_MISSILE, 1);
+        player_init_item(p, ITEM_WAND_MAGIC_MISSILE, 1);
         break;
     case HERO_ROGUE:
-        player_add_item(p, ITEM_DAGGER, 1);
+        player_init_item(p, ITEM_DAGGER, 1);
         equip_from_bag(p, ITEM_DAGGER);
-        player_add_item(p, ITEM_DART, 8);
-        player_add_item(p, ITEM_RING_SHADOWS, 1);
+        player_init_item(p, ITEM_DART, 8);
+        player_init_item(p, ITEM_RING_SHADOWS, 1);
         equip_ring_from_bag(p, ITEM_RING_SHADOWS, EQUIP_RING1);
         break;
     case HERO_HUNTRESS:
         p->base.HT -= 5;                         /* Huntresses start with 15 HP */
         p->base.HP  = p->base.HT;
-        player_add_item(p, ITEM_DAGGER, 1);
+        player_init_item(p, ITEM_DAGGER, 1);
         equip_from_bag(p, ITEM_DAGGER);
-        player_add_item(p, ITEM_BOOMERANG, 1);
+        player_init_item(p, ITEM_BOOMERANG, 1);
         break;
     default:
         break;
@@ -562,9 +574,9 @@ int player_add_stack(Player *p, ItemStack stack) {
     return 1;
 }
 
-int player_add_item(Player *p, ItemType type, int quantity) {
+int player_init_item(Player *p, ItemType type, int quantity) {
     ItemStack stack;
-    item_stack_init(&stack, type, quantity);
+    item_stack_init_start(&stack, type, quantity);
     return player_add_stack(p, stack);
 }
 
@@ -739,6 +751,19 @@ int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
     }
     return 0;
 }
+
+int player_has_item(const Player *p, ItemType type) {
+    for (int t = 0; t < BAG_TYPE_COUNT; t++) {
+        if (!player_has_bag(p, (BagType)t))
+            continue;
+
+        if (bag_find_item(&p->bags[t], type) >= 0)
+            return 1;
+    }
+
+    return 0;
+}
+
 
 int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
     if (player_is_busy(p))

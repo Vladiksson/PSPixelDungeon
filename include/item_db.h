@@ -359,8 +359,9 @@ typedef struct {
 } WeaponDef;
 
 typedef struct {
-    uint8_t tier;
-    uint8_t str;
+   uint8_t tier;
+   uint8_t str;
+   uint8_t dr;
 } ArmorDef;
 
 typedef struct {

@@ -104,7 +104,8 @@ static inline ItemStack item_stack_none(void) {
 int item_max_durability(ItemType type, int level);
  
 void item_stack_init(ItemStack *stack, ItemType type, int quantity);
- 
+void item_stack_init_start(ItemStack *stack, ItemType type, int quantity);
+
 /* fix()/polish() — reset/nudge durability back up. */
 void item_fix(ItemStack *stack);
 void item_polish(ItemStack *stack);

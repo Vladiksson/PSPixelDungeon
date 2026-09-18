@@ -140,10 +140,7 @@ void item_status_know(ItemType type) {
     if (!sc) return;
  
     gKnown[type] = 1;
- 
-    /* Elimination: once every other member of the category is known,
-       the last one is obvious too — same deduction
-       ItemStatusHandler.know() makes. */
+
     int unknown_idx = -1, unknown_count = 0;
     for (int i = 0; i < LOOK_COUNT; i++) {
         if (!gKnown[sc->types[i]]) { unknown_idx = i; unknown_count++; }
@@ -162,8 +159,7 @@ int item_status_is_known(ItemType type) {
 void item_display_sprite(ItemType type, uint8_t *out_col, uint8_t *out_row) {
     ensure_status_ready();
     const ShuffledCategory *sc = shuffled_category_for(type);
-    /* Potion / Scroll / Wand / Ring
-       Always use shuffled look. Identification reveals the name, not the sprite. */
+
     if (sc) {
         uint8_t sprite = sc->sprites[gLookIndex[type]];
 
@@ -187,11 +183,9 @@ const char *item_display_name(const ItemStack *stack, char *buf, size_t bufsz) {
     }
  
     if (stack->level_known && stack->level != 0) {
-        snprintf(buf, bufsz, "%s%+d%s", item_name(type), stack->level,
-                  item_visibly_cursed(stack) ? " (cursed)" : "");
+        snprintf(buf, bufsz, "%s%+d", item_name(type), stack->level);
     } else {
-        snprintf(buf, bufsz, "%s%s", item_name(type),
-                  item_visibly_cursed(stack) ? " (cursed)" : "");
+        snprintf(buf, bufsz, "%s", item_name(type));
     }
     return buf;
 }

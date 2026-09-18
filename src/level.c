@@ -176,12 +176,13 @@ static int try_regular_level(Level *lvl, DungeonTheme theme, int depth, int blac
     if (ggen>0) { patch_generate(gseed,ggen,gp); paint_grass(lvl,gp); }
     decor(lvl);
 
+    /* 9 CHASM TILES PAINTER POSTPROCESS  */
     paint_chasms(lvl);
 
-    /* 9 Scatter loot  */
+    /* 10 Scatter loot  */
     level_spawn_items(lvl, depth);
 
-    /*10 mobs*/
+    /*11 mobs*/
     mob_spawn_initial(lvl, depth);
 
     /*NPC_GHOST = 0,

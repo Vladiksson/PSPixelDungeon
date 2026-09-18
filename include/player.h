@@ -58,9 +58,9 @@ typedef enum {
 } EquipSlot;
 
 typedef enum {
-    EQUIP_FAILED = 0,
-    EQUIP_OK = 1,
-    EQUIP_RING_SELECT = 2,
+   EQUIP_FAILED = 0,
+   EQUIP_OK = 1,
+   EQUIP_RING_SELECT = 2,
 } EquipResult;
 
 typedef enum {
@@ -109,6 +109,9 @@ typedef struct {
 
 int get_armor_tier(const Player *p);
 
+int armor_dr(ItemStack *stack);
+int weapon_average_damage(ItemStack *w);
+
 void player_init(Player *p, const Level *lvl, HeroClass cls);
  
 int player_move(Player *p, Level *lvl, int dx, int dy);
@@ -132,7 +135,7 @@ int player_operate(Player *p, Level *lvl);
 int player_is_busy(const Player *p);
 void player_set_moving(Player *p, int moving);
 
-int player_add_item(Player *p, ItemType type, int quantity);
+int player_init_item(Player *p, ItemType type, int quantity);
 int player_add_stack(Player *p, ItemStack stack);
 
 /* ── Backpack / ground / equip ────────────────────────────────*/
@@ -160,5 +163,6 @@ Bag *player_get_bag(Player *p, BagType type);
 Bag *player_bag_for_item(Player *p, ItemType item_type);
 
 int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot);
+int player_has_item(const Player *p, ItemType type);
 
 int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot);

@@ -2,6 +2,7 @@
 #include "ui_ninepatch.h"
 #include "icons.h"
 #include "common.h"
+#include "player.h"
 
 /* ══════════════════════════════════════════════════════════
    UI state
@@ -107,6 +108,16 @@ static ItemStack inventory_get_stack(const Player *p, BagType shown, int cursor,
         case CURSOR_RING1:  return p->ring1;
         case CURSOR_RING2:  return p->ring2;
         default:            return item_stack_none();
+    }
+}
+
+static EquipSlot equip_slot_from_cursor(int cursor) {
+    switch (cursor) {
+        case CURSOR_WEAPON: return EQUIP_WEAPON;
+        case CURSOR_ARMOR:  return EQUIP_ARMOR;
+        case CURSOR_RING1:  return EQUIP_RING1;
+        case CURSOR_RING2:  return EQUIP_RING2;
+        default:            return EQUIP_SLOT_COUNT;
     }
 }
 
@@ -302,12 +313,190 @@ static void draw_selected_tab(RenderCtx *ctx, const Player *p, BagType active) {
 /* ══════════════════════════════════════════════════════════
    Description screen (POPUP)
    ══════════════════════════════════════════════════════════  */
+static void item_build_description(ItemStack *stack, char *out, size_t out_size, const Player *p, EquipSlot equip_slot) {
+    out[0] = '\0';
+
+    if (stack->type == ITEM_NONE)
+        return;
+
+    const ItemDef *def = &ITEM_DB[stack->type];
+
+    snprintf(out, out_size, "%s", item_display_desc(stack));
+
+    size_t used = strlen(out);
+    int has_item = player_has_item(p, stack->type);
+
+    switch (def->cat) {
+        case (ITEMCAT_WEAPON):
+            const WeaponDef *weapon = &def->weapon;
+            int avg_damage = weapon_average_damage(stack);
+
+            switch (weapon->type){
+            case(WEAPON_MELEE): {
+                /* "This is a(n) [upgraded/degraded/broken] tier-N melee weapon." --
+                   mirrors MeleeWeapon.info()'s quality/Utils.indefinite() bit. */
+                int vis_lvl = item_visibly_upgraded(stack);
+                const char *quality = vis_lvl > 0 ? (item_is_broken(stack) ? "broken" : "upgraded")
+                                    :  vis_lvl < 0 ? "degraded" : "";
+                char article_quality[16];
+                if (quality[0] == '\0') {
+                    snprintf(article_quality, sizeof(article_quality), "a");
+                } else {
+                    int vowel = strchr("AEIOUaeiou", quality[0]) != NULL;
+                    snprintf(article_quality, sizeof(article_quality), "%s%s", vowel ? "an " : "a ", quality);
+                }
+
+                used += snprintf(out + used, out_size - used,
+                                 "\n\nThis %s is %s tier-%d melee weapon. Its %saverage damage is %d points per hit.",
+                                 def->name, article_quality, weapon->melee.tier, stack->level_known ? "" : "typical ", avg_damage);
+
+                if (!stack->level_known) {
+                    used += snprintf(out + used, out_size - used, " It usually requires %d points of strength.", weapon->melee.str);
+                    if(p->STR < weapon->melee.str)
+                        used += snprintf(out + used, out_size - used, "\n\nProbably this weapon is too heavy for you. ");
+                }
+
+                /* DLY/ACU flavor sentence -- these are per-TYPE constants, so unlike
+                   the block above this runs regardless of identification. */
+                if (weapon->melee.dly != 1.0f) {
+                    used += snprintf(out + used, out_size - used, "\n\nThis is a rather %s", weapon->melee.dly < 1.0f ? "fast" : "slow");
+                    if (weapon->melee.acu != 1.0f) {
+                        int fast = weapon->melee.dly < 1.0f;
+                        int accurate = weapon->melee.acu > 1.0f;
+                        used += snprintf(out + used, out_size - used, "%s%s", (accurate == fast) ? " and " : " but ", accurate ? "accurate" : "inaccurate");
+                    }
+                    used += snprintf(out + used, out_size - used, " weapon.");
+                } else if (weapon->melee.acu != 1.0f) {
+                    used += snprintf(out + used, out_size - used, "\n\nThis is a rather %s weapon.", weapon->melee.acu > 1.0f ? "accurate" : "inaccurate");
+                }
+
+                if (stack->level_known && has_item) {
+                    if(p->STR < weapon->melee.str) {
+                        used += snprintf(out + used, out_size - used, 
+                                         "\n\nBecause of your inadequate strength the accuracy and speed of your attack with this %s is decreased.",
+                                          def->name);
+                    }
+                    else if(p->STR > weapon->melee.str) {
+                        used += snprintf(out + used, out_size - used, 
+                                         "\n\nBecause of your excess strength the damage of your attack with this %s is increased.",
+                                          def->name);
+                    }
+                }
+                if(equip_slot == EQUIP_WEAPON){
+                    used += snprintf(out + used, out_size - used, "\n\nYou hold the %s at the ready%s",
+                    def->name, stack->cursed ? ", and because it is cursed, you are powerless to let go." : "."); 
+                } else if(item_visibly_cursed(stack)) {
+                    used += snprintf(out + used, out_size - used, "\n\nYou can feel a malevolent magic lurking within %s.", def->name);
+                }
+                break;
+            }
+            case(WEAPON_MISSILE):
+                used += snprintf(out + used, out_size - used, "\n\nAverage damage of this weapon equals to %d points per hit.", avg_damage);
+
+                if (has_item) {
+                    if(p->STR < weapon->missile.str) {
+                        used += snprintf(out + used, out_size - used, 
+                                         "\n\nBecause of your inadequate strength the accuracy and speed of your attack with this %s is decreased.",
+                                          def->name);
+                    } 
+                    else if(p->STR > weapon->missile.str) {
+                        used += snprintf(out + used, out_size - used, 
+                                         "\n\nBecause of your excess strength the damage of your attack with this %s is increased.",
+                                          def->name);
+                    }
+                }
+                if (equip_slot == EQUIP_WEAPON) {
+                    used += snprintf(out + used, out_size - used, "\n\nYou hold the %s at the ready.", def->name);
+                }
+                break;
+            }
+            break;
+        case (ITEMCAT_ARMOR)://TODO glyph
+            const ArmorDef *armor = &def->armor;
+            used += snprintf(out + used, out_size - used, "\n\n%s %s provides damage absorption up to %d points per attack. ",
+                             stack->level_known ? "This" : "Typical", def->name, armor_dr(stack));
+            if (!stack->level_known) {
+                used += snprintf(out + used, out_size - used, "It usually requires %d points of strength. ", armor->str);
+
+                if (p->STR < armor->str) {
+                    used += snprintf(out + used, out_size - used, "\n\nProbably this armor is too heavy for you. " );
+                }
+            } else if (p->STR < armor->str) {
+                if (equip_slot == EQUIP_ARMOR) {
+						used += snprintf(out + used, out_size - used,
+					                     "\n\nBecause of your inadequate strength your movement speed and defense skill is decreased. " );
+					} else {
+						used += snprintf(out + used, out_size - used, 
+					                     "\n\nBecause of your inadequate strength wearing this armor will decrease your movement speed and defense skill. " );
+					}
+            }
+            if(equip_slot == EQUIP_ARMOR){
+                used += snprintf(out + used, out_size - used, "\n\nYou are wearing the %s%s",
+                def->name, stack->cursed ? ", and because it is cursed, you are powerless to remove it." : "."); 
+            } else if(item_visibly_cursed(stack)) {
+                used += snprintf(out + used, out_size - used, "\n\nYou can feel a malevolent magic lurking within the %s.", def->name);
+            }
+            break;
+        case (ITEMCAT_WAND): {
+            if (p->cls == HERO_MAGE) { 
+                if (stack->level_known) { //TODO MOVE DMG RELATED STAFF TO THE WEAPON_MIN_MAX
+                    int eff  = item_effective_level(stack);
+                    int tier = 1 + eff / 3;
+                    int min  = tier;
+                    int max  = (tier * tier - tier + 10) / 2 + eff;
+                    used += snprintf(out + used, out_size - used,
+                                     "\n\nWhen this wand is used as a melee weapon, its average damage is %d points per hit.",
+                                     min + (max - min) / 2);
+                } else {
+                    used += snprintf(out + used, out_size - used, "\n\nYou can use this wand as a melee weapon.");
+                }
+            }
+            break;
+        }
+        case (ITEMCAT_RING): {
+            if (equip_slot == EQUIP_RING1 || equip_slot == EQUIP_RING2) {
+                used += snprintf(out + used, out_size - used, "\n\nThe %s is on your finger%s",
+                                 def->name, stack->cursed ? ", and because it is cursed, you are powerless to remove it." : ".");
+            } else if (item_visibly_cursed(stack)) {
+                used += snprintf(out + used, out_size - used, "\n\nYou can feel a malevolent magic lurking within the %s.", def->name);
+            }
+            break;
+        }
+        case (ITEMCAT_SEED): {
+            char plant[32];
+            snprintf(plant, sizeof(plant), "%s", def->name);
+            char *cut = strstr(plant, " Seed");
+            if (cut)
+                *cut = '\0';
+            int vowel = strchr("AEIOUaeiou", plant[0]) != NULL;
+            used = snprintf(out, out_size, "Throw this seed to the place where you want to grow %s %s.\n\n%s",
+                            vowel ? "an" : "a", plant, item_display_desc(stack));
+            break;
+        }
+        case (ITEMCAT_GOLD):
+            if (stack->quantity == 0)
+                snprintf(out, out_size, "%s", "Collect gold coins to spend them later in a shop.");
+            else if (stack->quantity == 1)
+                snprintf(out, out_size, "%s", "One gold coin. Collect gold coins to spend them later in a shop.");
+            else
+                snprintf(out, out_size, "A pile of %d gold coins. Collect gold coins to spend them later in a shop.", stack->quantity);
+            break;
+        case (ITEMCAT_POTION):
+        case (ITEMCAT_SCROLL):
+        case (ITEMCAT_FOOD):
+        default:
+            /* TODO Lloyd's Beacon info() reports the saved return depth */
+            break;
+    }
+}
+
 void render_item_description(RenderCtx *ctx, const InventoryUI *ui, const Player *p) {
     BagType shown = (ui->active_bag == BAG_BACKPACK || player_has_bag(p, ui->active_bag)) ? ui->active_bag : BAG_BACKPACK;
     int slot_count = shown == BAG_BACKPACK ? MAX_INVENTORY : bag_capacity_for_type(shown);
 
     ItemStack stack = inventory_get_stack(p, shown, ui->cursor, slot_count);
-
+    EquipSlot equip_slot = equip_slot_from_cursor(ui->cursor);
+    
     NinePatch window = chrome_window(ctx->ui.chrome);
     ninepatch_draw(ctx->renderer, &window, DESC_PANEL_X, DESC_PANEL_Y, DESC_PANEL_W, DESC_PANEL_H);
     
@@ -315,9 +504,11 @@ void render_item_description(RenderCtx *ctx, const InventoryUI *ui, const Player
 
     char name[64];
     item_display_name(&stack, name, sizeof(name));
-
     draw_text(ctx, DESC_NAME_X, DESC_NAME_Y, COL_GOLD_TEXT, name);
-    draw_wrapped_text(ctx, DESC_X, DESC_Y, COL_TEXT, item_display_desc(&stack), DESC_LENGTH);
+
+    char description[512];
+    item_build_description(&stack, description, sizeof(description), p, equip_slot);
+    draw_wrapped_text(ctx, DESC_X, DESC_Y, COL_TEXT, description, DESC_LENGTH);
 }
 
 /* ══════════════════════════════════════════════════════════
