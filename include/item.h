@@ -132,7 +132,7 @@ ItemUseResult item_use(ItemStack *stack);
 void item_identify(ItemStack *stack);
 
 
-//temporal bullshit variant for using consumable items:
+//temporary bullshit variant for using consumable items:
 typedef enum {
     ITEM_USE_FAIL,
     ITEM_USE_CONSUMED,
@@ -156,3 +156,15 @@ int item_status_is_known(ItemType type);
 void item_display_sprite(ItemType type, uint8_t *out_col, uint8_t *out_row);
 const char *item_display_name(const ItemStack *stack, char *buf, size_t bufsz);
 const char *item_display_desc(const ItemStack *stack);
+
+
+int weapon_str_req(ItemStack *w);
+float weapon_acu(ItemStack *w);
+float weapon_dly(ItemStack *w);
+
+void weapon_min_max(ItemStack *w, int *out_min, int *out_max);
+int weapon_average_damage(ItemStack *w);
+
+int armor_str_req(ItemStack *a);
+int armor_dr(ItemStack *stack);
+int get_armor_tier(const ItemStack *stack);

@@ -477,7 +477,7 @@ void render_player(RenderCtx *ctx, const Player *p, const Camera *cam) {
     Point pos = idx_to_xy(p->base.pos);
     Point screen = camera_tile_to_screen(cam, pos.x, pos.y);
 
-    hero_armor_tier = get_armor_tier(p);
+    hero_armor_tier = get_armor_tier(&p->armor);
     SDL_Rect src = player_frame_rect(p);
 
     render_char_sprite(ctx->renderer, tex, src, screen, size.x, size.y, p->facing); 
@@ -636,7 +636,7 @@ static void render_mirror_npc(RenderCtx *ctx, const Player *p, const Camera *cam
     Point size = hero_draw_size();
     Point screen = camera_tile_to_screen(cam, pos.x, pos.y);
 
-    hero_armor_tier = get_armor_tier(p);
+    hero_armor_tier = get_armor_tier(&p->armor);
     SDL_Rect src = hero_frame_rect(clip, n->frame);
 
     render_char_sprite(ctx->renderer, tex, src, screen, size.x, size.y, n->facing);

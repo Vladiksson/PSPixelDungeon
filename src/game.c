@@ -260,9 +260,7 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
         Bag *bag = &player->bags[inv->active_bag];
 
         item_identify(&bag->items[inv->cursor]); //TEST
-        if (item_consume(&bag->items[inv->cursor]) == ITEM_USE_CONSUMED) { //TEST
-            bag_remove_item(bag, inv->cursor, 1);
-        }
+        player_consume_item(player, &player->bags[inv->active_bag], inv->cursor);
     }
 
     if (btn_pressed(inp, BTN_R))

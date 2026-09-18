@@ -2,66 +2,138 @@
 #include "npc.h"
 #include "item_spawn.h"
 #include "rng.h"
-#include <math.h>
 #include <stddef.h>
 
 /*═══════════════════════════════════════════════════════════════
-    Weapon / armor stat helpers
+    Animation
 ═══════════════════════════════════════════════════════════════*/
-static int weapon_str_req(ItemStack *w) {
-    const ItemDef *d = &ITEM_DB[w->type];
-    int base = (d->weapon.type == WEAPON_MELEE) ? d->weapon.melee.str : d->weapon.missile.str;
-    return base - item_effective_level(w);
+static int player_is_busy(const Player *p) {
+    if (!char_is_alive(&p->base))
+        return 1;
+
+    return char_is_busy(&p->base);
 }
+static int player_can_act(const Player *p) {
+    if (!char_is_alive(&p->base))
+        return 0;
 
-static float weapon_acu(ItemStack *w) {
-    const ItemDef *d = &ITEM_DB[w->type];
-    return (d->weapon.type == WEAPON_MELEE) ? d->weapon.melee.acu : d->weapon.missile.acu;
+    if (player_is_busy(p))
+        return 0;
+
+    if (actor_cooldown(&p->base.base) > 0.0f)
+        return 0;
+
+    return 1;
 }
-
-static float weapon_dly(ItemStack *w) {
-    const ItemDef *d = &ITEM_DB[w->type];
-    return (d->weapon.type == WEAPON_MELEE) ? d->weapon.melee.dly : d->weapon.missile.dly;
+static void player_sync_anim_lock(Player *p) {
+    switch (p->anim) {
+    case ANIM_OPERATE:
+    case ANIM_ATTACK:
+    case ANIM_READ:
+    case ANIM_DIE:
+        p->base.anim_locked = !p->anim_done;
+        break;
+    default:
+        p->base.anim_locked = 0;
+    }
 }
+static void player_play_anim(Player *p, AnimState anim){
+    if (p->anim == anim && !p->anim_done)
+        return;
 
-/* MeleeWeapon.min()/max0() and MissileWeapon subclasses' min()/max(). */
-static void weapon_min_max(ItemStack *w, int *out_min, int *out_max) {
-    const ItemDef *d = &ITEM_DB[w->type];
-    int level = item_effective_level(w);
+    p->anim = anim;
+    p->frame = 0;
+    p->frame_clock = 0.0f;
+    p->anim_done = 0;
+    player_sync_anim_lock(p);
+}
+static void player_resolve_attack(Player *p) {
+    Char *target = p->attack_target;
+    p->attack_target = NULL;
+    if (!target) return; 
 
-    if (d->weapon.type == WEAPON_MELEE) {
-        int tier = d->weapon.melee.tier;
-        int min0 = tier;
-        int max0 = (int)((tier * tier - tier + 10) / d->weapon.melee.acu * d->weapon.melee.dly);
-        *out_min = min0 + level;
-        *out_max = max0 + level * tier;
-    } else {
-        *out_min = d->weapon.missile.dmg_min;
-        *out_max = d->weapon.missile.dmg_max;
-        if (d->weapon.missile.upgradable) {          /* Boomerang is the only one */
-            *out_min += level;
-            *out_max += level * 2;
+    char_attack(&p->base, target);
+    actor_next(&p->base.base);
+}
+void player_animate(Player *p, float dt) {
+    const AnimClip *clip = &HERO_CLIPS[p->anim];
+    if (p->anim_done || clip->fps <= 0) return;
+ 
+    p->frame_clock += dt;
+    float step = 1.0f / (float)clip->fps;
+ 
+    while (p->frame_clock >= step) {
+        p->frame_clock -= step;
+        p->frame++;
+        if (p->frame >= clip->count) {
+            if (clip->loop) {
+                p->frame = 0;
+            } else {
+                p->frame = clip->count - 1; 
+                p->anim_done = 1;
+                break;
+            }
         }
     }
-}
-
-int weapon_average_damage(ItemStack *w) {
-    int min, max;
-    weapon_min_max(w, &min, &max);
-
-    return (min + (max - min) / 2);
-}
-
-
-static int armor_str_req(ItemStack *a) {
-    return ITEM_DB[a->type].armor.str - item_effective_level(a);
-}
-
-static float equip_time(Player *p, const ItemStack *item) {
-    if (ITEM_DB[item->type].cat == ITEMCAT_ARMOR) {
-        return 2.0f / char_speed(&p->base);
+ 
+    if (p->anim_done) {
+        switch (p->anim) {
+            case ANIM_ATTACK:
+                char_end_attack_anim(&p->base);
+                player_play_anim(p, ANIM_IDLE);
+                break;
+            case ANIM_OPERATE:
+            case ANIM_READ:
+                player_play_anim(p, ANIM_IDLE);
+                break;
+            default:
+                break; /* ANIM_DIE holds its final frame on purpose */
+        }
     }
-    return 1.0f;
+    player_sync_anim_lock(p); /* unconditional: covers ANIM_DIE, which holds its last frame and never re-enters player_play_anim() above */
+}
+void player_set_moving(Player *p, int moving) {
+    if (player_is_busy(p))
+        return;
+
+    if (moving) {
+        if (p->anim != ANIM_RUN)
+            player_play_anim(p, ANIM_RUN);
+    } else {
+        if (p->anim == ANIM_RUN)
+            player_play_anim(p, ANIM_IDLE);
+    }
+}
+
+/*═══════════════════════════════════════════════════════════════
+    Hero stats — STR/leveling
+═══════════════════════════════════════════════════════════════*/
+int player_str(const Player *p) {
+    return p->weakened ? p->STR - 2 : p->STR; /* -2 matches Hero.STR() */
+}
+
+int player_max_exp(const Player *p) {
+    return 5 + p->lvl * 5; /* matches Hero.maxExp() */
+}
+
+static void player_update_awareness(Player *p) {
+    double base = (p->cls == HERO_ROGUE) ? 0.85 : 0.90;
+    int n = 1 + (p->lvl < 9 ? p->lvl : 9);
+    p->awareness = (float)(1.0 - pow(base, n * 0.5));
+}
+
+static void player_earn_exp(Player *p, int exp) {
+    p->exp += exp;
+    while (p->exp >= player_max_exp(p)) {
+        p->exp -= player_max_exp(p);
+        p->lvl++;
+        p->base.HT += 5;
+        p->base.HP += 5;
+        p->base_attack_skill++;
+        p->base_defense_skill++;
+        if (p->lvl < 10) player_update_awareness(p);
+        /* original shows a level-up message/sound/badge check here */
+    }
 }
 
 /*═══════════════════════════════════════════════════════════════
@@ -112,23 +184,13 @@ static int hero_defense_skill(Char *self, Char *enemy) {
     if (p->cls == HERO_ROGUE) {
         /* FreeRunner sprint bonus — original also gates this on !isStarving(),
            which isn't tracked yet since Hunger isn't ported. */
-        if (p->sub_class == HERO_SUB_FREERUNNER && player_is_busy(p)) {
+        if (p->sub_class == HERO_SUB_FREERUNNER) {
             evasion *= 2.0f;
         }
         return (int)((p->base_defense_skill - aEnc) * evasion);
     }
 
     return (int)(p->base_defense_skill * evasion);
-}
-
-int get_armor_tier(const Player *p) {
-    if (p->armor.type == ITEM_NONE) return 0;
-    return ITEM_DB[p->armor.type].armor.tier;
-}
-
-int armor_dr(ItemStack *stack) {
-    int dr = ITEM_DB[stack->type].armor.tier * (2 + item_effective_level(stack)); // TODO add + (glyph == null ? 0 : 1));
-    return dr < 0 ? 0 : dr;
 }
 
 static int hero_dr(Char *self) {
@@ -258,255 +320,74 @@ static const CharVTable *hero_vtable(void) {
 }
 
 /*═══════════════════════════════════════════════════════════════
-    Hero stats — STR/leveling
+    Bags
 ═══════════════════════════════════════════════════════════════*/
-int player_str(const Player *p) {
-    return p->weakened ? p->STR - 2 : p->STR; /* -2 matches Hero.STR() */
+int player_has_bag(const Player *p, BagType type) {
+    if (type == BAG_BACKPACK) return 1; 
+    if (type < 0 || type >= BAG_TYPE_COUNT) return 0;
+
+    return bag_find_item(&p->bags[BAG_BACKPACK], bag_item_type(type)) >= 0;
 }
 
-int player_max_exp(const Player *p) {
-    return 5 + p->lvl * 5; /* matches Hero.maxExp() */
-}
+/*Bag *player_get_bag(Player *p, BagType type) { //TODO CANT REMEMBER WHY IT WAS WRITTEN 
+    return player_has_bag(p, type) ? &p->bags[type] : NULL;
+}*/
 
-static void player_update_awareness(Player *p) {
-    double base = (p->cls == HERO_ROGUE) ? 0.85 : 0.90;
-    int n = 1 + (p->lvl < 9 ? p->lvl : 9);
-    p->awareness = (float)(1.0 - pow(base, n * 0.5));
-}
-
-void player_earn_exp(Player *p, int exp) {
-    p->exp += exp;
-    while (p->exp >= player_max_exp(p)) {
-        p->exp -= player_max_exp(p);
-        p->lvl++;
-        p->base.HT += 5;
-        p->base.HP += 5;
-        p->base_attack_skill++;
-        p->base_defense_skill++;
-        if (p->lvl < 10) player_update_awareness(p);
-        /* original shows a level-up message/sound/badge check here */
+static Bag *player_bag_for_item(Player *p, ItemType item_type) {
+    for (int t = BAG_KEYRING; t < BAG_TYPE_COUNT; t++) {
+        if (player_has_bag(p, (BagType)t) && bag_grabs((BagType)t, item_type)) {
+            return &p->bags[t];
+        }
     }
+    return &p->bags[BAG_BACKPACK];
 }
 
-void player_rest(Player *p, int till_healthy) {
-    char_spend(&p->base, 1.0f);
-    actor_next(&p->base.base);
-    p->resting = till_healthy;
-}
-
-/*═══════════════════════════════════════════════════════════════
-    Initialization
-═══════════════════════════════════════════════════════════════*/
-static void hero_receive_kill_xp(Char *killer, int xp) {
-    if (killer->kind == CHAR_KIND_HERO) {
-        player_earn_exp((Player *)killer, xp);
-    }
-}
-
-/* Small helpers for handing out starting gear already equipped, the way
-   HeroClass.init<Class>() assigns straight to belongings.weapon/armor/ring
-   instead of leaving the item to be picked up later. */
-static void equip_from_bag(Player *p, ItemType type) {
-    Bag *bag; int slot;
-    if (player_locate_item(p, type, &bag, &slot)) {
-        player_equip_item(p, bag, slot, 0);
-    }
-}
-
-static void equip_ring_from_bag(Player *p, ItemType type, EquipSlot target) {
-    Bag *bag; int slot;
-    if (player_locate_item(p, type, &bag, &slot)) {
-        player_equip_ring(p, bag, slot, target, 0);
-    }
-}
-
-void player_init(Player *p, const Level *lvl, HeroClass cls){
-    char_init(&p->base, hero_vtable(), CHAR_KIND_HERO, lvl->entrance, HERO_STARTING_HP);
-    p->base.name = "you";
-    char_add(&p->base);
-
-    p->cls         = cls;
-    p->facing      = FACE_RIGHT;
-    p->anim        = ANIM_IDLE;
-    p->frame       = 0;
-    p->frame_clock = 0.0f;
-    p->anim_done   = 0;
-
-    p->gold = 0;
-
+static int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
     for (int t = 0; t < BAG_TYPE_COUNT; t++) {
-        p->bags[t].type = (BagType)t;
-        bag_clear(&p->bags[t]);
+        if (!player_has_bag(p, (BagType)t)) continue;
+
+        int slot = bag_find_item(&p->bags[t], type);
+        if (slot >= 0) {
+            if (out_bag)  *out_bag  = &p->bags[t];
+            if (out_slot) *out_slot = slot;
+            return 1;
+        }
     }
-    bag_init(&p->bags[BAG_BACKPACK], BAG_BACKPACK);
-
-    p->weapon = item_stack_none();
-    p->armor  = item_stack_none();
-    p->ring1  = item_stack_none();
-    p->ring2  = item_stack_none();
-
-    p->sub_class          = HERO_SUB_NONE;
-    p->STR                = HERO_STARTING_STR;
-    p->weakened            = 0;
-    p->lvl                 = 1;
-    p->exp                 = 0;
-    p->awareness           = HERO_STARTING_AWARENESS;
-    p->base_attack_skill   = HERO_STARTING_ATTACK;
-    p->base_defense_skill  = HERO_STARTING_DEFENSE;
-    p->ranged_attack       = 0;
-    p->resting             = 0;
-    p->attack_target       = NULL;
-
-    player_init_item(p, ITEM_CLOTH_ARMOR, 1);
-    equip_from_bag(p, ITEM_CLOTH_ARMOR);
-    player_init_item(p, ITEM_RATION, 1);
-    player_init_item(p, ITEM_BAG_KEYRING, 1);
-
-    player_init_item(p, ITEM_WARRIOR_ARMOR, 1);//TEST
-    player_init_item(p, ITEM_WAR_HAMMER, 1);//TEST
-    player_init_item(p, ITEM_SCROLL_UPGRADE, 10);//TEST
-
-    switch (p->cls) {
-    case HERO_WARRIOR:
-        p->STR += 1;                             /* Warriors start with 11 STR */
-        player_init_item(p, ITEM_SHORT_SWORD, 1);
-        equip_from_bag(p, ITEM_SHORT_SWORD);
-        player_init_item(p, ITEM_DART, 8);
-        break;
-    case HERO_MAGE:
-        player_init_item(p, ITEM_KNUCKLES, 1);
-        equip_from_bag(p, ITEM_KNUCKLES);
-        player_init_item(p, ITEM_WAND_MAGIC_MISSILE, 1);
-        break;
-    case HERO_ROGUE:
-        player_init_item(p, ITEM_DAGGER, 1);
-        equip_from_bag(p, ITEM_DAGGER);
-        player_init_item(p, ITEM_DART, 8);
-        player_init_item(p, ITEM_RING_SHADOWS, 1);
-        equip_ring_from_bag(p, ITEM_RING_SHADOWS, EQUIP_RING1);
-        break;
-    case HERO_HUNTRESS:
-        p->base.HT -= 5;                         /* Huntresses start with 15 HP */
-        p->base.HP  = p->base.HT;
-        player_init_item(p, ITEM_DAGGER, 1);
-        equip_from_bag(p, ITEM_DAGGER);
-        player_init_item(p, ITEM_BOOMERANG, 1);
-        break;
-    default:
-        break;
-    }
-
-    mob_set_hero(&p->base);
-    mob_set_kill_reward_hook(hero_receive_kill_xp);
+    return 0;
 }
 
-/*═══════════════════════════════════════════════════════════════
-    Animation
-═══════════════════════════════════════════════════════════════*/
-int player_is_busy(const Player *p) {
-    if (!char_is_alive(&p->base))
-        return 1;
+int player_has_item(const Player *p, ItemType type) {
+    for (int t = 0; t < BAG_TYPE_COUNT; t++) {
+        if (!player_has_bag(p, (BagType)t))
+            continue;
 
-    return char_is_busy(&p->base);
+        if (bag_find_item(&p->bags[t], type) >= 0)
+            return 1;
+    }
+
+    return 0;
 }
 
-static int player_can_act(const Player *p) {
-    if (!char_is_alive(&p->base))
-        return 0;
-
+int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
     if (player_is_busy(p))
         return 0;
+    if (!bag || slot < 0 || slot >= bag->count)
+        return 0;
+    
+    Heap *h = level_heap_at(lvl, p->base.pos);
+    if (!h)
+        h = level_create_heap(lvl, p->base.pos, HEAP_NORMAL);
 
-    if (actor_cooldown(&p->base.base) > 0.0f)
+    if (!h)
         return 0;
 
-    return 1;
-}
+    ItemStack stack = bag->items[slot];
+    if (!heap_add_stack(h, stack))
+        return 0;
 
-
-static void player_sync_anim_lock(Player *p) {
-    switch (p->anim) {
-    //case ANIM_RUN: //TEST
-    case ANIM_OPERATE:
-    case ANIM_ATTACK:
-    case ANIM_READ:
-    case ANIM_DIE:
-        p->base.anim_locked = !p->anim_done;
-        break;
-    default:
-        p->base.anim_locked = 0;
-    }
-}
-
-void player_play_anim(Player *p, AnimState anim){
-    if (p->anim == anim && !p->anim_done)
-        return;
-
-    p->anim = anim;
-    p->frame = 0;
-    p->frame_clock = 0.0f;
-    p->anim_done = 0;
-    player_sync_anim_lock(p);
-}
-
-static void player_resolve_attack(Player *p) {
-    Char *target = p->attack_target;
-    p->attack_target = NULL;
-    if (!target) return; 
-
-    char_attack(&p->base, target);
+    char_spend(&p->base, 0.5f); /* Item.TIME_TO_DROP */
     actor_next(&p->base.base);
-}
-
-void player_animate(Player *p, float dt) {
-    const AnimClip *clip = &HERO_CLIPS[p->anim];
-    if (p->anim_done || clip->fps <= 0) return;
- 
-    p->frame_clock += dt;
-    float step = 1.0f / (float)clip->fps;
- 
-    while (p->frame_clock >= step) {
-        p->frame_clock -= step;
-        p->frame++;
-        if (p->frame >= clip->count) {
-            if (clip->loop) {
-                p->frame = 0;
-            } else {
-                p->frame = clip->count - 1; 
-                p->anim_done = 1;
-                break;
-            }
-        }
-    }
- 
-    if (p->anim_done) {
-        switch (p->anim) {
-            case ANIM_ATTACK:
-                char_end_attack_anim(&p->base);
-                player_play_anim(p, ANIM_IDLE);
-                break;
-            case ANIM_OPERATE:
-            case ANIM_READ:
-                player_play_anim(p, ANIM_IDLE);
-                break;
-            default:
-                break; /* ANIM_DIE holds its final frame on purpose */
-        }
-    }
-    player_sync_anim_lock(p); /* unconditional: covers ANIM_DIE, which holds its last frame and never re-enters player_play_anim() above */
-}
-
-void player_set_moving(Player *p, int moving) {
-    if (player_is_busy(p))
-        return;
-
-    if (moving) {
-        if (p->anim != ANIM_RUN)
-            player_play_anim(p, ANIM_RUN);
-    } else {
-        if (p->anim == ANIM_RUN)
-            player_play_anim(p, ANIM_IDLE);
-    }
+    return bag_remove_item(bag, slot, stack.quantity);
 }
 
 /*═══════════════════════════════════════════════════════════════
@@ -556,7 +437,15 @@ void player_sort_inventory(Player *p) {
         bag_sort(&p->bags[t]);
 }
 
-int player_add_stack(Player *p, ItemStack stack) {
+void player_consume_item(Player *p, Bag *bag, int slot) {
+    if (item_consume(&bag->items[slot]) == ITEM_USE_CONSUMED) {
+        //TODO ADD USING CONSUMABLES
+        //MB ADD MORE STATES + USE SWITCH
+        bag_remove_item(bag, slot, 1);
+    }
+}
+
+static int player_add_stack(Player *p, ItemStack stack) {
     if (stack.type == ITEM_GOLD) {
         p->gold += stack.quantity;
         return 1;
@@ -574,7 +463,7 @@ int player_add_stack(Player *p, ItemStack stack) {
     return 1;
 }
 
-int player_init_item(Player *p, ItemType type, int quantity) {
+static int player_init_item(Player *p, ItemType type, int quantity) {
     ItemStack stack;
     item_stack_init_start(&stack, type, quantity);
     return player_add_stack(p, stack);
@@ -593,6 +482,13 @@ int player_find_item(const Player *p, ItemType type) {
 /*═══════════════════════════════════════════════════════════════
     Equipment
 ═══════════════════════════════════════════════════════════════*/
+static float equip_time(Player *p, const ItemStack *item) {
+    if (ITEM_DB[item->type].cat == ITEMCAT_ARMOR) {
+        return 2.0f / char_speed(&p->base);
+    }
+    return 1.0f;
+}
+
 int player_equip_item(Player *p, Bag *bag, int slot, int spend_time) {
     if (player_is_busy(p))
         return EQUIP_FAILED;
@@ -715,78 +611,6 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
 
     return 0; 
 }
-/*═══════════════════════════════════════════════════════════════
-    Bags
-═══════════════════════════════════════════════════════════════*/
-int player_has_bag(const Player *p, BagType type) {
-    if (type == BAG_BACKPACK) return 1; 
-    if (type < 0 || type >= BAG_TYPE_COUNT) return 0;
-
-    return bag_find_item(&p->bags[BAG_BACKPACK], bag_item_type(type)) >= 0;
-}
-
-Bag *player_get_bag(Player *p, BagType type) {
-    return player_has_bag(p, type) ? &p->bags[type] : NULL;
-}
-
-Bag *player_bag_for_item(Player *p, ItemType item_type) {
-    for (int t = BAG_KEYRING; t < BAG_TYPE_COUNT; t++) {
-        if (player_has_bag(p, (BagType)t) && bag_grabs((BagType)t, item_type)) {
-            return &p->bags[t];
-        }
-    }
-    return &p->bags[BAG_BACKPACK];
-}
-
-int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
-    for (int t = 0; t < BAG_TYPE_COUNT; t++) {
-        if (!player_has_bag(p, (BagType)t)) continue;
-
-        int slot = bag_find_item(&p->bags[t], type);
-        if (slot >= 0) {
-            if (out_bag)  *out_bag  = &p->bags[t];
-            if (out_slot) *out_slot = slot;
-            return 1;
-        }
-    }
-    return 0;
-}
-
-int player_has_item(const Player *p, ItemType type) {
-    for (int t = 0; t < BAG_TYPE_COUNT; t++) {
-        if (!player_has_bag(p, (BagType)t))
-            continue;
-
-        if (bag_find_item(&p->bags[t], type) >= 0)
-            return 1;
-    }
-
-    return 0;
-}
-
-
-int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
-    if (player_is_busy(p))
-        return 0;
-    if (!bag || slot < 0 || slot >= bag->count)
-        return 0;
-    
-    Heap *h = level_heap_at(lvl, p->base.pos);
-    if (!h)
-        h = level_create_heap(lvl, p->base.pos, HEAP_NORMAL);
-
-    if (!h)
-        return 0;
-
-    ItemStack stack = bag->items[slot];
-    if (!heap_add_stack(h, stack))
-        return 0;
-
-    char_spend(&p->base, 0.5f); /* Item.TIME_TO_DROP */
-    actor_next(&p->base.base);
-    return bag_remove_item(bag, slot, stack.quantity);
-}
-
 
 /*═══════════════════════════════════════════════════════════════
     Ground interaction
@@ -825,10 +649,6 @@ int player_pickup(Player *p, Level *lvl) {
     return 1;
 }
 
-int player_drop_item(Player *p, Level *lvl, int slot) {//redo as player_drop_from_bag(&player, lvl, &player.bags[inv.active_bag], inv.cursor); for main.c
-    return player_drop_from_bag(p, lvl, &p->bags[BAG_BACKPACK], slot);
-}
-
 int player_operate(Player *p, Level *lvl) {
     if (player_is_busy(p))
         return 0;
@@ -850,6 +670,12 @@ int player_operate(Player *p, Level *lvl) {
 /*═══════════════════════════════════════════════════════════════
     World interaction
 ═══════════════════════════════════════════════════════════════*/
+void player_rest(Player *p, int till_healthy) { //TODO PLACEHOLDER FOR RESTING/TIME SKIPPING 
+    char_spend(&p->base, 1.0f);
+    actor_next(&p->base.base);
+    p->resting = till_healthy;
+}
+
 int player_move(Player *p, Level *lvl, int dx, int dy) {
     if (player_is_busy(p)) return 0;
     if (dx == 0 && dy == 0) return 0;
@@ -944,4 +770,107 @@ int player_bump(Player *p, Level *lvl, int dx, int dy) { //TODO i gonna rework m
     }
 
     return player_move(p, lvl, dx, dy) ? PLAYER_BUMP_MOVED : PLAYER_BUMP_BLOCKED;
+}
+
+
+/*═══════════════════════════════════════════════════════════════
+    Initialization
+═══════════════════════════════════════════════════════════════*/
+static void hero_receive_kill_xp(Char *killer, int xp) {
+    if (killer->kind == CHAR_KIND_HERO) {
+        player_earn_exp((Player *)killer, xp);
+    }
+}
+
+static void equip_from_bag(Player *p, ItemType type) {
+    Bag *bag; int slot;
+    if (player_locate_item(p, type, &bag, &slot)) {
+        player_equip_item(p, bag, slot, 0);
+    }
+}
+static void equip_ring_from_bag(Player *p, ItemType type, EquipSlot target) {
+    Bag *bag; int slot;
+    if (player_locate_item(p, type, &bag, &slot)) {
+        player_equip_ring(p, bag, slot, target, 0);
+    }
+}
+
+void player_init(Player *p, const Level *lvl, HeroClass cls){
+    char_init(&p->base, hero_vtable(), CHAR_KIND_HERO, lvl->entrance, HERO_STARTING_HP);
+    p->base.name = "you";
+    char_add(&p->base);
+
+    p->cls         = cls;
+    p->facing      = FACE_RIGHT;
+    p->anim        = ANIM_IDLE;
+    p->frame       = 0;
+    p->frame_clock = 0.0f;
+    p->anim_done   = 0;
+
+    p->gold = 0;
+
+    for (int t = 0; t < BAG_TYPE_COUNT; t++) {
+        p->bags[t].type = (BagType)t;
+        bag_clear(&p->bags[t]);
+    }
+    bag_init(&p->bags[BAG_BACKPACK], BAG_BACKPACK);
+
+    p->weapon = item_stack_none();
+    p->armor  = item_stack_none();
+    p->ring1  = item_stack_none();
+    p->ring2  = item_stack_none();
+
+    p->sub_class          = HERO_SUB_NONE;
+    p->STR                = HERO_STARTING_STR;
+    p->weakened            = 0;
+    p->lvl                 = 1;
+    p->exp                 = 0;
+    p->awareness           = HERO_STARTING_AWARENESS;
+    p->base_attack_skill   = HERO_STARTING_ATTACK;
+    p->base_defense_skill  = HERO_STARTING_DEFENSE;
+    p->ranged_attack       = 0;
+    p->resting             = 0;
+    p->attack_target       = NULL;
+
+    player_init_item(p, ITEM_CLOTH_ARMOR, 1);
+    equip_from_bag(p, ITEM_CLOTH_ARMOR);
+    player_init_item(p, ITEM_RATION, 1);
+    player_init_item(p, ITEM_BAG_KEYRING, 1);
+
+    player_init_item(p, ITEM_WARRIOR_ARMOR, 1);//TEST
+    player_init_item(p, ITEM_WAR_HAMMER, 1);//TEST
+    player_init_item(p, ITEM_SCROLL_UPGRADE, 10);//TEST
+
+    switch (p->cls) {
+    case HERO_WARRIOR:
+        p->STR += 1;                             /* Warriors start with 11 STR */
+        player_init_item(p, ITEM_SHORT_SWORD, 1);
+        equip_from_bag(p, ITEM_SHORT_SWORD);
+        player_init_item(p, ITEM_DART, 8);
+        break;
+    case HERO_MAGE:
+        player_init_item(p, ITEM_KNUCKLES, 1);
+        equip_from_bag(p, ITEM_KNUCKLES);
+        player_init_item(p, ITEM_WAND_MAGIC_MISSILE, 1);
+        break;
+    case HERO_ROGUE:
+        player_init_item(p, ITEM_DAGGER, 1);
+        equip_from_bag(p, ITEM_DAGGER);
+        player_init_item(p, ITEM_DART, 8);
+        player_init_item(p, ITEM_RING_SHADOWS, 1);
+        equip_ring_from_bag(p, ITEM_RING_SHADOWS, EQUIP_RING1);
+        break;
+    case HERO_HUNTRESS:
+        p->base.HT -= 5;                         /* Huntresses start with 15 HP */
+        p->base.HP  = p->base.HT;
+        player_init_item(p, ITEM_DAGGER, 1);
+        equip_from_bag(p, ITEM_DAGGER);
+        player_init_item(p, ITEM_BOOMERANG, 1);
+        break;
+    default:
+        break;
+    }
+
+    mob_set_hero(&p->base);
+    mob_set_kill_reward_hook(hero_receive_kill_xp);
 }

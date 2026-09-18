@@ -4,14 +4,12 @@
 #include "char.h"
 #include "sprite_db.h"
 
-/* ── Hero starting stats ────────────────────────────────── */
 #define HERO_STARTING_HP         200 //test, original was 20
 #define HERO_STARTING_STR        100 //test, original was 10
 #define HERO_STARTING_ATTACK     10
 #define HERO_STARTING_DEFENSE     5
 #define HERO_STARTING_AWARENESS  0.1f
 
-/* ── Hero class ───────────────────────────────────────*/
 typedef enum {
    HERO_WARRIOR = 0,
    HERO_MAGE,
@@ -33,7 +31,6 @@ typedef enum {
    HERO_SUB_COUNT
 } HeroSubClass;
 
-/* ── Animation state ──────────────────────────────────*/
 typedef enum {
    ANIM_IDLE = 0,
    ANIM_RUN,
@@ -48,7 +45,6 @@ typedef enum {
  
 extern const AnimClip HERO_CLIPS[ANIM_COUNT];
 
-/* ── Equip slots ─────────────────────────────────────── */
 typedef enum {
    EQUIP_WEAPON,
    EQUIP_ARMOR,
@@ -107,62 +103,31 @@ typedef struct {
    Char *attack_target;
 } Player;
 
-int get_armor_tier(const Player *p);
-
-int armor_dr(ItemStack *stack);
-int weapon_average_damage(ItemStack *w);
-
-void player_init(Player *p, const Level *lvl, HeroClass cls);
- 
-int player_move(Player *p, Level *lvl, int dx, int dy);
-int player_bump(Player *p, Level *lvl, int dx, int dy);
-
-void player_rest(Player *p, int till_healthy);
-
-/* Effective strength — mirrors Hero.STR() (applies `weakened`). */
-int player_str(const Player *p);
-
-/* Mirrors Hero.maxExp()/earnExp(int) */
-int  player_max_exp(const Player *p);
-void player_earn_exp(Player *p, int exp);
-
-
 void player_animate(Player *p, float dt);
-void player_play_anim(Player *p, AnimState anim);
-
-int player_operate(Player *p, Level *lvl);
-
-int player_is_busy(const Player *p);
 void player_set_moving(Player *p, int moving);
 
-int player_init_item(Player *p, ItemType type, int quantity);
-int player_add_stack(Player *p, ItemStack stack);
+int player_str(const Player *p);
+int player_max_exp(const Player *p);
 
-/* ── Backpack / ground / equip ────────────────────────────────*/
+int player_has_bag(const Player *p, BagType type);
+int player_has_item(const Player *p, ItemType type);
 
-int player_pickup(Player *p, Level *lvl);
+int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot);
 
-int player_drop_item(Player *p, Level *lvl, int slot);
+void player_sort_inventory(Player *p);
+void player_consume_item(Player *p, Bag *bag, int slot);
 
 int player_equip_item(Player *p, Bag *bag, int slot, int spend_time);
 int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target, int spend_time);
 int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 
+int player_pickup(Player *p, Level *lvl);
+int player_operate(Player *p, Level *lvl);
 
-void player_sort_inventory(Player *p);
-/*
-int player_remove_item(Player *p, int slot, int quantity);
+void player_rest(Player *p, int till_healthy);
 
-int player_find_item(const Player *p, ItemType type); */
+int player_move(Player *p, Level *lvl, int dx, int dy);
+int player_bump(Player *p, Level *lvl, int dx, int dy);
 
-/* ── Bags ─────────────────────────────────────────────────────*/
-int player_has_bag(const Player *p, BagType type);
 
-Bag *player_get_bag(Player *p, BagType type);
-
-Bag *player_bag_for_item(Player *p, ItemType item_type);
-
-int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot);
-int player_has_item(const Player *p, ItemType type);
-
-int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot);
+void player_init(Player *p, const Level *lvl, HeroClass cls);

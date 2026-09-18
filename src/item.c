@@ -171,3 +171,59 @@ ItemConsumeResult item_consume(ItemStack *stack) { //temporary bullshit variant 
 }
 
 
+
+/*═══════════════════════════════════════════════════════════════
+    Weapon / armor stats
+═══════════════════════════════════════════════════════════════*/
+int weapon_str_req(ItemStack *w) {
+    const ItemDef *d = &ITEM_DB[w->type];
+    int base = (d->weapon.type == WEAPON_MELEE) ? d->weapon.melee.str : d->weapon.missile.str;
+    return base - item_effective_level(w);
+}
+float weapon_acu(ItemStack *w) {
+    const ItemDef *d = &ITEM_DB[w->type];
+    return (d->weapon.type == WEAPON_MELEE) ? d->weapon.melee.acu : d->weapon.missile.acu;
+}
+float weapon_dly(ItemStack *w) {
+    const ItemDef *d = &ITEM_DB[w->type];
+    return (d->weapon.type == WEAPON_MELEE) ? d->weapon.melee.dly : d->weapon.missile.dly;
+}
+
+/* MeleeWeapon.min()/max0() and MissileWeapon subclasses' min()/max(). */
+void weapon_min_max(ItemStack *w, int *out_min, int *out_max) {
+    const ItemDef *d = &ITEM_DB[w->type];
+    int level = item_effective_level(w);
+
+    if (d->weapon.type == WEAPON_MELEE) {
+        int tier = d->weapon.melee.tier;
+        int min0 = tier;
+        int max0 = (int)((tier * tier - tier + 10) / d->weapon.melee.acu * d->weapon.melee.dly);
+        *out_min = min0 + level;
+        *out_max = max0 + level * tier;
+    } else {
+        *out_min = d->weapon.missile.dmg_min;
+        *out_max = d->weapon.missile.dmg_max;
+        if (d->weapon.missile.upgradable) {          /* Boomerang is the only one */
+            *out_min += level;
+            *out_max += level * 2;
+        }
+    }
+}
+int weapon_average_damage(ItemStack *w) {
+    int min, max;
+    weapon_min_max(w, &min, &max);
+    return (min + (max - min) / 2);
+}
+
+int armor_str_req(ItemStack *a) {
+    return ITEM_DB[a->type].armor.str - item_effective_level(a);
+}
+int armor_dr(ItemStack *stack) {
+    int dr = ITEM_DB[stack->type].armor.tier * (2 + item_effective_level(stack)); // TODO add + (glyph == null ? 0 : 1));
+    return dr < 0 ? 0 : dr;
+}
+int get_armor_tier(const ItemStack *stack) {
+    if (stack->type == ITEM_NONE) return 0;
+    if (ITEM_DB[stack->type].cat != ITEMCAT_ARMOR) return 0;
+    return ITEM_DB[stack->type].armor.tier;
+}

@@ -333,11 +333,8 @@ static void item_build_description(ItemStack *stack, char *out, size_t out_size,
 
             switch (weapon->type){
             case(WEAPON_MELEE): {
-                /* "This is a(n) [upgraded/degraded/broken] tier-N melee weapon." --
-                   mirrors MeleeWeapon.info()'s quality/Utils.indefinite() bit. */
                 int vis_lvl = item_visibly_upgraded(stack);
-                const char *quality = vis_lvl > 0 ? (item_is_broken(stack) ? "broken" : "upgraded")
-                                    :  vis_lvl < 0 ? "degraded" : "";
+                const char *quality = vis_lvl > 0 ? (item_is_broken(stack) ? "broken" : "upgraded") :  vis_lvl < 0 ? "degraded" : "";
                 char article_quality[16];
                 if (quality[0] == '\0') {
                     snprintf(article_quality, sizeof(article_quality), "a");
@@ -352,12 +349,10 @@ static void item_build_description(ItemStack *stack, char *out, size_t out_size,
 
                 if (!stack->level_known) {
                     used += snprintf(out + used, out_size - used, " It usually requires %d points of strength.", weapon->melee.str);
-                    if(p->STR < weapon->melee.str)
+                    if(player_str(p) < weapon->melee.str)
                         used += snprintf(out + used, out_size - used, "\n\nProbably this weapon is too heavy for you. ");
                 }
 
-                /* DLY/ACU flavor sentence -- these are per-TYPE constants, so unlike
-                   the block above this runs regardless of identification. */
                 if (weapon->melee.dly != 1.0f) {
                     used += snprintf(out + used, out_size - used, "\n\nThis is a rather %s", weapon->melee.dly < 1.0f ? "fast" : "slow");
                     if (weapon->melee.acu != 1.0f) {
@@ -371,12 +366,12 @@ static void item_build_description(ItemStack *stack, char *out, size_t out_size,
                 }
 
                 if (stack->level_known && has_item) {
-                    if(p->STR < weapon->melee.str) {
+                    if(player_str(p) < weapon->melee.str) {
                         used += snprintf(out + used, out_size - used, 
                                          "\n\nBecause of your inadequate strength the accuracy and speed of your attack with this %s is decreased.",
                                           def->name);
                     }
-                    else if(p->STR > weapon->melee.str) {
+                    else if(player_str(p) > weapon->melee.str) {
                         used += snprintf(out + used, out_size - used, 
                                          "\n\nBecause of your excess strength the damage of your attack with this %s is increased.",
                                           def->name);
@@ -394,12 +389,12 @@ static void item_build_description(ItemStack *stack, char *out, size_t out_size,
                 used += snprintf(out + used, out_size - used, "\n\nAverage damage of this weapon equals to %d points per hit.", avg_damage);
 
                 if (has_item) {
-                    if(p->STR < weapon->missile.str) {
+                    if(player_str(p) < weapon->missile.str) {
                         used += snprintf(out + used, out_size - used, 
                                          "\n\nBecause of your inadequate strength the accuracy and speed of your attack with this %s is decreased.",
                                           def->name);
                     } 
-                    else if(p->STR > weapon->missile.str) {
+                    else if(player_str(p) > weapon->missile.str) {
                         used += snprintf(out + used, out_size - used, 
                                          "\n\nBecause of your excess strength the damage of your attack with this %s is increased.",
                                           def->name);
@@ -418,10 +413,10 @@ static void item_build_description(ItemStack *stack, char *out, size_t out_size,
             if (!stack->level_known) {
                 used += snprintf(out + used, out_size - used, "It usually requires %d points of strength. ", armor->str);
 
-                if (p->STR < armor->str) {
+                if (player_str(p) < armor->str) {
                     used += snprintf(out + used, out_size - used, "\n\nProbably this armor is too heavy for you. " );
                 }
-            } else if (p->STR < armor->str) {
+            } else if (player_str(p) < armor->str) {
                 if (equip_slot == EQUIP_ARMOR) {
 						used += snprintf(out + used, out_size - used,
 					                     "\n\nBecause of your inadequate strength your movement speed and defense skill is decreased. " );
@@ -616,7 +611,7 @@ void render_stats_screen(RenderCtx *ctx, const Player *p) {
     font_draw_text(ctx->renderer, &ctx->font, 160, 50, 1.6, COL_GOLD_TEXT, current_lvl);
 
     /*str*/
-    int str = p->STR;
+    int str = player_str(p);
     char current_str[32];
     snprintf(current_str, sizeof(current_str), "Strength: %d", str);
     font_draw_text(ctx->renderer, &ctx->font, 160, 80, 1.5, COL_WHITE, current_str);
@@ -772,7 +767,7 @@ void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d) {
         if (hero_tex) { 
             SDL_Rect src = { 
                 0, 
-                get_armor_tier(p) * TILESET_HERO_H, 
+                get_armor_tier(&p->armor) * TILESET_HERO_H, 
                 TILESET_HERO_W, 
                 TILESET_HERO_H 
             }; 
