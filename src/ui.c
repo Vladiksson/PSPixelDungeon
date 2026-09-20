@@ -87,9 +87,13 @@ int inventory_ui_try_open_bag(InventoryUI *ui, const Player *p) {
 /* ══════════════════════════════════════════════════════════
    INVENTORY HELPER
    ══════════════════════════════════════════════════════════  */
-static ItemStack inventory_get_stack(const Player *p, BagType shown, int cursor, int slot_count) {
-    const Bag *bag = &p->bags[shown];
+static EquipSlot equip_slot_from_cursor(int cursor) {
+    if (cursor < CURSOR_WEAPON || cursor >= CURSOR_TOTAL)
+        return EQUIP_SLOT_COUNT;
+    return (EquipSlot)(cursor - CURSOR_WEAPON);
+}
 
+static ItemStack inventory_get_stack(const Player *p, BagType shown, int cursor, int slot_count) {
     if (cursor < slot_count) {
         if (shown == BAG_BACKPACK && cursor == GOLD_SLOT) {
             ItemStack stack = item_stack_none();
@@ -97,28 +101,18 @@ static ItemStack inventory_get_stack(const Player *p, BagType shown, int cursor,
             stack.quantity = p->gold;
             return stack;
         }
+
+        const Bag *bag = &p->bags[shown];
+
         if (cursor < bag->count)
             return bag->items[cursor];
         return item_stack_none();
     }
-
-    switch (cursor) {
-        case CURSOR_WEAPON: return p->weapon;
-        case CURSOR_ARMOR:  return p->armor;
-        case CURSOR_RING1:  return p->ring1;
-        case CURSOR_RING2:  return p->ring2;
-        default:            return item_stack_none();
+    EquipSlot slot = equip_slot_from_cursor(cursor);
+    if (slot != EQUIP_SLOT_COUNT) {
+        return *equip_slot_ptr((Player *)p, slot);
     }
-}
-
-static EquipSlot equip_slot_from_cursor(int cursor) {
-    switch (cursor) {
-        case CURSOR_WEAPON: return EQUIP_WEAPON;
-        case CURSOR_ARMOR:  return EQUIP_ARMOR;
-        case CURSOR_RING1:  return EQUIP_RING1;
-        case CURSOR_RING2:  return EQUIP_RING2;
-        default:            return EQUIP_SLOT_COUNT;
-    }
+    return item_stack_none();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -484,6 +478,26 @@ static void item_build_description(ItemStack *stack, char *out, size_t out_size,
             break;
     }
 }
+static void draw_durability_bar(SDL_Renderer *renderer, int x, int y, int width, int height, int current, int max) {
+    if (max <= 0) {
+        return;
+    }
+
+    if (current < 0) current = 0;
+    if (current > max) current = max;
+
+    SDL_SetRenderDrawColor(renderer, 220, 20, 50, 255);
+    SDL_Rect bg = { x, y, width, height };
+    SDL_RenderFillRect(renderer, &bg);
+
+    int green_width = (width * current) / max;
+
+    if (green_width > 0) {
+        SDL_SetRenderDrawColor(renderer, 0, 230, 40, 255);
+        SDL_Rect fg = { x, y, green_width, height };
+        SDL_RenderFillRect(renderer, &fg);
+    }
+}
 
 void render_item_description(RenderCtx *ctx, const InventoryUI *ui, const Player *p) {
     BagType shown = (ui->active_bag == BAG_BACKPACK || player_has_bag(p, ui->active_bag)) ? ui->active_bag : BAG_BACKPACK;
@@ -496,6 +510,10 @@ void render_item_description(RenderCtx *ctx, const InventoryUI *ui, const Player
     ninepatch_draw(ctx->renderer, &window, DESC_PANEL_X, DESC_PANEL_Y, DESC_PANEL_W, DESC_PANEL_H);
     
     draw_item_icon(ctx, stack, DESC_ICON_X, DESC_ICON_Y, ICON_SIZE);
+
+    int durability = stack.durability;
+    int max_durability = item_max_durability(stack.type, stack.level);
+    draw_durability_bar(ctx->renderer, DESC_NAME_X, DESC_NAME_Y + 16, 140, 6, durability, max_durability); //REDO numbers
 
     char name[64];
     item_display_name(&stack, name, sizeof(name));

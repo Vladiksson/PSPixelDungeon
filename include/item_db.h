@@ -347,7 +347,6 @@ typedef struct {
    float   dly;
    uint8_t dmg_min;
    uint8_t dmg_max;
-   uint8_t upgradable;
 } MissileWeaponDef;
 
 typedef struct {
@@ -378,6 +377,7 @@ typedef struct {
    ItemCategory cat;
    uint8_t      sprite_col, sprite_row;  /* cell in items.png (16px grid) */
    uint8_t      stackable;
+   uint8_t      upgradable;
 
    union {
       WeaponDef weapon;

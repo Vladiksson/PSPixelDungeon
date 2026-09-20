@@ -60,17 +60,22 @@ void level_spawn_items(Level *lvl, int depth) {
    INSTANCE STATE — level / curse / durability
    ══════════════════════════════════════════════════════════ */
 int item_max_durability(ItemType type, int level) {
-    int base;
-    switch (ITEM_DB[type].cat) {
-        case ITEMCAT_WEAPON: base = 5 * (level < 16 ? 16 - level : 1); break;
-        case ITEMCAT_ARMOR:  base = 6 * (level < 16 ? 16 - level : 1); break;
-        case ITEMCAT_WAND:   base = 6 * (level < 16 ? 16 - level : 1); break;
-        case ITEMCAT_RING:
-            base = (level <= 1) ? INT16_MAX : 100 * (level < 16 ? 16 - level : 1);
-            break;
-        default:             base = 1;              break; 
+    int base = 0;
+    if(ITEM_DB[type].upgradable){
+        switch (ITEM_DB[type].cat) {
+            case ITEMCAT_WEAPON:
+                base = (type == ITEM_BOOMERANG ? 8 : 5) * (level < 16 ? 16 - level : 1);
+                break;
+            case ITEMCAT_ARMOR:  base = 6 * (level < 16 ? 16 - level : 1); break;
+            case ITEMCAT_WAND:   base = 6 * (level < 16 ? 16 - level : 1); break;
+            case ITEMCAT_RING:
+                base = (level <= 1) ? INT16_MAX : 100 * (level < 16 ? 16 - level : 1);
+                break;
+            default:
+                break; 
+        }
     }
-    return base < 1 ? 1 : base;
+    return base;
 }
  
 void item_stack_init(ItemStack *stack, ItemType type, int quantity) {
@@ -79,7 +84,7 @@ void item_stack_init(ItemStack *stack, ItemType type, int quantity) {
     stack->level    = 0; 
     stack->cursed = 0;
  
-    if (!ITEM_DB[type].stackable) {
+    if (ITEM_DB[type].upgradable) {
         switch (ITEM_DB[type].cat) {
             case ITEMCAT_WEAPON:
                 generate_weapon(stack);
@@ -121,7 +126,7 @@ void item_polish(ItemStack *stack) {
 }
  
 void item_upgrade(ItemStack *stack) {
-    if (ITEM_DB[stack->type].stackable)
+    if (!ITEM_DB[stack->type].upgradable)
         return;
     stack->level++;
     stack->cursed       = 0;
@@ -130,7 +135,7 @@ void item_upgrade(ItemStack *stack) {
 }
  
 void item_degrade(ItemStack *stack) {
-    if (ITEM_DB[stack->type].stackable)
+    if (!ITEM_DB[stack->type].upgradable)
         return;
     stack->level--;
     item_fix(stack);
@@ -138,7 +143,7 @@ void item_degrade(ItemStack *stack) {
 
  
 ItemUseResult item_use(ItemStack *stack) {
-    if (ITEM_DB[stack->type].stackable)
+    if (ITEM_DB[stack->type].upgradable)
         return ITEM_USE_OK;
     if (!(stack->level > 0) || item_is_broken(stack))
         return ITEM_USE_OK;
@@ -203,7 +208,7 @@ void weapon_min_max(ItemStack *w, int *out_min, int *out_max) {
     } else {
         *out_min = d->weapon.missile.dmg_min;
         *out_max = d->weapon.missile.dmg_max;
-        if (d->weapon.missile.upgradable) {          /* Boomerang is the only one */
+        if (d->upgradable) {          /* Boomerang is the only one */
             *out_min += level;
             *out_max += level * 2;
         }

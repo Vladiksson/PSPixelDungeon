@@ -4,7 +4,7 @@
 #include "char.h"
 #include "sprite_db.h"
 
-#define HERO_STARTING_HP         200 //test, original was 20
+#define HERO_STARTING_HP         2000 //test, original was 20
 #define HERO_STARTING_STR        100 //test, original was 10
 #define HERO_STARTING_ATTACK     10
 #define HERO_STARTING_DEFENSE     5
@@ -113,6 +113,8 @@ int player_has_bag(const Player *p, BagType type);
 int player_has_item(const Player *p, ItemType type);
 
 int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot);
+
+ItemStack *equip_slot_ptr(Player *p, EquipSlot slot);
 
 void player_sort_inventory(Player *p);
 void player_consume_item(Player *p, Bag *bag, int slot);

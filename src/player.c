@@ -242,20 +242,48 @@ static float hero_speed(Char *self) {
     return base;
 }
 
+static void hero_wear_item(ItemStack *it) {
+    switch (item_use(it)) {
+        case ITEM_USE_WARN_BREAKING: /* TODO "going to break soon" (if it->level_known) */ break;
+        case ITEM_USE_BROKE:         /* TODO "has broken" + effect (if it->level_known)  */ break;
+        default: break;
+    }
+}
+
 static int hero_attack_proc(Char *self, Char *enemy, int damage) {
-    (void)self; (void)enemy;
-    /* Placeholder — the original chains wep.proc(this, enemy, damage)
-       here, then a subclass switch (Gladiator's Combo stacks, a
-       Battlemage charging a wielded wand, a Sniper marking the enemy
-       for bonus damage). */
+    Player *p = (Player *)self;
+    (void)enemy;
+
+    /* Hero.attackProc(): wep = rangedWeapon != null ? rangedWeapon : belongings.weapon;
+       wep.proc() -> Weapon.proc() -> use().  char_attack() only gets here on a
+       landed hit, so misses don't wear the weapon — same as the original.
+       A ranged attack's weapon is the thrown stack, not p->weapon (that stack
+       isn't modelled yet), so skip it rather than wear the wrong item. */
+    if (!p->ranged_attack && p->weapon.type != ITEM_NONE) {
+        hero_wear_item(&p->weapon);
+    }
+
+    /* Placeholder — the rest of the original: Weapon.proc()'s enchantment +
+       hitsToKnow auto-identify, then a subclass switch (Gladiator's Combo
+       stacks, a Battlemage charging a wielded wand, a Sniper marking the
+       enemy for bonus damage). */
     return damage;
 }
 
 static int hero_defense_proc(Char *self, Char *attacker, int damage) {
-    (void)self; (void)attacker;
-    /* Placeholder — the original checks Ring of Thorns (reflects a
-       cut of damage back), an Earthroot-armor buff (flat absorb), and
-       armor.proc(). */
+    Player *p = (Player *)self;
+    (void)attacker;
+
+    /* Placeholder — the original first checks Ring of Thorns (reflects a
+       cut of damage back) and an Earthroot-armor buff (flat absorb). */
+
+    /* belongings.armor.proc() -> Armor.proc() -> use().  Runs on EVERY hit that
+       lands, including one fully soaked up by dr (damage == 0) — which is why
+       this can't live in on_damaged behind a dmg_taken > 0 check. Armor.proc()'s
+       glyph + hitsToKnow auto-identify go here too once ported. */
+    if (p->armor.type != ITEM_NONE) {
+        hero_wear_item(&p->armor);
+    }
     return damage;
 }
 
@@ -393,7 +421,7 @@ int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
 /*═══════════════════════════════════════════════════════════════
     Inventory helpers 
 ═══════════════════════════════════════════════════════════════*/
-static ItemStack *equip_slot_ptr(Player *p, EquipSlot slot) {
+ItemStack *equip_slot_ptr(Player *p, EquipSlot slot) {
     switch (slot) {
         case EQUIP_WEAPON: return &p->weapon;
         case EQUIP_ARMOR:  return &p->armor;
