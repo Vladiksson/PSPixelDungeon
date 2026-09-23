@@ -135,7 +135,11 @@ static void player_earn_exp(Player *p, int exp) {
         /* original shows a level-up message/sound/badge check here */
     }
 }
-
+static void hero_receive_kill_xp(Char *killer, int xp) {
+    if (killer->kind == CHAR_KIND_HERO) {
+        player_earn_exp((Player *)killer, xp);
+    }
+}
 /*═══════════════════════════════════════════════════════════════
     HERO COMBAT 
 ═══════════════════════════════════════════════════════════════*/
@@ -222,6 +226,19 @@ static int hero_damage_roll(Char *self) {
     }
 
     return char_buff(self, BUFF_FURY) ? (int)(dmg * 1.5f) : dmg;
+}
+
+static float hero_attack_delay(Player *p) {
+    if (p->weapon.type == ITEM_NONE) return 1.0f;
+
+    /* Weapon.speedFactor(hero) */
+    int encumbrance = weapon_str_req(&p->weapon) - player_str(p);
+    if (ITEM_DB[p->weapon.type].weapon.type == WEAPON_MISSILE && p->cls == HERO_HUNTRESS) {
+        encumbrance -= 2;
+    }
+    float dly = weapon_dly(&p->weapon);
+    return (encumbrance > 0) ? (float)(dly * pow(1.2, encumbrance)) : dly;
+    /* Imbue.SPEED (weapon-balancing scroll) isn't ported yet — no 0.6x term */
 }
 
 static float hero_speed(Char *self) {
@@ -640,8 +657,21 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
     return 0; 
 }
 
+static void equip_from_bag(Player *p, ItemType type) { //helpers for starting equips
+    Bag *bag; int slot;
+    if (player_locate_item(p, type, &bag, &slot)) {
+        player_equip_item(p, bag, slot, 0);
+    }
+}
+static void equip_ring_from_bag(Player *p, ItemType type, EquipSlot target) {
+    Bag *bag; int slot;
+    if (player_locate_item(p, type, &bag, &slot)) {
+        player_equip_ring(p, bag, slot, target, 0);
+    }
+}
+
 /*═══════════════════════════════════════════════════════════════
-    Ground interaction
+    World interaction
 ═══════════════════════════════════════════════════════════════*/
 int player_pickup(Player *p, Level *lvl) {
     if (player_is_busy(p))
@@ -677,11 +707,11 @@ int player_pickup(Player *p, Level *lvl) {
     return 1;
 }
 
-int player_operate(Player *p, Level *lvl) {
+int player_operate(Player *p, Level *lvl, int idx) {
     if (player_is_busy(p))
         return 0;
     
-    Heap *h = level_heap_at(lvl, p->base.pos);
+    Heap *h = level_heap_at(lvl, idx);
     if (!h)
         return 0;
     if (h->type == HEAP_NORMAL || h->type == HEAP_FOR_SALE)
@@ -694,34 +724,20 @@ int player_operate(Player *p, Level *lvl) {
     actor_next(&p->base.base);
     return 1;
 }
-
-/*═══════════════════════════════════════════════════════════════
-    World interaction
-═══════════════════════════════════════════════════════════════*/
-void player_rest(Player *p, int till_healthy) { //TODO PLACEHOLDER FOR RESTING/TIME SKIPPING 
-    char_spend(&p->base, 1.0f);
-    actor_next(&p->base.base);
-    p->resting = till_healthy;
-}
-
-int player_move(Player *p, Level *lvl, int dx, int dy) {
-    if (player_is_busy(p)) return 0;
-    if (dx == 0 && dy == 0) return 0;
-
-    int idx = char_neighbour_idx(p->base.pos, dx, dy);
-    if (idx == -1)
-        return 0;
+static int player_interact_tile(Player *p, Level *lvl, int idx) {
     uint8_t tile = lvl->map[idx];
+
     switch (tile) {
     case TILE_LOCKED_DOOR:
         if (!player_use_key(p, ITEM_KEY_IRON))
-            return 0;
+            return 1;
 
         lvl->map[idx] = TILE_OPEN_DOOR;
         char_spend(&p->base, 1.0f);
         actor_next(&p->base.base);
         player_play_anim(p, ANIM_OPERATE);
-        return 1; 
+        return 1;
+
     case TILE_LOCKED_EXIT:
         //if (!player_use_key(p, ITEM_KEY_SKELETON)) return 0; /*TODO: REMOVE COMMENT AFTER ADDING BOSSES WITH KEY DROPS */
         lvl->map[idx] = TILE_UNLOCKED_EXIT;
@@ -729,13 +745,47 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
         actor_next(&p->base.base);
         player_play_anim(p, ANIM_OPERATE);
         return 1;
+
     case TILE_HIGH_GRASS:
         lvl->map[idx] = TILE_GRASS;
         //TODO SPAWN SEEDS + ITEM_DEWDROP 
         //IS IT HAS ANIMATION???
+        return 0;
     }
-    if (!(gTileFlags[tile] & TF_PASSABLE)) return 0;
 
+    return 0;
+}
+
+void player_rest(Player *p) { //TODO PLACEHOLDER FOR RESTING/TIME SKIPPING 
+    if (!p->resting) {
+        char_spend(&p->base, 1.0f);
+        actor_next(&p->base.base);
+        return;
+    }
+
+    if (p->base.HP >= p->base.HT) {
+        p->resting = 0;
+        return;
+    }
+    
+    p->base.HP++;
+
+    char_spend(&p->base, 1.0f);
+    actor_next(&p->base.base);
+}
+
+
+int player_move(Player *p, Level *lvl, int dx, int dy) {
+    if (player_is_busy(p))
+        return 0;
+    if (dx == 0 && dy == 0)
+        return 0;
+
+    int idx = char_neighbour_idx(p->base.pos, dx, dy);
+    if (idx == -1)
+        return 0;
+    if (!(gTileFlags[lvl->map[idx]] & TF_PASSABLE))
+        return 0;
 
     if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
 
@@ -745,19 +795,6 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
     actor_next(&p->base.base); 
 
     return 1;
-}
-
-static float hero_attack_delay(Player *p) {
-    if (p->weapon.type == ITEM_NONE) return 1.0f;
-
-    /* Weapon.speedFactor(hero) */
-    int encumbrance = weapon_str_req(&p->weapon) - player_str(p);
-    if (ITEM_DB[p->weapon.type].weapon.type == WEAPON_MISSILE && p->cls == HERO_HUNTRESS) {
-        encumbrance -= 2;
-    }
-    float dly = weapon_dly(&p->weapon);
-    return (encumbrance > 0) ? (float)(dly * pow(1.2, encumbrance)) : dly;
-    /* Imbue.SPEED (weapon-balancing scroll) isn't ported yet — no 0.6x term */
 }
 
 static int player_start_attack(Player *p, Char *target) {
@@ -774,7 +811,7 @@ static int player_start_attack(Player *p, Char *target) {
     return 1;
 }
 
-int player_bump(Player *p, Level *lvl, int dx, int dy) { //TODO i gonna rework move + bump: firstly action with heap etc and only after movement
+int player_bump(Player *p, Level *lvl, int dx, int dy) {
     if (!player_can_act(p))
         return PLAYER_BUMP_BLOCKED;
 
@@ -783,13 +820,16 @@ int player_bump(Player *p, Level *lvl, int dx, int dy) { //TODO i gonna rework m
 
     if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
 
+    /* Tile */
+    if (player_interact_tile(p, lvl, idx))
+        return PLAYER_BUMP_INTERACTED; //todo change to other type. mb it should live after occupant check???
+
+    /* Character */
     Char *occupant = char_find_at(idx);
     if (occupant && occupant->kind == CHAR_KIND_MOB) {
         return player_start_attack(p, occupant) ? PLAYER_BUMP_ATTACKED : PLAYER_BUMP_BLOCKED;
     }
     if (occupant && occupant->kind == CHAR_KIND_NPC) {
-        /* HeroAction.java's Interact case. npc.c has no concrete
-           NPCs wired up yet*/
         npc_interact((NPC *)occupant, &p->base);
         return PLAYER_BUMP_INTERACTED;
     }
@@ -797,6 +837,12 @@ int player_bump(Player *p, Level *lvl, int dx, int dy) { //TODO i gonna rework m
         return PLAYER_BUMP_BLOCKED;
     }
 
+    /* Heap */
+    Heap *h = level_heap_at(lvl, idx);
+    if (h && player_operate(p, lvl, idx))
+        return PLAYER_BUMP_INTERACTED; //todo change to other type. mb it should live after occupant check???
+
+    /* Movement */
     return player_move(p, lvl, dx, dy) ? PLAYER_BUMP_MOVED : PLAYER_BUMP_BLOCKED;
 }
 
@@ -804,31 +850,14 @@ int player_bump(Player *p, Level *lvl, int dx, int dy) { //TODO i gonna rework m
 /*═══════════════════════════════════════════════════════════════
     Initialization
 ═══════════════════════════════════════════════════════════════*/
-static void hero_receive_kill_xp(Char *killer, int xp) {
-    if (killer->kind == CHAR_KIND_HERO) {
-        player_earn_exp((Player *)killer, xp);
-    }
-}
-
-static void equip_from_bag(Player *p, ItemType type) {
-    Bag *bag; int slot;
-    if (player_locate_item(p, type, &bag, &slot)) {
-        player_equip_item(p, bag, slot, 0);
-    }
-}
-static void equip_ring_from_bag(Player *p, ItemType type, EquipSlot target) {
-    Bag *bag; int slot;
-    if (player_locate_item(p, type, &bag, &slot)) {
-        player_equip_ring(p, bag, slot, target, 0);
-    }
-}
-
 void player_init(Player *p, const Level *lvl, HeroClass cls){
     char_init(&p->base, hero_vtable(), CHAR_KIND_HERO, lvl->entrance, HERO_STARTING_HP);
     p->base.name = "you";
     char_add(&p->base);
 
     p->cls         = cls;
+    p->sub_class   = HERO_SUB_NONE;
+
     p->facing      = FACE_RIGHT;
     p->anim        = ANIM_IDLE;
     p->frame       = 0;
@@ -848,7 +877,6 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->ring1  = item_stack_none();
     p->ring2  = item_stack_none();
 
-    p->sub_class          = HERO_SUB_NONE;
     p->STR                = HERO_STARTING_STR;
     p->weakened            = 0;
     p->lvl                 = 1;

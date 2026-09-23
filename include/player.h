@@ -68,7 +68,10 @@ typedef enum {
 
 typedef struct {
    Char base;
+   
    HeroClass cls;
+   HeroSubClass sub_class;
+
    Facing    facing;
    AnimState anim;
    int       frame;
@@ -83,8 +86,6 @@ typedef struct {
    ItemStack armor;
    ItemStack ring1;
    ItemStack ring2;
-
-   HeroSubClass sub_class;
 
    int STR;
    int weakened;
@@ -124,9 +125,9 @@ int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target, int spend
 int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 
 int player_pickup(Player *p, Level *lvl);
-int player_operate(Player *p, Level *lvl);
+int player_operate(Player *p, Level *lvl, int idx);
 
-void player_rest(Player *p, int till_healthy);
+void player_rest(Player *p);
 
 int player_move(Player *p, Level *lvl, int dx, int dy);
 int player_bump(Player *p, Level *lvl, int dx, int dy);

@@ -124,7 +124,7 @@ static void game_handle_move(Game *game) {
     Player *player = &game->player;
     Level *lvl = game->lvl;
 
-    if (!player_operate(player, lvl)) {
+    if (!player_operate(player, lvl, player->base.pos)) {
         player_pickup(player, lvl);
     }
 
@@ -142,6 +142,9 @@ static void game_handle_move(Game *game) {
 
     dungeon_event(&game->dungeon, player);
 }
+
+#define REST_START_DELAY_MS 500 /*CONSTANTS FOR TEST BULLSHIT VERSION OF RESTING*/
+#define REST_DELAY_MS 60
 
 static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
     Player *player = &game->player;
@@ -162,6 +165,39 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
         TileSize_Update();
         camera_center_on(&game->cam, player->base.pos);
     }
+
+    /*TEST BULLSHIT VERSION OF RESTING*/
+    if (btn_pressed(inp, BTN_CROSS)) {
+        player->resting = 0;
+
+        player_rest(player);
+
+        game->rest_next_ms = now + REST_START_DELAY_MS;
+        game->rest_pending = 1;
+
+        return;
+    }
+
+    if (game->rest_pending) {
+        if (btn_released(inp, BTN_CROSS)) {
+            game->rest_pending = 0;
+            return;
+        } else if (now >= game->rest_next_ms) {
+            game->rest_pending = 0;
+            player->resting = 1;
+            game->rest_next_ms = now + REST_DELAY_MS;
+        }
+
+        return;
+    }
+
+    if (player->resting && now >= game->rest_next_ms) {
+        player_rest(player);
+
+        game->rest_next_ms = now + REST_DELAY_MS;
+        return;
+    }
+
 
     //Movement
     int dx, dy;

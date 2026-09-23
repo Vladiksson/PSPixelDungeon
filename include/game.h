@@ -34,6 +34,9 @@ typedef struct {
     MoveRepeat move_repeat;
     MoveRepeat ui_move_repeat;
 
+    uint32_t rest_next_ms; //TEST
+    int rest_pending;
+
     GameState state;
     PopupType popup;
     GameState popup_return_state;
