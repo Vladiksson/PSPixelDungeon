@@ -580,6 +580,43 @@ void render_inventory(RenderCtx *ctx, const Player *p, const InventoryUI *ui) {
 /* ══════════════════════════════════════════════════════════
    STATS SCREEN (POPUP)
    ══════════════════════════════════════════════════════════  */
+static const char *player_buff_name(BuffType type) { //test
+    switch (type) {
+        case BUFF_POISON:         return "POISON";
+        case BUFF_BLEEDING:       return "BLEEDING";
+        case BUFF_BURNING:        return "BURNING";
+        case BUFF_FROST:          return "FROST";
+        case BUFF_PARALYSIS:      return "PARALYSIS";
+        case BUFF_ROOTS:          return "ROOTS";
+        case BUFF_LEVITATION:     return "LEVITATION";
+        case BUFF_INVISIBILITY:   return "INVISIBILITY";
+        case BUFF_SHADOWS:        return "SHADOWS";
+        case BUFF_LIGHT:          return "LIGHT";
+        case BUFF_FURY:           return "FURY";
+        case BUFF_MIND_VISION:    return "MIND_VISION";
+        case BUFF_OOZE:            return "OOZE";
+        case BUFF_BARKSKIN:       return "BARKSKIN";
+        case BUFF_HUNGER:         return "HUNGER";
+        case BUFF_REGENERATION:   return "REGENERATION";
+        case BUFF_COMBO:           return "COMBO";
+        case BUFF_SNIPERS_MARK:   return "SNIPERS_MARK";
+        case BUFF_AMOK:            return "AMOK";
+        case BUFF_CHARM:           return "CHARM";
+        case BUFF_VERTIGO:         return "VERTIGO";
+        case BUFF_CRIPPLE:         return "CRIPPLE";
+        case BUFF_SLEEP:           return "SLEEP";
+        case BUFF_HASTE:           return "HASTE";
+        case BUFF_SLOW:            return "SLOW";
+        case BUFF_TERROR:          return "TERROR";
+        case BUFF_WEAKNESS:        return "WEAKNESS";
+        case BUFF_BLINDNESS:       return "BLINDNESS";
+        case BUFF_AWARENESS:       return "AWARENESS";
+        case BUFF_RAGE:            return "RAGE";
+        case BUFF_GASES_IMMUNITY:  return "GASES_IMMUNITY";
+        default:                   return "UNKNOWN";
+    }
+}
+
 void render_stats_screen(RenderCtx *ctx, const Player *p) {
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
 
@@ -656,6 +693,26 @@ void render_stats_screen(RenderCtx *ctx, const Player *p) {
     snprintf(current_exp, sizeof(current_exp), "Experience: %d/%d", exp, max_exp);
     font_draw_text(ctx->renderer, &ctx->font, 160, 110, 1.5, COL_WHITE, current_exp);
 
+        /* buffs — TEST */
+    int buff_y = 130;
+
+    font_draw_text(ctx->renderer, &ctx->font, 160, buff_y, 1.3, COL_GOLD_TEXT, "TEST OF BUFFS:");
+
+    buff_y += 15;
+
+    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
+        const Buff *buff = &p->base.buffs[i];
+
+        if (buff->type == BUFF_NONE)
+            continue;
+        char buff_text[128];
+        snprintf(buff_text, sizeof(buff_text), "%s  %.1f  [%d]", player_buff_name(buff->type), buff->duration, buff->data);
+        font_draw_text(ctx->renderer, &ctx->font, 160, buff_y, 1.2, COL_WHITE, buff_text);
+
+        buff_y += 13;
+    }
+        /* buffs — TEST */ 
+        
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
 }
 

@@ -42,6 +42,17 @@ typedef enum {
     BUFF_PARALYSIS,
     BUFF_TERROR,
     BUFF_FURY,          /* Hero.java-specific: Berserker's low-HP damage buff — see hero_damage_roll()/hero_on_damaged() in player.c */
+    BUFF_WEAKNESS,      /* Hero-only in the original (hard Hero cast in Weakness.attachTo()) — see hero_on_buff_added()/hero_on_buff_removed() in player.c */
+    BUFF_BLINDNESS,
+    BUFF_HUNGER,        /* Hero-only in the original (hard Hero cast in Hunger.act()) — duration doubles as the hunger level, see char_hunger_satisfy()/char_hunger_is_starving() */
+    BUFF_REGENERATION,  /* Hero-only in the original (hard Hero cast for the isStarving() check) */
+    BUFF_OOZE,
+    BUFF_BARKSKIN,
+    BUFF_AWARENESS,
+    BUFF_COMBO,         /* Gladiator-specific: see char_combo_hit() and hero_attack_proc() in player.c */
+    BUFF_RAGE,          /* bare marker buff in the original — no attach/detach/act override, and no application site found in the files given here */
+    BUFF_GASES_IMMUNITY,/* the immunity it grants is modeled via CharVTable's buff_immune hook (see hero_buff_immune() in player.c), not a per-type check here */
+    BUFF_SNIPERS_MARK,  /* Sniper-specific: see char_consume_snipers_mark() in player.c */
     BUFF_TYPE_COUNT
 } BuffType;
 
@@ -65,6 +76,16 @@ typedef enum {
      BUFF_INVISIBILITY   CHAR_VIS_INVISIBLE + status text "invisible"
                          (skipped specifically for BUFF_SHADOWS)
      BUFF_LIGHT          CHAR_VIS_ILLUMINATED, no status text
+     BUFF_WEAKNESS       status text "weakened"
+     BUFF_BLINDNESS      status text "blinded"
+     BUFF_HUNGER         status text "hungry" then "starving" (level-dependent, no icon at all below HUNGRY)
+     BUFF_OOZE           status text "ooze"
+     BUFF_BARKSKIN       status text "barkskin"
+     BUFF_COMBO          status text "combo" (with the hit count)
+     BUFF_RAGE           status text "enraged"
+     BUFF_GASES_IMMUNITY status text "immune"
+     BUFF_SNIPERS_MARK   status text "marked"
+     BUFF_REGENERATION, BUFF_AWARENESS  no icon/status text in the original
 */
 
 struct Buff {
@@ -77,6 +98,19 @@ struct Buff {
 
 #define MAX_CHAR_BUFFS 16
 
+/* Constants for buffs*/
+#define BURNING_DURATION 8.0f
+#define FROST_DURATION   5.0f
+#define LIGHT_DISTANCE   4 
+#define FURY_LEVEL       0.4f
+#define SLEEP_SWS        1.5f
+#define WEAKNESS_DURATION   40.0f
+#define AWARENESS_DURATION  2.0f
+#define REGENERATION_DELAY  10.0f
+#define HUNGER_STEP      10.0f
+#define HUNGER_HUNGRY    260.0f
+#define HUNGER_STARVING  360.0f
+
 typedef struct CharVTable {
    int         (*attack_skill)(Char *self, Char *target);         /* default: 0 */
    int         (*defense_skill)(Char *self, Char *enemy);          /* default: 0 */
@@ -88,6 +122,8 @@ typedef struct CharVTable {
    int         (*defense_proc)(Char *self, Char *attacker, int damage); /* default: passthrough */
    uint32_t    (*resistances)(Char *self);                         /* default: 0 */
    uint32_t    (*immunities)(Char *self);                          /* default: 0 */
+   int         (*buff_immune)(Char *self, BuffType type);          /* default: never immune — mirrors Buff.attachTo()'s immunity check; real per-kind data (Golem/Sleep, Yog/almost-everything, ...) is a mob_db.c job, not modeled here yet. Hero overrides this for GasesImmunity (blocks Paralysis/Vertigo) — mirrors Hero.immunities() swapping in GasesImmunity.IMMUNITIES while that buff is up */
+   float       (*hunger_tick_scale)(Char *self);                   /* default: 1.0 — multiplies the interval between Hunger buff ticks (bigger = hungry more slowly); Hero overrides this for Rogue's 1.2x from Hunger.act() */
    int         (*stealth)(Char *self);                             /* default: 0 */
    void        (*on_damaged)(Char *self, int dmg_taken, void *src, DamageSource src_type);
    void        (*on_buff_added)(Char *self, Buff *buff);
@@ -215,6 +251,18 @@ Buff *char_buff(Char *self, BuffType type);
 int   char_buffs_of_type(Char *self, BuffType type, Buff **out, int max_out);
 
 int   char_is_charmed_by(Char *self, Char *ch);
+
+
+void char_hunger_satisfy(Char *self, float energy);
+int  char_hunger_is_starving(Char *self);
+
+
+void char_barkskin_grant(Char *self, int level);
+
+void char_bleeding_grant(Char *self, int level);
+
+int  char_combo_hit(Char *self, Char *enemy, int damage);
+int  char_consume_snipers_mark(Char *self, Char *target);
 
 
 /* ── Per-turn plumbing ────────────────────────────────────────── */

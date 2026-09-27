@@ -186,9 +186,8 @@ static int hero_defense_skill(Char *self, Char *enemy) {
     }
 
     if (p->cls == HERO_ROGUE) {
-        /* FreeRunner sprint bonus — original also gates this on !isStarving(),
-           which isn't tracked yet since Hunger isn't ported. */
-        if (p->sub_class == HERO_SUB_FREERUNNER) {
+        /* FreeRunner sprint bonus */
+        if (p->sub_class == HERO_SUB_FREERUNNER && !char_hunger_is_starving(self)) {
             evasion *= 2.0f;
         }
         return (int)((p->base_defense_skill - aEnc) * evasion);
@@ -200,7 +199,12 @@ static int hero_defense_skill(Char *self, Char *enemy) {
 static int hero_dr(Char *self) {
     Player *p = (Player *)self;
 
-    return armor_dr(&p->armor);
+    int dr = armor_dr(&p->armor);
+
+    Buff *barkskin = char_buff(self, BUFF_BARKSKIN);
+    if (barkskin) dr += barkskin->data;
+
+    return dr;
 }
 
 static int hero_damage_roll(Char *self) {
@@ -251,11 +255,7 @@ static float hero_speed(Char *self) {
         return (float)(base * pow(1.3, -aEnc));
     }
 
-    /* FreeRunner's 1.6x sprint bonus is driven by HeroSprite's own "been running
-       a couple of turns" animation state in the original (also gated on
-       !isStarving(), which isn't tracked since Hunger isn't ported) — no
-       equivalent signal exists here yet, so it's left unapplied rather than
-       guessed at. */
+    /*TODO FreeRunner's 1.6x sprint bonus */
     return base;
 }
 
@@ -280,10 +280,17 @@ static int hero_attack_proc(Char *self, Char *enemy, int damage) {
         hero_wear_item(&p->weapon);
     }
 
-    /* Placeholder — the rest of the original: Weapon.proc()'s enchantment +
-       hitsToKnow auto-identify, then a subclass switch (Gladiator's Combo
-       stacks, a Battlemage charging a wielded wand, a Sniper marking the
-       enemy for bonus damage). */
+    /* Placeholder — Weapon.proc()'s enchantment + hitsToKnow auto-identify
+       still isn't ported. The subclass switch below covers Gladiator and
+       Sniper; Battlemage's wand-charging branch needs the Wand item type
+       and stays a placeholder too. */
+    if (p->sub_class == HERO_SUB_GLADIATOR && !p->ranged_attack && p->weapon.type != ITEM_NONE) {
+        damage += char_combo_hit(self, enemy, damage);
+    } else if (p->sub_class == HERO_SUB_SNIPER && p->ranged_attack) {
+        Buff *mark = char_apply_buff(self, BUFF_SNIPERS_MARK, hero_attack_delay(p) * 1.1f);
+        if (mark) mark->data = actor_id(&enemy->base);
+    }
+
     return damage;
 }
 
@@ -317,6 +324,18 @@ static void hero_on_damaged(Char *self, int dmg_taken, void *src, DamageSource s
     }
 }
 
+static int hero_buff_immune(Char *self, BuffType type) {
+    if ((type == BUFF_PARALYSIS || type == BUFF_VERTIGO) && char_buff(self, BUFF_GASES_IMMUNITY)) {
+        return 1;
+    }
+    return 0;
+}
+
+static float hero_hunger_tick_scale(Char *self) {
+    Player *p = (Player *)self;
+    return (p->cls == HERO_ROGUE) ? 1.2f : 1.0f; /* Hunger.act()'s Rogue-specific STEP*1.2 */
+}
+
 static void hero_die(Char *self, void *src, DamageSource src_type) {
     Player *p = (Player *)self;
 
@@ -337,10 +356,22 @@ static void hero_on_buff_added(Char *self, Buff *buff) {
         case BUFF_VERTIGO:
             p->resting = 0;
             break;
+        case BUFF_WEAKNESS:
+            p->weakened = 1;
+            break;
         default:
             break;
     }
-    /* original also GLog.w()'s a "you are X" message per buff type here */
+    /*TODO LOG + HUD ICONS ADDING */
+}
+
+static void hero_on_buff_removed(Char *self, Buff *buff) {
+    Player *p = (Player *)self;
+
+    if (buff->type == BUFF_WEAKNESS) {
+        p->weakened = 0;
+    }
+    /*TODO HUD ICONS REMOVING */
 }
 
 static const CharVTable *hero_vtable(void) {
@@ -358,6 +389,9 @@ static const CharVTable *hero_vtable(void) {
         vt.on_damaged    = hero_on_damaged;
         vt.die           = hero_die;
         vt.on_buff_added = hero_on_buff_added;
+        vt.on_buff_removed = hero_on_buff_removed;
+        vt.buff_immune   = hero_buff_immune;
+        vt.hunger_tick_scale = hero_hunger_tick_scale;
 
         built = 1;
     }
@@ -486,6 +520,48 @@ void player_consume_item(Player *p, Bag *bag, int slot) {
     if (item_consume(&bag->items[slot]) == ITEM_USE_CONSUMED) {
         //TODO ADD USING CONSUMABLES
         //MB ADD MORE STATES + USE SWITCH
+
+        /* TEST: random buff with random duration */
+        static const BuffType test_buffs[] = {
+            BUFF_POISON,
+            BUFF_BLEEDING,
+            BUFF_BURNING,
+            BUFF_FROST,
+            BUFF_PARALYSIS,
+            BUFF_ROOTS,
+            BUFF_LEVITATION,
+            BUFF_INVISIBILITY,
+            BUFF_SHADOWS,
+            BUFF_LIGHT,
+            BUFF_FURY,
+            BUFF_MIND_VISION,
+            BUFF_OOZE,
+            BUFF_BARKSKIN,
+            BUFF_COMBO,
+            BUFF_SNIPERS_MARK,
+            BUFF_AMOK,
+            BUFF_CHARM,
+            BUFF_VERTIGO,
+            BUFF_CRIPPLE,
+            BUFF_SLEEP,
+            BUFF_HASTE,
+            BUFF_SLOW,
+            BUFF_TERROR,
+            BUFF_WEAKNESS,
+            BUFF_BLINDNESS,
+            BUFF_AWARENESS,
+            BUFF_RAGE,
+            BUFF_GASES_IMMUNITY
+        };
+
+        int buff_count = sizeof(test_buffs) / sizeof(test_buffs[0]);
+
+        BuffType type = test_buffs[rng_int(buff_count)];
+        float duration = (float)rng_range(20, 60);
+
+        char_apply_buff(&p->base, type, duration);
+        /* TEST: random buff with random duration */
+
         bag_remove_item(bag, slot, 1);
     }
 }
@@ -673,6 +749,28 @@ static void equip_ring_from_bag(Player *p, ItemType type, EquipSlot target) {
 /*═══════════════════════════════════════════════════════════════
     World interaction
 ═══════════════════════════════════════════════════════════════*/
+int fov_radius(Player *player, int depth) {
+    int radius;
+
+    if (depth > 9 && depth < 15) {
+        radius = 6;
+    } else if (depth > 20 && depth < 24) {
+        radius = 24 - depth;
+        if (radius < 1) radius = 1;
+    } else if (depth == 24) {
+        radius = 3;
+    } else {
+        radius = 8;
+    }
+
+    if (char_buff(&player->base, BUFF_LIGHT)) {
+        if (radius < LIGHT_DISTANCE)
+            radius = LIGHT_DISTANCE;
+    }
+
+    return radius;
+}
+
 int player_pickup(Player *p, Level *lvl) {
     if (player_is_busy(p))
         return 0;
@@ -756,26 +854,27 @@ static int player_interact_tile(Player *p, Level *lvl, int idx) {
     return 0;
 }
 
-void player_rest(Player *p) { //TODO PLACEHOLDER FOR RESTING/TIME SKIPPING 
+void player_rest(Player *p) {
     if (!p->resting) {
         char_spend(&p->base, 1.0f);
         actor_next(&p->base.base);
         return;
     }
-
-    if (p->base.HP >= p->base.HT) {
+    if (p->base.HP >= p->base.HT || char_hunger_is_starving(&p->base)) {
         p->resting = 0;
         return;
     }
-    
-    p->base.HP++;
 
     char_spend(&p->base, 1.0f);
     actor_next(&p->base.base);
+
+    /* TODO: the original also breaks resting after mob comes into fov (Hero.checkVisibleMobs())*/
 }
 
 
 int player_move(Player *p, Level *lvl, int dx, int dy) {
+    if (p->base.rooted) 
+        return 0;
     if (player_is_busy(p))
         return 0;
     if (dx == 0 && dy == 0)
@@ -855,6 +954,9 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->base.name = "you";
     char_add(&p->base);
 
+    char_apply_buff(&p->base, BUFF_REGENERATION, -1.0f);
+    char_apply_buff(&p->base, BUFF_HUNGER, 0.0f);
+
     p->cls         = cls;
     p->sub_class   = HERO_SUB_NONE;
 
@@ -895,7 +997,7 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
 
     player_init_item(p, ITEM_WARRIOR_ARMOR, 1);//TEST
     player_init_item(p, ITEM_WAR_HAMMER, 1);//TEST
-    player_init_item(p, ITEM_SCROLL_UPGRADE, 10);//TEST
+    player_init_item(p, ITEM_SCROLL_UPGRADE, 100);//TEST
 
     switch (p->cls) {
     case HERO_WARRIOR:

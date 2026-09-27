@@ -64,6 +64,7 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     mob_set_pool(&lvl->mob_pool);
     npc_set_pool(&lvl->npc_pool);
 
+    player->base.base.time = 0.0f;
     char_add(&player->base);
 
     actor_fix_time();
@@ -96,6 +97,7 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
     mob_set_pool(&lvl->mob_pool);
     npc_set_pool(&lvl->npc_pool);
 
+    player->base.base.time = 0.0f;
     char_add(&player->base);
 
     actor_fix_time();

@@ -85,7 +85,7 @@ static void mob_on_buff_added(Char *self, Buff *buff) {
         break;
     case BUFF_SLEEP:
         m->state = MOB_ASLEEP;
-        actor_postpone(&self->base, ACTOR_TICK);
+        actor_postpone(&self->base, SLEEP_SWS);
         break;
     default:
         break;

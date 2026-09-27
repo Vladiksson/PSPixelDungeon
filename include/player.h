@@ -124,6 +124,8 @@ int player_equip_item(Player *p, Bag *bag, int slot, int spend_time);
 int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target, int spend_time);
 int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 
+int fov_radius(Player *player, int depth);
+
 int player_pickup(Player *p, Level *lvl);
 int player_operate(Player *p, Level *lvl, int idx);
 

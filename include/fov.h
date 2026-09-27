@@ -7,4 +7,4 @@ typedef struct {
 } Fog;
 
 void fog_init  (Fog *fog);
-void fog_update(Fog *fog, const Level *lvl, int idx, int depth);
+void fog_update(Fog *fog, const Level *lvl, int idx, int radius);

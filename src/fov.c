@@ -5,20 +5,6 @@ static int blocks_light(const Level *lvl, int idx) {
     return (gTileFlags[lvl->map[idx]] & TF_LOS_BLOCKING) != 0;
 }
 
-static int fov_radius(int depth) {
-    if (depth > 9 && depth < 15) {
-        return 6;
-    }
-    if (depth > 20 && depth < 24) {
-        int radius = 24 - depth;
-        return radius > 1 ? radius : 1;
-    }
-    if (depth == 24) {
-        return 3;
-    }
-    return 8;
-}
-
 /* ══════════════════════════════════════════════════════════════
    RECURSIVE OCTANT SHADOW CASTING
    Direct port of the RogueBasin "FOV using recursive shadow
@@ -93,12 +79,10 @@ void fog_init(Fog *fog) {
     memset(fog->visited, 0, LEVEL_SIZE);
 }
 
-void fog_update(Fog *fog, const Level *lvl, int idx, int depth) {
+void fog_update(Fog *fog, const Level *lvl, int idx, int radius) {
     memset(fog->visible, 0, LEVEL_SIZE);
 
     if (in_bounds(idx)) fog->visible[idx] = 1;
-
-    int radius = fov_radius(depth);
 
     static const int OCT[8][4] = {
         /* xx, xy, yx, yy */

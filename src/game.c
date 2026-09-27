@@ -380,7 +380,7 @@ void game_input(Game *game, InputState *inp, uint32_t now) {
 void game_update(Game *game, RenderCtx *rctx, float dt) {
     actor_process();
 
-    fog_update(game->fog, game->lvl, game->player.base.pos, game->dungeon.current_depth);
+    fog_update(game->fog, game->lvl, game->player.base.pos, fov_radius(&game->player, game->dungeon.current_depth));
     hud_update(rctx, &game->player);
 
     render_update_water(rctx, dt); //TODO PARTICLES GONNA LIVE HERE
