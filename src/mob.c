@@ -87,6 +87,11 @@ static void mob_on_buff_added(Char *self, Buff *buff) {
         m->state = MOB_ASLEEP;
         actor_postpone(&self->base, SLEEP_SWS);
         break;
+    case BUFF_FROST:
+        if (m->kind == MOB_ELEMENTAL) {
+            char_damage(self, (int)rng_normal_range(1, self->HT * 2 / 3), buff, DMGSRC_GENERIC);
+        }
+        break;
     default:
         break;
     }
@@ -95,6 +100,134 @@ static void mob_on_buff_added(Char *self, Buff *buff) {
 static void mob_on_buff_removed(Char *self, Buff *buff) {
     if (buff->type == BUFF_TERROR) {
         ((Mob *)self)->state = MOB_HUNTING;
+    }
+}
+
+/*═══════════════════════════════════════════════════════════════
+    Buff-relevant combat procs
+
+    TODO:
+      MOB_WARLOCK    Weakness only fires from its ranged zap()
+      MOB_THIEF/MOB_BANDIT  Blindness only fires after a successful steal()
+      MOB_MONK/MOB_SENIOR   disarm 
+      MOB_FETID_RAT  its defenseProc seeds a lingering gas cloud at its own position
+    ═══════════════════════════════════════════════════════════════*/
+static int mob_attack_proc(Char *self, Char *enemy, int damage) {
+    Mob *m = (Mob *)self;
+
+    switch (m->kind) {
+    case MOB_ALBINO:
+        if (rng_int(2) == 0) {
+            char_bleeding_grant(enemy, damage);
+        }
+        break;
+
+    case MOB_SPINNER:
+        if (rng_int(2) == 0) {
+            Buff *b = char_apply_buff(enemy, BUFF_POISON, 0.0f);
+            if (b) b->duration = (float)rng_range(7, 8);
+            m->state = MOB_FLEEING;
+        }
+        break;
+
+    case MOB_ELEMENTAL:
+        if (rng_int(2) == 0) {
+            char_apply_buff(enemy, BUFF_BURNING, BURNING_DURATION);
+        }
+        break;
+
+    case MOB_SUCCUBUS:
+        if (rng_int(3) == 0) {
+            Buff *b = char_apply_buff(enemy, BUFF_CHARM, (float)rng_range(3, 7));
+            if (b) b->data = actor_id(&self->base);
+        }
+        break;
+
+    case MOB_SCORPIO:
+    case MOB_ACIDIC:
+        if (rng_int(2) == 0) {
+            char_apply_buff(enemy, BUFF_CRIPPLE, CRIPPLE_DURATION);
+        }
+        break;
+
+    case MOB_SENIOR:
+        if (rng_int(10) == 0) {
+            char_apply_buff(enemy, BUFF_PARALYSIS, 1.1f);
+        }
+        break;
+
+    case MOB_KING_UNDEAD:
+        if (rng_int(5) == 0) {
+            char_apply_buff(enemy, BUFF_PARALYSIS, 1.0f);
+        }
+        break;
+
+    case MOB_YOG_ROTTING_FIST:
+        if (rng_int(3) == 0) {
+            char_apply_buff(enemy, BUFF_OOZE, 0.0f);
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    return damage;
+}
+
+static int mob_defense_proc(Char *self, Char *attacker, int damage) {
+    if (((Mob *)self)->kind == MOB_ACIDIC) {
+        int splash = rng_range(0, damage);
+        if (splash > 0) char_damage(attacker, splash, self, DMGSRC_ACID);
+    }
+    return damage;
+}
+
+static int mob_buff_immune(Char *self, BuffType type) {
+    switch (((Mob *)self)->kind) {
+    case MOB_GOLEM:
+        return type == BUFF_AMOK || type == BUFF_TERROR || type == BUFF_SLEEP;
+    case MOB_MONK:
+    case MOB_SENIOR:
+        return type == BUFF_AMOK || type == BUFF_TERROR;
+    case MOB_BRUTE:
+    case MOB_SHIELDED:
+        return type == BUFF_TERROR;
+    case MOB_EYE:
+    case MOB_WRAITH:
+        return type == BUFF_TERROR;
+    case MOB_SPINNER:
+        return type == BUFF_ROOTS;
+    case MOB_SUCCUBUS:
+        return type == BUFF_SLEEP;
+    case MOB_ELEMENTAL:
+        return type == BUFF_BURNING;
+    case MOB_FETID_RAT:
+        return type == BUFF_PARALYSIS;
+    case MOB_KING:
+        return type == BUFF_PARALYSIS || type == BUFF_VERTIGO;
+    case MOB_PIRANHA:
+        return type == BUFF_BURNING || type == BUFF_PARALYSIS || type == BUFF_ROOTS || type == BUFF_FROST;
+    case MOB_CURSE_PERSONIFICATION:
+        return type == BUFF_TERROR || type == BUFF_PARALYSIS || type == BUFF_ROOTS;
+    default:
+        return 0;
+    }
+}
+
+static uint32_t mob_resistances(Char *self) {
+    /* the only one of each mob's resistances() that maps onto a
+       DamageSource we have — Leech/Death/ToxicGas/ScrollOfPsionicBlast/
+       WandOfDisintegration in the source have no equivalent category here */
+    switch (((Mob *)self)->kind) {
+    case MOB_SPINNER:
+    case MOB_SCORPIO:
+    case MOB_ACIDIC:  /* inherits Scorpio's resistances() unchanged */
+    case MOB_TENGU:
+    case MOB_STATUE:
+        return 1u << DMGSRC_POISON;
+    default:
+        return 0;
     }
 }
 
@@ -421,15 +554,22 @@ static int mob_on_turn(Char *self) {
         }
         break;
 
-    case MOB_FLEEING:
+    case MOB_FLEEING: {
         m->enemy_seen = enemy_in_view;
         if (enemy_in_view) m->dest = m->target->pos;
-        if (m->dest != -1 && mob_step_away_pos(m, lvl, m->dest)) {
-            char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
-        } else {
-            char_spend(self, ACTOR_TICK); /* nowhereToRun() in the original is an empty hook (no non-Fleeing-mob overrides it) — nothing to port */
+
+        int stepped = m->dest != -1 && mob_step_away_pos(m, lvl, m->dest);
+
+        if (m->kind == MOB_SPINNER && !char_buff(self, BUFF_TERROR)) {
+            int poison_gone = !m->target || !char_buff(m->target, BUFF_POISON);
+            if (!stepped || (enemy_in_view && poison_gone)) {
+                m->state = MOB_HUNTING;
+            }
         }
+
+        char_spend(self, stepped ? ACTOR_TICK / MOB_DB[m->kind].base_speed : ACTOR_TICK);
         break;
+    }
 
     case MOB_PASSIVE:
     default:
@@ -451,6 +591,10 @@ static const CharVTable *mob_vtable(void) {
         vt.defense_skill = mob_defense_skill;
         vt.dr            = mob_dr;
         vt.damage_roll   = mob_damage_roll;
+        vt.attack_proc   = mob_attack_proc;
+        vt.defense_proc  = mob_defense_proc;
+        vt.resistances   = mob_resistances;
+        vt.buff_immune   = mob_buff_immune;
         vt.on_damaged    = mob_on_damaged;
         vt.die           = mob_die;
         vt.on_turn       = mob_on_turn;

@@ -101,6 +101,7 @@ struct Buff {
 /* Constants for buffs*/
 #define BURNING_DURATION 8.0f
 #define FROST_DURATION   5.0f
+#define CRIPPLE_DURATION 10.0f
 #define LIGHT_DISTANCE   4 
 #define FURY_LEVEL       0.4f
 #define SLEEP_SWS        1.5f

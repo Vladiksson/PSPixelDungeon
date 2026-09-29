@@ -513,7 +513,7 @@ void render_item_description(RenderCtx *ctx, const InventoryUI *ui, const Player
 
     int durability = stack.durability;
     int max_durability = item_max_durability(stack.type, stack.level);
-    draw_durability_bar(ctx->renderer, DESC_NAME_X, DESC_NAME_Y + 16, 140, 6, durability, max_durability); //REDO numbers
+    draw_durability_bar(ctx->renderer, DESC_NAME_X, DESC_NAME_Y + 16, 132, 6, durability, max_durability); //REDO numbers
 
     char name[64];
     item_display_name(&stack, name, sizeof(name));

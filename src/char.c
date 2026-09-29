@@ -179,7 +179,7 @@ static int buff_poison_act(Buff *self) {
 /* ---- Bleeding ---- */
 void char_bleeding_grant(Char *self, int level) {
     Buff *b = char_apply_buff(self, BUFF_BLEEDING, -1.0f);
-    if (b && level > b->data) b->data = level;
+    if (b) b->data = level;
 }
 
 static int buff_bleeding_act(Buff *self) {
