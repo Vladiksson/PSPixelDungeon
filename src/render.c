@@ -673,3 +673,15 @@ void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *
 void render_present(RenderCtx *ctx) {
     SDL_RenderPresent(ctx->renderer);
 }
+
+
+//test of target
+
+void render_target_cursor(RenderCtx *ctx, int pos, const Camera *cam){
+    Point p = idx_to_xy(pos);
+    Point screen = camera_tile_to_screen(cam, p.x, p.y);
+
+    SDL_SetRenderDrawColor(ctx->renderer, 255, 0, 0, 255);
+    SDL_Rect rect = { screen.x, screen.y, gTileSize, gTileSize };
+    SDL_RenderDrawRect(ctx->renderer, &rect);
+}

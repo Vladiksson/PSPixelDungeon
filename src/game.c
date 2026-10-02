@@ -75,6 +75,24 @@ static int ui_move_repeat_update(MoveRepeat *mr, uint32_t now, int dx, int dy) {
     return 0;
 }
 
+//TEST FOR TARGET
+static void player_move_cursor(Player *p, const Fog *fog, int dx, int dy) {
+    Point pos = idx_to_xy(p->cursor_pos);
+
+    pos.x += dx;
+    pos.y += dy;
+
+    if (!in_bounds_xy(pos.x, pos.y))
+        return;
+
+    int next = xy_to_idx(pos.x, pos.y);
+
+    if (!fog->visible[next])
+        return;
+
+    p->cursor_pos = next;
+}
+
 /*══════════════════════════════════════════════════════════
   Initialization
   ══════════════════════════════════════════════════════════*/
@@ -165,9 +183,41 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
         TileSize_Update();
         camera_center_on(&game->cam, player->base.pos);
     }
+    //TEST CURSOR TARGET MOVEMENT
+    if (btn_held(inp, BTN_R)) {
+        game->targeting = 1;
+
+        int dx, dy;
+        input_get_move(inp, &dx, &dy);
+
+        if (ui_move_repeat_update(&game->ui_move_repeat, now, dx, dy))
+            player_move_cursor(player, game->fog, dx, dy);
+        return;
+    }
+    if (btn_released(inp, BTN_R)) {
+        game->targeting = 0;
+
+        player->target_pos = player->cursor_pos;
+
+        Char *occupant = char_find_at(player->target_pos);
+        if (occupant && occupant->kind == CHAR_KIND_MOB)
+            player->attack_target = occupant;
+
+        player->cursor_pos = player->base.pos;
+    }
+
+    //TEST OF QUICK SLOT
+    if (btn_pressed(inp, BTN_SQUARE)) {
+        player_use_quick_slot(player);
+        return;
+    }
+
+    //test of auto attack on known target
+    if (btn_pressed(inp, BTN_CROSS))
+        player_auto_attack(player);
 
     /*TEST BULLSHIT VERSION OF RESTING*/
-    if (btn_pressed(inp, BTN_CROSS)) {
+    if (btn_pressed(inp, BTN_TRIANGLE)) {
         player->resting = 0;
 
         player_rest(player);
@@ -179,7 +229,7 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
     }
 
     if (game->rest_pending) {
-        if (btn_released(inp, BTN_CROSS)) {
+        if (btn_released(inp, BTN_TRIANGLE)) {
             game->rest_pending = 0;
             return;
         } else if (now >= game->rest_next_ms) {
@@ -265,7 +315,10 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
     if (btn_pressed(inp, BTN_CROSS)) {
         if (inv->cursor >= 0 && inv->cursor < MAX_INVENTORY) {
             Bag *bag = &player->bags[inv->active_bag];
-            item_identify(&bag->items[inv->cursor]); //TEST
+
+            player_set_quick_slot(player, bag, inv->cursor); //TEST OF QUICK SLOT, mb try the same holding logic as resting???
+
+            item_identify(&bag->items[inv->cursor]); // TEST
 
             int res = player_equip_item(player, bag, inv->cursor, 1);
             if (res == EQUIP_RING_SELECT) {
@@ -403,6 +456,9 @@ void game_render(Game *game, RenderCtx *rctx) {
     render_fog(rctx, game->fog, &game->cam);
     render_player(rctx, &game->player, &game->cam);
     render_hud(rctx, &game->player, &game->dungeon);
+
+    if (game->targeting == 1)
+        render_target_cursor(rctx, game->player.cursor_pos, &game->cam);//test
 
     if (game->state == GAME_STATE_INVENTORY) {
         render_inventory(rctx, &game->player, &game->inv);

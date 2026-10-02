@@ -47,14 +47,7 @@ static void player_play_anim(Player *p, AnimState anim){
     p->anim_done = 0;
     player_sync_anim_lock(p);
 }
-static void player_resolve_attack(Player *p) {
-    Char *target = p->attack_target;
-    p->attack_target = NULL;
-    if (!target) return; 
 
-    char_attack(&p->base, target);
-    actor_next(&p->base.base);
-}
 void player_animate(Player *p, float dt) {
     const AnimClip *clip = &HERO_CLIPS[p->anim];
     if (p->anim_done || clip->fps <= 0) return;
@@ -746,6 +739,82 @@ static void equip_ring_from_bag(Player *p, ItemType type, EquipSlot target) {
     }
 }
 
+int player_set_quick_slot(Player *p, Bag *bag, int slot) {
+    if (!bag || slot < 0 || slot >= bag->count)
+        return 0;
+
+    ItemType type = bag->items[slot].type;
+
+    if (type == ITEM_NONE)
+        return 0;
+
+    ItemCategory cat = ITEM_DB[type].cat;
+
+    switch (cat) {
+    case ITEMCAT_POTION:
+    case ITEMCAT_SCROLL:
+    case ITEMCAT_SEED:
+    case ITEMCAT_FOOD:
+    case ITEMCAT_WAND:
+        p->quick_slot.type = type;
+        return 1;
+    case ITEMCAT_WEAPON:
+        if (ITEM_DB[type].weapon.type == WEAPON_MISSILE) {
+            p->quick_slot.type = type;
+            return 1;
+        }
+        return 0;
+
+    default:
+        return 0;
+    }
+}
+
+int player_use_quick_slot(Player *p) {
+    if (player_is_busy(p))
+        return 0;
+
+    ItemType type = p->quick_slot.type;
+
+    if (type == ITEM_NONE)
+        return 0;
+
+    if (type < 0 || type >= ITEM_TYPE_COUNT)
+        return 0;
+
+    Bag *bag = NULL;
+    int slot = -1;
+
+    if (!player_locate_item(p, type, &bag, &slot))
+        return 0;
+
+    ItemCategory cat = ITEM_DB[type].cat;
+
+    switch (cat) {
+    case ITEMCAT_POTION:
+    case ITEMCAT_SCROLL:
+    case ITEMCAT_SEED:
+    case ITEMCAT_FOOD:
+        player_consume_item(p, bag, slot);
+        return 0;
+
+    case ITEMCAT_WEAPON:
+        if (ITEM_DB[type].weapon.type == WEAPON_MISSILE) {
+            /* TODO: throw missile weapon. */
+            player_consume_item(p, bag, slot);
+            return 0;
+        }
+        return 0;
+
+    case ITEMCAT_WAND:
+        /* TODO: ZAP */
+        return 0;
+
+    default:
+        return 0;
+    }
+}
+
 /*═══════════════════════════════════════════════════════════════
     World interaction
 ═══════════════════════════════════════════════════════════════*/
@@ -889,6 +958,7 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
     if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
 
     char_move(&p->base, lvl, idx);
+    p->cursor_pos = p->base.pos;
 
     char_spend(&p->base, 1.0f / char_speed(&p->base));
     actor_next(&p->base.base); 
@@ -899,14 +969,22 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
 static int player_start_attack(Player *p, Char *target) {
     if (player_is_busy(p)) return 0;
     if (!char_is_alive(&p->base) || !char_is_alive(target)) return 0;
-    if (char_is_charmed_by(&p->base, target)) return 0; /* mirrors actAttack()'s !isCharmedBy(enemy) guard */
+    if (char_is_charmed_by(&p->base, target)) return 0;
+
+    Point self = idx_to_xy(p->base.pos);
+    Point enemy = idx_to_xy(target->pos);
+
+    if (enemy.x != self.x)
+        p->facing = (enemy.x < self.x) ? FACE_LEFT : FACE_RIGHT;
 
     p->attack_target = target;
     char_spend(&p->base, hero_attack_delay(p));
     player_play_anim(p, ANIM_ATTACK);
     char_begin_attack_anim(&p->base, target);
-    player_resolve_attack(p);
-    
+
+    char_attack(&p->base, target);
+    actor_next(&p->base.base);
+
     return 1;
 }
 
@@ -945,6 +1023,19 @@ int player_bump(Player *p, Level *lvl, int dx, int dy) {
     return player_move(p, lvl, dx, dy) ? PLAYER_BUMP_MOVED : PLAYER_BUMP_BLOCKED;
 }
 
+int player_auto_attack(Player *p) {
+    Char *target = p->attack_target;
+
+    if (!target || !char_is_alive(target)) {
+        p->attack_target = NULL;
+        return 0;
+    }
+
+    if (!char_cells_adjacent(p->base.pos, target->pos))
+        return 0;
+
+    return player_start_attack(p, target);
+}
 
 /*═══════════════════════════════════════════════════════════════
     Initialization
@@ -979,6 +1070,9 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->ring1  = item_stack_none();
     p->ring2  = item_stack_none();
 
+    p->quick_slot.type = ITEM_NONE;
+
+
     p->STR                = HERO_STARTING_STR;
     p->weakened            = 0;
     p->lvl                 = 1;
@@ -988,6 +1082,10 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->base_defense_skill  = HERO_STARTING_DEFENSE;
     p->ranged_attack       = 0;
     p->resting             = 0;
+
+    p->cursor_pos = p->base.pos;
+    p->target_pos = p->base.pos;
+
     p->attack_target       = NULL;
 
     player_init_item(p, ITEM_CLOTH_ARMOR, 1);

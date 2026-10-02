@@ -12,7 +12,7 @@ static int char_cell_distance(int a, int b) {
     int dy = pa.y - pb.y; if (dy < 0) dy = -dy;
     return dx > dy ? dx : dy;
 }
-static int char_cells_adjacent(int a, int b) {
+int char_cells_adjacent(int a, int b) {
     return char_cell_distance(a, b) == 1;
 }
 

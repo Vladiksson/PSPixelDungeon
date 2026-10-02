@@ -210,7 +210,7 @@ Char *char_find_at(int pos);
 void  char_move(Char *self, Level *lvl, int step);
 
 int   char_distance(const Char *self, const Char *other);
-
+int char_cells_adjacent(int a, int b);
 /* ── Combat ───────────────────────────────────────────────────── */
 
 typedef struct {

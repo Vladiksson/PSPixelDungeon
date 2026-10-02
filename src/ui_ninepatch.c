@@ -77,7 +77,7 @@ NinePatch chrome_toast_tr(SDL_Texture *tex) {
         .top = 5,
         .right = 5,
         .bottom = 5,
-        .scale = 1.5
+        .scale = 1.6
     };
 }
 

@@ -53,6 +53,10 @@ typedef enum {
    EQUIP_SLOT_COUNT
 } EquipSlot;
 
+typedef struct {
+   ItemType type;
+} QuickSlot;
+
 typedef enum {
    EQUIP_FAILED = 0,
    EQUIP_OK = 1,
@@ -87,6 +91,8 @@ typedef struct {
    ItemStack ring1;
    ItemStack ring2;
 
+   QuickSlot quick_slot;
+
    int STR;
    int weakened;
 
@@ -101,6 +107,8 @@ typedef struct {
 
    int resting;
 
+   int cursor_pos;
+   int target_pos;
    Char *attack_target;
 } Player;
 
@@ -124,6 +132,9 @@ int player_equip_item(Player *p, Bag *bag, int slot, int spend_time);
 int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target, int spend_time);
 int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 
+int player_set_quick_slot(Player *p, Bag *bag, int slot);
+int player_use_quick_slot(Player *p);
+
 int fov_radius(Player *player, int depth);
 
 int player_pickup(Player *p, Level *lvl);
@@ -134,5 +145,6 @@ void player_rest(Player *p);
 int player_move(Player *p, Level *lvl, int dx, int dy);
 int player_bump(Player *p, Level *lvl, int dx, int dy);
 
+int player_auto_attack(Player *p); //test
 
 void player_init(Player *p, const Level *lvl, HeroClass cls);

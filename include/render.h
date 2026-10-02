@@ -51,3 +51,7 @@ void render_mobs   (RenderCtx *ctx, const Fog *fog, const Camera *cam);
 void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *cam);
 
 void render_present (RenderCtx *ctx);
+
+
+//test
+void render_target_cursor(RenderCtx *ctx, int pos, const Camera *cam);

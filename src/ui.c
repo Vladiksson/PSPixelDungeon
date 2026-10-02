@@ -719,6 +719,33 @@ void render_stats_screen(RenderCtx *ctx, const Player *p) {
 /* ══════════════════════════════════════════════════════════
    HUD
    ══════════════════════════════════════════════════════════  */
+//test quick slot
+static ItemStack quick_slot_get_stack(const Player *p) {
+    ItemStack none = item_stack_none();
+    ItemType type = p->quick_slot.type;
+
+    if (type == ITEM_NONE)
+        return none;
+
+    for (int b = 0; b < BAG_TYPE_COUNT; b++) {
+        const Bag *bag = &p->bags[b];
+        int slot = bag_find_item(bag, type);
+        if (slot >= 0)
+            return bag->items[slot];
+    }
+    return none;
+}
+#define QUICK_SLOT_X       448
+#define QUICK_SLOT_Y       240
+#define QUICK_SLOT_SIZE    32
+
+static void render_quick_slot(RenderCtx *ctx, const Player *p) {
+    NinePatch toast_tr = chrome_toast_tr(ctx->ui.chrome);
+    ninepatch_draw(ctx->renderer, &toast_tr, QUICK_SLOT_X, QUICK_SLOT_Y, QUICK_SLOT_SIZE, QUICK_SLOT_SIZE);
+    
+    ItemStack stack = quick_slot_get_stack(p);
+    draw_slot(ctx, QUICK_SLOT_X + 4, QUICK_SLOT_Y + 4, QUICK_SLOT_SIZE - 8, stack, 0);
+}
 
    //TODO BUFFS
 static void render_busy_indicator(RenderCtx *ctx, const Player *p) {
@@ -884,6 +911,9 @@ void render_hud(RenderCtx *ctx, const Player *p, const Dungeon *d) {
 
     font_draw_text(ctx->renderer, &ctx->font, 459, 9, 1.5, COL_WHITE, key_count);
 
-    /* ── busy indicator ───────────────────────────────── */
+    /* ── quick slot ─────────────────────────────────────── */
+    render_quick_slot(ctx, p);
+
+    /* ── busy indicator ─────────────────────────────────── */
     render_busy_indicator(ctx, p);
 }

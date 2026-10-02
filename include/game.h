@@ -37,6 +37,8 @@ typedef struct {
     uint32_t rest_next_ms; //TEST
     int rest_pending;
 
+    int targeting;
+
     GameState state;
     PopupType popup;
     GameState popup_return_state;
