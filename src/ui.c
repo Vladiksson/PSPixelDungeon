@@ -693,8 +693,22 @@ void render_stats_screen(RenderCtx *ctx, const Player *p) {
     snprintf(current_exp, sizeof(current_exp), "Experience: %d/%d", exp, max_exp);
     font_draw_text(ctx->renderer, &ctx->font, 160, 110, 1.5, COL_WHITE, current_exp);
 
+    /*TRAGETS HP FOR THE TEST*/
+    if (p->attack_target != NULL) {
+        int target_hp = p->attack_target->HP;
+        int target_max_hp = p->attack_target->HT;
+
+        if (target_hp < 0) target_hp = 0;
+        if (target_hp > target_max_hp) target_hp = target_max_hp;
+
+        char target_current_hp[32];
+        snprintf(target_current_hp, sizeof(target_current_hp), "TARGET Health: %d/%d", target_hp, target_max_hp);
+        font_draw_text(ctx->renderer, &ctx->font, 160, 125, 1.5, COL_WHITE, target_current_hp);
+    }
+    /*TRAGETS HP FOR THE TEST*/
+
         /* buffs — TEST */
-    int buff_y = 130;
+    int buff_y = 140;
 
     font_draw_text(ctx->renderer, &ctx->font, 160, buff_y, 1.3, COL_GOLD_TEXT, "TEST OF BUFFS:");
 

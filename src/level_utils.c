@@ -36,7 +36,7 @@ int random_passable_in_box(const Level *lvl, int left, int top, int right, int b
     for (int tries = 0; tries < 100; tries++) {
         int idx = xy_to_idx(rng_range(left, right), rng_range(top, bottom));
         if (idx == exclude_idx) continue;
-        if (gTileFlags[lvl->map[idx]] & TF_PASSABLE) return idx;
+        if (cell_passable(lvl, idx)) return idx;
     }
     return -1;
 }

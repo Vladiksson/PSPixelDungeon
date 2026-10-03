@@ -1,0 +1,58 @@
+#include "level_geometry.h"
+
+/* ══════════════════════════════════════════════════════════
+   Level-derived geometry HELPERS
+   ══════════════════════════════════════════════════════════ */
+
+const int DX[8] = { +1, -1,  0,  0, +1, +1, -1, -1 };
+const int DY[8] = {  0,  0, +1, -1, +1, -1, +1, -1 };
+
+int cell_distance(int a, int b) {
+    Point pa = idx_to_xy(a);
+    Point pb = idx_to_xy(b);
+    int dx = pa.x - pb.x; if (dx < 0) dx = -dx;
+    int dy = pa.y - pb.y; if (dy < 0) dy = -dy;
+    return dx > dy ? dx : dy;
+}
+int cells_adjacent(int a, int b) {
+    return cell_distance(a, b) == 1;
+}
+
+int neighbour_idx(int pos, int dx, int dy) {
+    Point p = idx_to_xy(pos);
+    int nx = p.x + dx;
+    int ny = p.y + dy;
+    if (!in_bounds_xy(nx, ny))
+        return -1;
+    return xy_to_idx(nx, ny);
+}
+
+int random_neighbour(int pos) {
+    int i = rng_int(8);
+    return neighbour_idx(pos, DX[i], DY[i]);
+}
+
+/* ══════════════════════════════════════════════════════════
+   CELL IS... HELPERS
+   ══════════════════════════════════════════════════════════ */
+int cell_passable(const Level *lvl, int idx) {
+    return (gTileFlags[lvl->map[idx]] & TF_PASSABLE) != 0;
+}
+int blocks_light(const Level *lvl, int idx) {
+    return (gTileFlags[lvl->map[idx]] & TF_LOS_BLOCKING) != 0;
+}
+//tf_flamable
+//tf_secret
+//tf_solid
+//tf_avoid
+//tf_liquid
+//tf_pit
+
+bool tile_unstitchable(uint8_t t) {
+    return (gTileFlags[t] & TF_UNSTITCHABLE) != 0;
+}
+int tile_free_for_item(const Level *lvl, int idx) {
+    if (idx == lvl->entrance || idx == lvl->exit) 
+        return 0;
+    return (gTileFlags[lvl->map[idx]] & TF_OPEN_FLOOR) != 0;
+}

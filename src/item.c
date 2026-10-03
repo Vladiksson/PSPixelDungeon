@@ -1,7 +1,7 @@
 #include "item.h"
 #include "item_generator.h"
 #include "item_spawn.h"
-#include "rng.h"
+#include "level_geometry.h"
 
 /*═══════════════════════════════════════════════════════════════
     Level item pool
@@ -29,12 +29,6 @@ int level_take_spawn_item(Level *lvl, ItemType *out) {
 /* ══════════════════════════════════════════════════════════
    LEVEL POPULATION  —  called once, at the end of level_generate
    ══════════════════════════════════════════════════════════ */
-static int tile_free_for_item(const Level *lvl, int idx) {
-    if (idx == lvl->entrance || idx == lvl->exit) 
-        return 0;
-    return (gTileFlags[lvl->map[idx]] & TF_OPEN_FLOOR) != 0;
-}
- 
 void level_spawn_items(Level *lvl, int depth) {
     int target = rng_range(4, 8) + depth / 4;
     if (target > MAX_LEVEL_ITEMS)

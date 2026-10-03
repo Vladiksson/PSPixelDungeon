@@ -1,11 +1,12 @@
 #pragma once
-#include "char.h"
 #include "mob_db.h"
 
-typedef struct {
+typedef struct Mob {
     Char base;
 
     MobKind    kind;
+    MobStats   stats; //MOB_DB[kind] 
+
     MobAiState state;
     Char      *target;
     int        dest;
@@ -13,6 +14,7 @@ typedef struct {
     int        alerted;
 
     int        alert_icon;   /* show alert icon for one mob turn */
+    int        enraged;      /* Brute/Shielded: latched once HP < HT / stats.enrage_hp_div */
 
     Facing       facing;
     MobAnimState anim;
@@ -24,7 +26,11 @@ typedef struct {
 void mob_play_anim(Mob *m, MobAnimState anim);
 void mob_animate_all(float dt); /*mirrors player_animate() */
 
-Mob *mob_spawn(MobKind kind, int pos, Char *target);
+
+void mob_set_depth(int depth);
+
+Mob *mob_spawn(MobKind kind, int pos, Char *target);   /* uses mob_set_depth()'s depth */
+
 int mob_spawn_random(Level *lvl, MobKind kind, int count, Char *target);
 int mob_spawn_random_no_target(Level *lvl, MobKind kind, int count);
 

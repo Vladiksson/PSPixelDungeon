@@ -256,9 +256,6 @@ static void render_tile(RenderCtx *ctx, int sprite_idx, int px, int py) {
     SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
 }
 
-static bool tile_unstitchable(uint8_t t){
-    return (gTileFlags[t] & TF_UNSTITCHABLE) != 0;
-}
 static int water_sprite(const Level *lvl, int tx, int ty) { //mirror Level.java getWaterTile()
     int top   = tile_unstitchable(get_tile_safe(lvl, xy_to_idx(tx,   ty-1)));
     int right = tile_unstitchable(get_tile_safe(lvl, xy_to_idx(tx+1, ty  )));

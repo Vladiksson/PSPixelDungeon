@@ -1,7 +1,6 @@
 #include "npc.h"
 #include "item_spawn.h"
-//#include "level.h" 
-#include "rng.h"
+#include "level_geometry.h" 
 
 /*═══════════════════════════════════════════════════════════════
     Storage
@@ -294,9 +293,6 @@ void npc_interact(NPC *self, Char *player) {
 /*═══════════════════════════════════════════════════════════════
     throwItem() port
 ═══════════════════════════════════════════════════════════════*/
-static const int NPC_DX8[8] = { -1, 1,  0, 0, -1,  1, -1, 1 };
-static const int NPC_DY8[8] = {  0, 0, -1, 1, -1, -1,  1, 1 };
-
 void npc_throw_item(NPC *self, Level *lvl) {
     if (!self || !lvl) return;
 
@@ -307,12 +303,12 @@ void npc_throw_item(NPC *self, Level *lvl) {
     int dest = -1;
     for (int tries = 0; tries < 32 && dest < 0; tries++) {
         int i = rng_int(8);
-        int nx = p.x + NPC_DX8[i];
-        int ny = p.y + NPC_DY8[i];
+        int nx = p.x + DX[i];
+        int ny = p.y + DY[i];
         int npos = xy_to_idx(nx, ny);
         if (!in_bounds(npos)) continue;
 
-        if (gTileFlags[lvl->map[npos]] & TF_PASSABLE) dest = npos;
+        if ((cell_passable(lvl, npos))) dest = npos;
     }
     if (dest < 0) return;
 

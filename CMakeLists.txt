@@ -6,6 +6,7 @@ add_executable(${PROJECT_NAME}
     src/game.c
     src/tiles.c
     src/level.c
+    src/level_geometry.c
     src/level_utils.c
     src/level_paint.c
     src/level_decorate.c
@@ -21,9 +22,11 @@ add_executable(${PROJECT_NAME}
     src/bag.c
     src/actor.c
     src/char.c
+    src/buff.c
     src/player.c
     src/mob.c
     src/mob_db.c
+    src/mob_procs.c
     src/mob_bestiary.c
     src/pathfinder.c
     src/npc.c

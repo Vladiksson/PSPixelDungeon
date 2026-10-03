@@ -1,5 +1,5 @@
 #pragma once
-#include "level.h"
+#include "level_geometry.h"
 
 typedef struct {
     uint8_t visible[LEVEL_SIZE];   /* 1 = currently in LOS              */

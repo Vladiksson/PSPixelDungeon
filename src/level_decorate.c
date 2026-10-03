@@ -192,14 +192,14 @@ void decorate_halls(Level *lvl) {
 
             int count = 0;
 
-            if (gTileFlags[lvl->map[i - LEVEL_W - 1]] & TF_PASSABLE) count++;
-            if (gTileFlags[lvl->map[i - LEVEL_W]]     & TF_PASSABLE) count++;
-            if (gTileFlags[lvl->map[i - LEVEL_W + 1]] & TF_PASSABLE) count++;
-            if (gTileFlags[lvl->map[i - 1]]           & TF_PASSABLE) count++;
-            if (gTileFlags[lvl->map[i + 1]]           & TF_PASSABLE) count++;
-            if (gTileFlags[lvl->map[i + LEVEL_W - 1]] & TF_PASSABLE) count++;
-            if (gTileFlags[lvl->map[i + LEVEL_W]]     & TF_PASSABLE) count++;
-            if (gTileFlags[lvl->map[i + LEVEL_W + 1]] & TF_PASSABLE) count++;
+            if (cell_passable(lvl, i - LEVEL_W - 1)) count++;
+            if (cell_passable(lvl, i - LEVEL_W    )) count++;
+            if (cell_passable(lvl, i - LEVEL_W + 1)) count++;
+            if (cell_passable(lvl, i           - 1)) count++;
+            if (cell_passable(lvl, i           + 1)) count++;
+            if (cell_passable(lvl, i + LEVEL_W - 1)) count++;
+            if (cell_passable(lvl, i + LEVEL_W    )) count++;
+            if (cell_passable(lvl, i + LEVEL_W + 1)) count++;
 
             if (rng_int(80) < count) {
                 lvl->map[i] = TILE_EMPTY_DECO;

@@ -1,7 +1,7 @@
 #include "player.h"
 #include "npc.h"
 #include "item_spawn.h"
-#include "rng.h"
+#include "level_geometry.h"
 #include <stddef.h>
 
 /*═══════════════════════════════════════════════════════════════
@@ -141,7 +141,7 @@ static int hero_attack_skill(Char *self, Char *target) {
 
     float accuracy = 1.0f; /* Ring of Accuracy bonus skipped */
 
-    if (p->ranged_attack && char_distance(self, target) == 1) {
+    if (p->ranged_attack && cells_adjacent(self->pos, target->pos)) {
         accuracy *= 0.5f; /* melee penalty for a ranged weapon up close — fully portable, kept as-is */
     }
 
@@ -516,35 +516,12 @@ void player_consume_item(Player *p, Bag *bag, int slot) {
 
         /* TEST: random buff with random duration */
         static const BuffType test_buffs[] = {
-            BUFF_POISON,
-            BUFF_BLEEDING,
-            BUFF_BURNING,
-            BUFF_FROST,
-            BUFF_PARALYSIS,
-            BUFF_ROOTS,
-            BUFF_LEVITATION,
             BUFF_INVISIBILITY,
             BUFF_SHADOWS,
             BUFF_LIGHT,
             BUFF_FURY,
-            BUFF_MIND_VISION,
-            BUFF_OOZE,
-            BUFF_BARKSKIN,
-            BUFF_COMBO,
-            BUFF_SNIPERS_MARK,
-            BUFF_AMOK,
-            BUFF_CHARM,
-            BUFF_VERTIGO,
-            BUFF_CRIPPLE,
-            BUFF_SLEEP,
             BUFF_HASTE,
-            BUFF_SLOW,
-            BUFF_TERROR,
-            BUFF_WEAKNESS,
-            BUFF_BLINDNESS,
-            BUFF_AWARENESS,
             BUFF_RAGE,
-            BUFF_GASES_IMMUNITY
         };
 
         int buff_count = sizeof(test_buffs) / sizeof(test_buffs[0]);
@@ -553,6 +530,9 @@ void player_consume_item(Player *p, Bag *bag, int slot) {
         float duration = (float)rng_range(20, 60);
 
         char_apply_buff(&p->base, type, duration);
+        
+        char_spend(&p->base, 1.0f);
+        actor_next(&p->base.base);
         /* TEST: random buff with random duration */
 
         bag_remove_item(bag, slot, 1);
@@ -949,10 +929,10 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
     if (dx == 0 && dy == 0)
         return 0;
 
-    int idx = char_neighbour_idx(p->base.pos, dx, dy);
+    int idx = neighbour_idx(p->base.pos, dx, dy);
     if (idx == -1)
         return 0;
-    if (!(gTileFlags[lvl->map[idx]] & TF_PASSABLE))
+    if (!(cell_passable(lvl, idx)))
         return 0;
 
     if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
@@ -992,7 +972,7 @@ int player_bump(Player *p, Level *lvl, int dx, int dy) {
     if (!player_can_act(p))
         return PLAYER_BUMP_BLOCKED;
 
-    int idx = char_neighbour_idx(p->base.pos, dx, dy);
+    int idx = neighbour_idx(p->base.pos, dx, dy);
     if (idx == -1) return PLAYER_BUMP_BLOCKED;
 
     if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
@@ -1031,7 +1011,7 @@ int player_auto_attack(Player *p) {
         return 0;
     }
 
-    if (!char_cells_adjacent(p->base.pos, target->pos))
+    if (!cells_adjacent(p->base.pos, target->pos))
         return 0;
 
     return player_start_attack(p, target);

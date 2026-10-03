@@ -1,46 +1,27 @@
 #include "char.h"
-#include "level.h"
-#include "rng.h"
+#include "level_geometry.h"
 #include <string.h>
-/* ══════════════════════════════════════════════════════════
-   Level-derived geometry HELPERS  //TODO REMOVE SOMEWHERE + USE IT ALREADY
-   ══════════════════════════════════════════════════════════ */
-static int char_cell_distance(int a, int b) {
-    Point pa = idx_to_xy(a);
-    Point pb = idx_to_xy(b);
-    int dx = pa.x - pb.x; if (dx < 0) dx = -dx;
-    int dy = pa.y - pb.y; if (dy < 0) dy = -dy;
-    return dx > dy ? dx : dy;
-}
-int char_cells_adjacent(int a, int b) {
-    return char_cell_distance(a, b) == 1;
-}
 
-int char_neighbour_idx(int pos, int dx, int dy) {
-    Point p = idx_to_xy(pos);
-    int nx = p.x + dx;
-    int ny = p.y + dy;
-    if (!in_bounds_xy(nx, ny))
-        return -1;
-    return xy_to_idx(nx, ny);
-}
-
-static int char_random_neighbour(int pos) {
-    static const int dx8[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
-    static const int dy8[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
-
-    int i = rng_int(8);
-    return char_neighbour_idx(pos, dx8[i], dy8[i]);
+uint32_t char_visual_flags(const Char *self) { //TODO: PLACEHOLDER FOR BUFFS PARTICLES ON CHARS
+    uint32_t flags = 0;
+    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
+        switch (self->buffs[i].type) {
+            case BUFF_BURNING:      flags |= CHAR_VIS_BURNING;     break;
+            case BUFF_LEVITATION:   flags |= CHAR_VIS_LEVITATING;  break;
+            case BUFF_FROST:        flags |= CHAR_VIS_FROZEN;      break;
+            case BUFF_PARALYSIS:    flags |= CHAR_VIS_PARALYSED;   break;
+            case BUFF_LIGHT:        flags |= CHAR_VIS_ILLUMINATED; break;
+            case BUFF_INVISIBILITY:
+            case BUFF_SHADOWS:      flags |= CHAR_VIS_INVISIBLE;   break; /* Shadows subclasses Invisibility in the original */
+            default: break;
+        }
+    }
+    if (self->invisible > 0) flags |= CHAR_VIS_INVISIBLE; /* the original tracks invisibility via both this counter and the buff class */
+    return flags;
 }
 
 /* ══════════════════════════════════════════════════════════
-   Position grid — this port's replacement for Actor.java's
-   Char[] chars, moved here since only Chars occupy it (see the
-   layering note in actor.h). Maintained incrementally at char_add()/
-   char_move()/char_destroy() rather than rebuilt every scheduler
-   scan the way the original's process() does — cheaper, and correct
-   as long as a Char's pos only ever changes via char_move(), never
-   by writing ->pos directly.
+   Position grid
    ══════════════════════════════════════════════════════════ */
 static Char *chars_by_pos[LEVEL_SIZE];
 
@@ -62,16 +43,31 @@ Char *char_find_at(int pos) {
     if (pos < 0 || pos >= LEVEL_SIZE) return NULL;
     return chars_by_pos[pos];
 }
+
 void char_clear(void) {
     memset(chars_by_pos, 0, sizeof(chars_by_pos));
 }
 
+void char_unregister(Char *self){
+    actor_unregister(&self->base);
+    char_grid_free(self->pos);
+}
+
+void char_destroy(Char *self) {
+    char_grid_free(self->pos);
+    self->HP = 0;
+    actor_remove(&self->base);
+}
+
+void char_die_default(Char *self, void *src, DamageSource src_type) {
+    (void)src; (void)src_type;
+    char_destroy(self);
+}
 /* ══════════════════════════════════════════════════════════
    Default combat numbers — Char.java's own base-class values.
    ══════════════════════════════════════════════════════════ */
 static int         default_attack_skill(Char *self, Char *target)  { (void)self; (void)target; return 0; }
 static int         default_defense_skill(Char *self, Char *enemy)  { (void)self; (void)enemy; return 0; }
-static const char *default_defense_verb(Char *self)                { (void)self; return "dodged"; }
 static int         default_dr(Char *self)                          { (void)self; return 0; }
 static int         default_damage_roll(Char *self)                 { (void)self; return 1; }
 static float       default_speed(Char *self) { return char_buff(self, BUFF_CRIPPLE) ? self->base_speed * 0.5f : self->base_speed; }
@@ -80,7 +76,7 @@ static int         default_defense_proc(Char *self, Char *attacker, int dmg) { (
 static uint32_t    default_resistances(Char *self) { (void)self; return 0; }
 static uint32_t    default_immunities(Char *self)  { (void)self; return 0; }
 static int         default_buff_immune(Char *self, BuffType type) { (void)self; (void)type; return 0; }
-static float        default_hunger_tick_scale(Char *self) { (void)self; return 1.0f; }
+static float       default_hunger_tick_scale(Char *self) { (void)self; return 1.0f; }
 static int         default_stealth(Char *self)     { (void)self; return 0; }
 static void        default_on_damaged(Char *self, int dmg_taken, void *src, DamageSource t) { (void)self; (void)dmg_taken; (void)src; (void)t; }
 static void        default_on_buff_added(Char *self, Buff *buff)   { (void)self; (void)buff; }
@@ -91,7 +87,6 @@ static int         default_on_turn(Char *self)     { (void)self; return 0; }
 const CharVTable CHAR_DEFAULT_VTABLE = {
     .attack_skill    = default_attack_skill,
     .defense_skill   = default_defense_skill,
-    .defense_verb    = default_defense_verb,
     .dr              = default_dr,
     .damage_roll     = default_damage_roll,
     .speed           = default_speed,
@@ -112,25 +107,29 @@ const CharVTable CHAR_DEFAULT_VTABLE = {
 /* ══════════════════════════════════════════════════════════
    Actor <-> Char glue
    ══════════════════════════════════════════════════════════ */
-static void (*turn_started_hook)(Char *self) = NULL;
-
-void char_set_turn_started_hook(void (*fn)(Char *self)) {
-    turn_started_hook = fn;
+void char_spend(Char *self, float time) {
+    float scale = 1.0f;
+    if (char_buff(self, BUFF_SLOW))  scale *= 0.5f;
+    if (char_buff(self, BUFF_HASTE)) scale *= 2.0f;
+    actor_spend(&self->base, time / scale);
 }
 
-int char_base_act(Char *self) {
+static int char_base_act(Char *self) {
     if (self->paralysed) {
         char_spend(self, ACTOR_TICK);
         return 1;
     }
 
-    if (turn_started_hook)
-        turn_started_hook(self);
-
     return self->vt->on_turn(self);
 }
 
-static void char_on_remove(Char *self); /* fwd decl — full body is below the buff functions it calls */
+static void char_on_remove(Char *self) {
+    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
+        if (self->buffs[i].type != BUFF_NONE) {
+            char_remove_buff(self, &self->buffs[i]);
+        }
+    }
+}
 
 static int char_actor_act(Actor *a) {
     return char_base_act((Char *)a);
@@ -142,434 +141,6 @@ static const ActorVTable char_actor_vtable = {
     .act        = char_actor_act,
     .on_remove  = char_actor_on_remove,
 };
-
-/* ══════════════════════════════════════════════════════════
-   Buffs
-   ══════════════════════════════════════════════════════════*/
-#define BUFF_HP_CAP_SAFE(ht) ((ht) > 0 ? (ht) : 1)
-
-typedef struct {
-    int  (*on_attach)(Char *self, Buff *b);
-    void (*on_detach)(Char *self, Buff *b);
-    int  (*act)(Buff *self);
-} BuffVTable;
-
-static void char_try_unfreeze(Char *self) {
-    if (!char_buff(self, BUFF_PARALYSIS) && !char_buff(self, BUFF_FROST)) {
-        self->paralysed = 0;
-    }
-}
-
-/* ---- Poison ---- */
-static int buff_poison_act(Buff *self) {
-    Char *target = self->target;
-    if (!target) return 1;
-    if (!char_is_alive(target)) { char_remove_buff(target, self); return 1; }
-
-    int dmg = (int)(self->duration / 3.0f) + 1;
-    char_damage(target, dmg, self, DMGSRC_POISON);
-    if (self->type == BUFF_NONE) return 1;
-
-    actor_spend(&self->base, ACTOR_TICK);
-    self->duration -= ACTOR_TICK;
-    if (self->duration <= 0.0f) char_remove_buff(target, self);
-    return 1;
-}
-
-/* ---- Bleeding ---- */
-void char_bleeding_grant(Char *self, int level) {
-    Buff *b = char_apply_buff(self, BUFF_BLEEDING, -1.0f);
-    if (b) b->data = level;
-}
-
-static int buff_bleeding_act(Buff *self) {
-    Char *target = self->target;
-    if (!target) return 1;
-    if (!char_is_alive(target)) { char_remove_buff(target, self); return 1; }
-
-    self->data = rng_range(self->data / 2, self->data);
-    if (self->data <= 0) { char_remove_buff(target, self); return 1; }
-
-    char_damage(target, self->data, self, DMGSRC_GENERIC);
-    if (self->type == BUFF_NONE) return 1;
-
-    actor_spend(&self->base, ACTOR_TICK);
-    return 1;
-}
-
-/* ---- Burning ---- */
-static int buff_burning_act(Buff *self) {
-    Char *target = self->target;
-    if (!target) return 1;
-    if (!char_is_alive(target)) { char_remove_buff(target, self); return 1; }
-
-    if (target->kind == CHAR_KIND_HERO) {
-        char_apply_buff(target, BUFF_LIGHT, ACTOR_TICK * 1.01f); /* matches the original's Hero-only "fire lights you up" */
-    }
-
-    char_damage(target, rng_range(1, 5), self, DMGSRC_FIRE);
-    if (self->type == BUFF_NONE) return 1;
-
-    actor_spend(&self->base, ACTOR_TICK);
-    self->duration -= ACTOR_TICK;
-
-    /* TODO: remove buff earlier while standing in water */
-    float extinguish_chance = (2.0f + (float)target->HP / (float)BUFF_HP_CAP_SAFE(target->HT)) / 3.0f;
-    if (self->duration <= 0.0f || rng_float() > extinguish_chance) {
-        char_remove_buff(target, self);
-    }
-    return 1;
-}
-
-/* ---- Shadows ---- */
-static int buff_shadows_act(Buff *self) {
-    Char *target = self->target;
-    if (!target) return 1;
-    if (!char_is_alive(target)) { char_remove_buff(target, self); return 1; }
-
-    actor_spend(&self->base, ACTOR_TICK * 2.0f);
-    self->duration -= 1.0f;
-    /* TODO: the original also breaks shadowmeld the instant the hero can see a live enemy */
-    if (self->duration <= 0.0f) char_remove_buff(target, self);
-    return 1;
-}
-
-/* ---- Fury ---- */
-static int buff_fury_act(Buff *self) {
-    Char *target = self->target;
-    if (target && target->HP > (int)(target->HT * FURY_LEVEL)) {
-        char_remove_buff(target, self);
-    }
-    actor_spend(&self->base, ACTOR_TICK);
-    return 1;
-}
-
-/* ---- Paralysis / Frost ---- */
-static int buff_paralysis_attach(Char *self, Buff *b) { (void)b; self->paralysed = 1; return 1; }
-static void buff_paralysis_detach(Char *self, Buff *b) { (void)b; char_try_unfreeze(self); }
-
-static int buff_frost_attach(Char *self, Buff *b) {
-    (void)b;
-    self->paralysed = 1;
-    char_remove_buffs_of_type(self, BUFF_BURNING);
-    return 1;
-}
-static void buff_frost_detach(Char *self, Buff *b) { (void)b; char_try_unfreeze(self); }
-
-/* ---- Roots ---- */
-static int buff_roots_attach(Char *self, Buff *b) {
-    (void)b;
-    if (self->flying) return 0; /* can't root what's off the ground */
-    self->rooted = 1;
-    return 1;
-}
-static void buff_roots_detach(Char *self, Buff *b) { (void)b; self->rooted = 0; }
-
-/* ---- Levitation ---- */
-static int buff_levitation_attach(Char *self, Buff *b) {
-    (void)b;
-    self->flying = 1;
-    char_remove_buffs_of_type(self, BUFF_ROOTS);
-    return 1;
-}
-static void buff_levitation_detach(Char *self, Buff *b) {
-    (void)b;
-    self->flying = 0;
-    /* TODO: the original also re-checks for a pit underfoot here */
-}
-
-/* ---- Invisibility — Shadows ---- */
-static int buff_invisibility_attach(Char *self, Buff *b) { (void)b; self->invisible++; return 1; }
-static void buff_invisibility_detach(Char *self, Buff *b) { (void)b; if (self->invisible > 0) self->invisible--; }
-
-/* ---- Light ---- */
-static int buff_light_attach(Char *self, Buff *b) {
-    b->data = self->view_distance;
-    if (self->view_distance < LIGHT_DISTANCE) self->view_distance = LIGHT_DISTANCE;
-    return 1;
-}
-static void buff_light_detach(Char *self, Buff *b) { self->view_distance = b->data; }
-
-/* ---- Mind Vision ---- */
-static int buff_mind_vision_attach(Char *self, Buff *b) { (void)self; b->data = 2; return 1; } //TODO
-
-/* ---- Ooze ---- */
-static int buff_ooze_attach(Char *self, Buff *b) { (void)self; b->data = 1; return 1; }
-static int buff_ooze_act(Buff *self) {
-    Char *target = self->target;
-    if (!target) return 1;
-    if (!char_is_alive(target)) { char_remove_buff(target, self); return 1; }
-
-    char_damage(target, self->data, self, DMGSRC_ACID);
-    if (self->type == BUFF_NONE) return 1;
-
-    actor_spend(&self->base, ACTOR_TICK);
-    /* TODO: the original also force-detaches while standing in water */
-    return 1;
-}
-
-/* ---- Barkskin ---- */
-static int buff_barkskin_act(Buff *self) {
-    Char *target = self->target;
-    if (!target) return 1;
-    if (!char_is_alive(target)) { char_remove_buff(target, self); return 1; }
-
-    actor_spend(&self->base, ACTOR_TICK);
-    self->data -= 1;
-    if (self->data <= 0) char_remove_buff(target, self);
-    return 1;
-}
-void char_barkskin_grant(Char *self, int level) {
-    /* mirrors Buff.affect(ch, Barkskin.class).level(value): find-or-create,
-       then extend-if-greater on the LEVEL specifically — char_apply_buff's
-       own extend-if-greater merge operates on `duration`, which Barkskin
-       doesn't use at all, so this can't just be a plain char_apply_buff() call. */
-    Buff *b = char_apply_buff(self, BUFF_BARKSKIN, 0.0f);
-    if (b && level > b->data) b->data = level;
-}
-
-/* ---- Hunger ---- */
-static int buff_hunger_act(Buff *self) {
-    Char *target = self->target;
-    if (!target) return 1;
-    if (!char_is_alive(target)) { char_remove_buff(target, self); return 1; }
-
-    if (self->duration >= HUNGER_STARVING) {
-        if (rng_float() < 0.3f && (target->HP > 1 || !target->paralysed)) {
-            char_damage(target, 1, self, DMGSRC_GENERIC);
-            if (self->type == BUFF_NONE) return 1;
-            /* TODO: the original also calls hero.interrupt() here */
-        }
-    } else {
-        /* Ring of Satiety's bonus isn't ported — always 0 */
-        self->duration += HUNGER_STEP;
-        /* TODO: the original also logs "You are hungry."/"You are
-           starving!" on the two threshold crossings here. */
-    }
-
-    float step = HUNGER_STEP * target->vt->hunger_tick_scale(target);
-    if (char_buff(target, BUFF_SHADOWS)) step *= 1.5f;
-    actor_spend(&self->base, step);
-    return 1;
-}
-void char_hunger_satisfy(Char *self, float energy) {
-    Buff *h = char_buff(self, BUFF_HUNGER);
-    if (!h) return;
-    h->duration -= energy;
-    if (h->duration < 0.0f) h->duration = 0.0f;
-    else if (h->duration > HUNGER_STARVING) h->duration = HUNGER_STARVING;
-}
-int char_hunger_is_starving(Char *self) {
-    Buff *h = char_buff(self, BUFF_HUNGER);
-    return h && h->duration >= HUNGER_STARVING;
-}
-
-/* ---- Regeneration ---- */
-static int buff_regeneration_act(Buff *self) {
-    Char *target = self->target;
-    if (!target) return 1;
-    if (!char_is_alive(target)) { char_remove_buff(target, self); return 1; }
-
-    if (target->HP < target->HT && !char_hunger_is_starving(target)) {
-        target->HP += 1;
-    }
-    /* Ring of Mending's bonus isn't ported*/
-    actor_spend(&self->base, REGENERATION_DELAY);
-    return 1;
-}
-
-/* ---- Combo: Gladiator-specific ---- */
-int char_combo_hit(Char *self, Char *enemy, int damage) {
-    (void)enemy;
-    Buff *combo = char_apply_buff(self, BUFF_COMBO, 0.0f);
-    if (!combo) return 0;
-
-    combo->data++;
-
-    if (combo->data >= 3) {
-        actor_postpone(&combo->base, 1.41f - (float)combo->data / 10.0f);
-        return (int)(damage * (combo->data - 2) / 5.0f);
-    }
-    actor_postpone(&combo->base, 1.1f);
-    return 0;
-}
-
-/* ---- SnipersMark: Sniper-specific ---- */
-int char_consume_snipers_mark(Char *self, Char *target) {
-    Buff *mark = char_buff(self, BUFF_SNIPERS_MARK);
-    if (!mark) return 0;
-    int matched = target && mark->data == actor_id(&target->base);
-    char_remove_buff(self, mark);
-    return matched;
-}
-
-static const BuffVTable BUFF_VTABLES[BUFF_TYPE_COUNT] = {
-    [BUFF_POISON]       = { .act = buff_poison_act },
-    [BUFF_BLEEDING]     = { .act = buff_bleeding_act },
-    [BUFF_BURNING]      = { .act = buff_burning_act },
-    [BUFF_FROST]        = { .on_attach = buff_frost_attach,       .on_detach = buff_frost_detach },
-    [BUFF_PARALYSIS]    = { .on_attach = buff_paralysis_attach,   .on_detach = buff_paralysis_detach },
-    [BUFF_ROOTS]        = { .on_attach = buff_roots_attach,       .on_detach = buff_roots_detach },
-    [BUFF_LEVITATION]   = { .on_attach = buff_levitation_attach,  .on_detach = buff_levitation_detach },
-    [BUFF_INVISIBILITY] = { .on_attach = buff_invisibility_attach, .on_detach = buff_invisibility_detach },
-    [BUFF_SHADOWS]      = { .on_attach = buff_invisibility_attach, .on_detach = buff_invisibility_detach, .act = buff_shadows_act },
-    [BUFF_LIGHT]        = { .on_attach = buff_light_attach,       .on_detach = buff_light_detach },
-    [BUFF_FURY]         = { .act = buff_fury_act },
-    [BUFF_MIND_VISION]  = { .on_attach = buff_mind_vision_attach },
-    [BUFF_OOZE]         = { .on_attach = buff_ooze_attach, .act = buff_ooze_act },
-    [BUFF_BARKSKIN]     = { .act = buff_barkskin_act },
-    [BUFF_HUNGER]       = { .act = buff_hunger_act },
-    [BUFF_REGENERATION] = { .act = buff_regeneration_act },
-};
-
-static const BuffVTable *buff_vt(BuffType type) {
-    static const BuffVTable empty = {0};
-    if (type <= BUFF_NONE || type >= BUFF_TYPE_COUNT) return &empty;
-    return &BUFF_VTABLES[type];
-}
-
-static int buff_default_act(Buff *self) {
-    if (self->duration < 0.0f) {
-        /* infinite / externally-managed duration — mirrors Buff.java's
-           own base act(): diactivate(); return true; */
-        actor_deactivate(&self->base);
-        return 1;
-    }
-    actor_spend(&self->base, ACTOR_TICK);
-    self->duration -= ACTOR_TICK;
-    if (self->duration <= 0.0f && self->target) {
-        char_remove_buff(self->target, self);
-    }
-    return 1;
-}
-static int buff_actor_act(Actor *a) {
-    Buff *b = (Buff *)a;
-    const BuffVTable *vt = buff_vt(b->type);
-    return vt->act ? vt->act(b) : buff_default_act(b);
-}
-static const ActorVTable buff_actor_vtable = {
-    .act        = buff_actor_act,
-    .on_remove  = NULL,
-};
-
-Buff *char_apply_buff(Char *self, BuffType type, float duration) {
-    Buff *existing = char_buff(self, type);
-    if (existing) {
-        if (duration > existing->duration) existing->duration = duration;
-        return existing;
-    }
-
-    if (self->vt->buff_immune && self->vt->buff_immune(self, type)) {
-        return NULL; /* mirrors Buff.attachTo()'s immunity check */
-    }
-
-    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
-        if (self->buffs[i].type == BUFF_NONE) {
-            Buff *b = &self->buffs[i];
-            actor_init(&b->base, &buff_actor_vtable);
-            b->type     = type;
-            b->target   = self;
-            b->duration = duration;
-            b->data     = 0;
-
-            const BuffVTable *vt = buff_vt(type);
-            if (vt->on_attach && !vt->on_attach(self, b)) {
-                b->type   = BUFF_NONE; /* refused — e.g. Roots vs. a flying Char */
-                b->target = NULL;
-                return NULL;
-            }
-
-            actor_add(&b->base);
-
-            self->vt->on_buff_added(self, b);
-            return b;
-        }
-    }
-    return NULL; /* out of buff slots — raise MAX_CHAR_BUFFS if this ever fires */
-}
-
-void char_remove_buff(Char *self, Buff *buff) {
-    if (!buff || buff->type == BUFF_NONE) return;
-
-    BuffType type = buff->type;
-
-    self->vt->on_buff_removed(self, buff); /* fires while buff->type still reflects what's being removed */
-
-    actor_remove(&buff->base);
-    buff->type   = BUFF_NONE;   /* cleared before on_detach so its own char_buff() checks (Frost/Paralysis) see this slot as gone */
-    buff->target = NULL;
-
-    const BuffVTable *vt = buff_vt(type);
-    if (vt->on_detach) vt->on_detach(self, buff);
-}
-
-void char_remove_buffs_of_type(Char *self, BuffType type) {
-    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
-        if (self->buffs[i].type == type) {
-            char_remove_buff(self, &self->buffs[i]);
-        }
-    }
-}
-
-Buff *char_buff(Char *self, BuffType type) {
-    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
-        if (self->buffs[i].type == type) return &self->buffs[i];
-    }
-    return NULL;
-}
-
-int char_buffs_of_type(Char *self, BuffType type, Buff **out, int max_out) {
-    int n = 0;
-    for (int i = 0; i < MAX_CHAR_BUFFS && n < max_out; i++) {
-        if (self->buffs[i].type == type) out[n++] = &self->buffs[i];
-    }
-    return n;
-}
-
-int char_is_charmed_by(Char *self, Char *ch) {
-    int ch_id = actor_id(&ch->base);
-    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
-        if (self->buffs[i].type == BUFF_CHARM && self->buffs[i].data == ch_id) return 1;
-    }
-    return 0;
-}
-
-uint32_t char_visual_flags(const Char *self) {
-    uint32_t flags = 0;
-    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
-        switch (self->buffs[i].type) {
-            case BUFF_BURNING:      flags |= CHAR_VIS_BURNING;     break;
-            case BUFF_LEVITATION:   flags |= CHAR_VIS_LEVITATING;  break;
-            case BUFF_FROST:        flags |= CHAR_VIS_FROZEN;      break;
-            case BUFF_PARALYSIS:    flags |= CHAR_VIS_PARALYSED;   break;
-            case BUFF_LIGHT:        flags |= CHAR_VIS_ILLUMINATED; break;
-            case BUFF_INVISIBILITY:
-            case BUFF_SHADOWS:      flags |= CHAR_VIS_INVISIBLE;   break; /* Shadows subclasses Invisibility in the original */
-            default: break;
-        }
-    }
-    if (self->invisible > 0) flags |= CHAR_VIS_INVISIBLE; /* the original tracks invisibility via both this counter and the buff class */
-    return flags;
-}
-
-static void char_restore_buffs(Char *self) {
-    float target = self->base.time;
-    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
-        Buff *b = &self->buffs[i];
-        if (b->type != BUFF_NONE) {
-            b->base.time = target - actor_now();
-            actor_add(&b->base);
-        }
-    }
-}
-
-static void char_on_remove(Char *self) {
-    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
-        if (self->buffs[i].type != BUFF_NONE) {
-            char_remove_buff(self, &self->buffs[i]);
-        }
-    }
-}
 
 /* ══════════════════════════════════════════════════════════
    Lifecycle
@@ -634,30 +205,27 @@ int char_is_alive(const Char *self) {
     return self->HP > 0;
 }
 
-void char_destroy(Char *self) {
-    char_grid_free(self->pos);
-    self->HP = 0;
-    actor_remove(&self->base);
-}
-
-void char_die_default(Char *self, void *src, DamageSource src_type) {
-    (void)src; (void)src_type;
-    char_destroy(self);
-}
-
-void char_die(Char *self, void *src, DamageSource src_type) {
-    self->vt->die(self, src, src_type);
-}
-
 /* ══════════════════════════════════════════════════════════
    Position / movement
    ══════════════════════════════════════════════════════════ */
+int random_free_neighbour(int pos, int diagonals) {
+    Level *lvl = char_active_level();
+    if (!lvl) return -1;
+
+    int cand[8], n = 0;
+    for (int i = 0; i < (diagonals ? 8 : 4); i++) {
+        int p = neighbour_idx(pos, DX[i], DY[i]);
+        if (p >= 0 && (cell_passable(lvl, p)) && char_find_at(p) == NULL)
+            cand[n++] = p;
+    }
+    return n ? cand[rng_int(n)] : -1;
+}
+
 void char_move(Char *self, Level *lvl, int step) {
-    if (char_cells_adjacent(step, self->pos) && char_buff(self, BUFF_VERTIGO)) {
-        int redirected = char_random_neighbour(self->pos);
-        if (redirected < 0
-            || !(gTileFlags[lvl->map[redirected]] & TF_PASSABLE)
-            || char_find_at(redirected) != NULL) {
+    if (cells_adjacent(step, self->pos) && char_buff(self, BUFF_VERTIGO)) {
+        int redirected = random_free_neighbour(self->pos, 1);
+
+        if (redirected < 0) {
             return;
         }
         step = redirected;
@@ -676,10 +244,6 @@ void char_move(Char *self, Level *lvl, int step) {
     }
 }
 
-int char_distance(const Char *self, const Char *other) {
-    return char_cell_distance(self->pos, other->pos);
-}
-
 /* ══════════════════════════════════════════════════════════
    Combat
    ══════════════════════════════════════════════════════════ */
@@ -692,7 +256,14 @@ int char_hit_roll(Char *attacker, Char *defender, int magic) {
 void char_damage(Char *self, int dmg, void *src, DamageSource src_type) {
     if (self->HP <= 0) return;
 
-    char_remove_buffs_of_type(self, BUFF_FROST);
+    /* Buff.detach(this, Frost.class) — except for a Frost that is being applied
+       right now: Elemental.add() damages itself *before* the buff is attached,
+       but on_buff_added fires after, so without the `src` check the Frost it
+       just took damage from would cancel itself. */
+    for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
+        if (self->buffs[i].type == BUFF_FROST && (void *)&self->buffs[i] != src)
+            char_remove_buff(self, &self->buffs[i]);
+    }
 
     uint32_t imm = self->vt->immunities(self);
     uint32_t res = self->vt->resistances(self);
@@ -720,7 +291,7 @@ void char_damage(Char *self, int dmg, void *src, DamageSource src_type) {
        same TODO-style hook as elsewhere in this file. */
 
     if (self->HP <= 0) {
-        char_die(self, src, src_type);
+        self->vt->die(self, src, src_type);
     }
 
     self->vt->on_damaged(self, dmg, src, src_type); /* fires whether or not this killed self — mirrors Hero.damage()'s post-super logic running unconditionally */
@@ -728,13 +299,6 @@ void char_damage(Char *self, int dmg, void *src, DamageSource src_type) {
 
 float char_speed(Char *self) {
     return self->vt->speed(self);
-}
-
-void char_spend(Char *self, float time) {
-    float scale = 1.0f;
-    if (char_buff(self, BUFF_SLOW))  scale *= 0.5f;
-    if (char_buff(self, BUFF_HASTE)) scale *= 2.0f;
-    actor_spend(&self->base, time / scale);
 }
 
 CharAttackResult char_attack(Char *self, Char *enemy) {
@@ -765,7 +329,6 @@ CharAttackResult char_attack(Char *self, Char *enemy) {
            from this result struct. */
     } else {
         result.hit = 0;
-        result.defense_verb = enemy->vt->defense_verb(enemy);
         /* original also shows the defense verb as floating text and
            plays a miss sound here — presentation, same as above. */
     }
@@ -788,18 +351,4 @@ void char_end_attack_anim(Char *self) {
             self->swing_target->incoming_hits--;
         self->swing_target = NULL;
     }
-}
-
-/* Placeholder for the case when those actions gonna do something more than actor_next only...
-void char_on_motion_complete(Char *self)  { actor_next(&self->base); }
-void char_on_attack_complete(Char *self)  { actor_next(&self->base); }
-void char_on_operate_complete(Char *self) { actor_next(&self->base); }
-*/
-
-
-
-
-void char_unregister(Char *self){
-    actor_unregister(&self->base);
-    char_grid_free(self->pos);
 }

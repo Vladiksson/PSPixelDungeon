@@ -1,7 +1,6 @@
 #include "mob.h"
 #include "mob_bestiary.h"
 #include "pathfinder.h"
-#include "rng.h"
 #include <stdlib.h>
 
 /*═══════════════════════════════════════════════════════════════
@@ -23,27 +22,32 @@ void mob_set_hero(Char *player) {
 ═══════════════════════════════════════════════════════════════*/
 static int mob_attack_skill(Char *self, Char *target) {
     (void)target;
-    return MOB_DB[((Mob *)self)->kind].attack_skill;
+    return ((Mob *)self)->stats.attack_skill;
 }
 static int mob_defense_skill(Char *self, Char *enemy) {
     (void)enemy;
     Mob *m = (Mob *)self;
-    return (m->enemy_seen && !self->paralysed) ? MOB_DB[m->kind].defense_skill : 0;
+    return (m->enemy_seen && !self->paralysed) ? m->stats.defense_skill : 0;
 }
 static int mob_dr(Char *self) {
-    return MOB_DB[((Mob *)self)->kind].dr;
+    return ((Mob *)self)->stats.dr;
 }
 static int mob_damage_roll(Char *self) {
-    const MobStats *s = &MOB_DB[((Mob *)self)->kind];
-    return rng_range(s->dmg_min, s->dmg_max);
+    Mob *m = (Mob *)self;
+    int lo = m->stats.dmg_min, hi = m->stats.dmg_max;
+    if (m->enraged) { lo = m->stats.enrage_dmg_min; hi = m->stats.enrage_dmg_max; }
+    if (hi <= lo) return lo;
+    return (int)rng_normal_range(lo, hi);   /* every mob's damageRoll() is Random.NormalIntRange() in source */
 }
 
 static void mob_on_damaged(Char *self, int dmg_taken, void *src, DamageSource src_type) {
     (void)dmg_taken;
     Mob *m = (Mob *)self;
+    const MobStats *st = &m->stats;
     char_remove_buffs_of_type(self, BUFF_TERROR);
 
     if (m->state == MOB_ASLEEP) m->state = MOB_WANDERING;
+    if (m->state == MOB_PASSIVE && (st->flags & MOBF_HIT_WAKES_PASSIVE)) m->state = MOB_HUNTING;
     m->alerted = 1;
 
     if (src_type == DMGSRC_CHAR && src) {
@@ -52,6 +56,13 @@ static void mob_on_damaged(Char *self, int dmg_taken, void *src, DamageSource sr
            hunting whatever actually hit it, hero or not. Kept from
            this port's existing behavior. */
         m->target = (Char *)src;
+    }
+
+    /* Brute.damage(): enrage for good once HP < HT / 4, costing it a tick */
+    if (st->enrage_hp_div > 0 && !m->enraged && char_is_alive(self) &&
+        self->HP < self->HT / st->enrage_hp_div) {
+        m->enraged = 1;
+        char_spend(self, ACTOR_TICK);
     }
 }
 
@@ -67,15 +78,18 @@ static void mob_die(Char *self, void *src, DamageSource src_type) {
     mob_play_anim(m, MOB_ANIM_DIE);
 
     if (src_type == DMGSRC_CHAR && src && kill_reward_hook) {
-        kill_reward_hook((Char *)src, MOB_DB[m->kind].xp_reward);
+        kill_reward_hook((Char *)src, m->stats.xp_reward);
     }
 
     char_die_default(self, src, src_type);
+    if (m->stats.on_death) m->stats.on_death(m, src, src_type);
     /* TODO ADD DROP HERE*/
 }
 
 static void mob_on_buff_added(Char *self, Buff *buff) {
     Mob *m = (Mob *)self;
+
+    /* Mob.add(): what every mob does when these land */
     switch (buff->type) {
     case BUFF_AMOK:
         m->state = MOB_HUNTING;
@@ -87,14 +101,12 @@ static void mob_on_buff_added(Char *self, Buff *buff) {
         m->state = MOB_ASLEEP;
         actor_postpone(&self->base, SLEEP_SWS);
         break;
-    case BUFF_FROST:
-        if (m->kind == MOB_ELEMENTAL) {
-            char_damage(self, (int)rng_normal_range(1, self->HT * 2 / 3), buff, DMGSRC_GENERIC);
-        }
-        break;
     default:
         break;
     }
+
+    /* ...then whatever this kind's subclass adds on top */
+    if (m->stats.on_buff_added) m->stats.on_buff_added(m, buff);
 }
 
 static void mob_on_buff_removed(Char *self, Buff *buff) {
@@ -104,131 +116,56 @@ static void mob_on_buff_removed(Char *self, Buff *buff) {
 }
 
 /*═══════════════════════════════════════════════════════════════
-    Buff-relevant combat procs
+    Procs, immunities, resistances — all of it read from the mob's
+    MOB_DB row (Mob.stats); nothing in here knows about a MobKind.
+    See mob_db.h for the fields and mob_procs.c for the hooks.
+═══════════════════════════════════════════════════════════════*/
 
-    TODO:
-      MOB_WARLOCK    Weakness only fires from its ranged zap()
-      MOB_THIEF/MOB_BANDIT  Blindness only fires after a successful steal()
-      MOB_MONK/MOB_SENIOR   disarm 
-      MOB_FETID_RAT  its defenseProc seeds a lingering gas cloud at its own position
-    ═══════════════════════════════════════════════════════════════*/
+/* One .on_hit[] entry that fired: apply its buff to `enemy` */
+static void mob_apply_hit_buff(Mob *m, const MobBuffProc *p, Char *enemy, int damage) {
+    float dur = (p->dur_max > 0.0f) ? (float)rng_range((int)p->dur_min, (int)p->dur_max) : p->dur_min;
+
+    Buff *b = char_apply_buff(enemy, p->buff, dur);
+    if (b) {
+        switch (p->mode) {
+        case MOBHIT_SET_DURATION:      b->duration = dur;                   break;
+        case MOBHIT_LEVEL_FROM_DAMAGE: b->data = damage;                    break;
+        case MOBHIT_TAG_ATTACKER:      b->data = actor_id(&m->base.base);   break;
+        default: break;
+        }
+    }
+    if (p->flee) m->state = MOB_FLEEING;
+}
+
 static int mob_attack_proc(Char *self, Char *enemy, int damage) {
     Mob *m = (Mob *)self;
+    const MobStats *st = &m->stats;
 
-    switch (m->kind) {
-    case MOB_ALBINO:
-        if (rng_int(2) == 0) {
-            char_bleeding_grant(enemy, damage);
-        }
-        break;
-
-    case MOB_SPINNER:
-        if (rng_int(2) == 0) {
-            Buff *b = char_apply_buff(enemy, BUFF_POISON, 0.0f);
-            if (b) b->duration = (float)rng_range(7, 8);
-            m->state = MOB_FLEEING;
-        }
-        break;
-
-    case MOB_ELEMENTAL:
-        if (rng_int(2) == 0) {
-            char_apply_buff(enemy, BUFF_BURNING, BURNING_DURATION);
-        }
-        break;
-
-    case MOB_SUCCUBUS:
-        if (rng_int(3) == 0) {
-            Buff *b = char_apply_buff(enemy, BUFF_CHARM, (float)rng_range(3, 7));
-            if (b) b->data = actor_id(&self->base);
-        }
-        break;
-
-    case MOB_SCORPIO:
-    case MOB_ACIDIC:
-        if (rng_int(2) == 0) {
-            char_apply_buff(enemy, BUFF_CRIPPLE, CRIPPLE_DURATION);
-        }
-        break;
-
-    case MOB_SENIOR:
-        if (rng_int(10) == 0) {
-            char_apply_buff(enemy, BUFF_PARALYSIS, 1.1f);
-        }
-        break;
-
-    case MOB_KING_UNDEAD:
-        if (rng_int(5) == 0) {
-            char_apply_buff(enemy, BUFF_PARALYSIS, 1.0f);
-        }
-        break;
-
-    case MOB_YOG_ROTTING_FIST:
-        if (rng_int(3) == 0) {
-            char_apply_buff(enemy, BUFF_OOZE, 0.0f);
-        }
-        break;
-
-    default:
-        break;
+    for (int i = 0; i < MOB_MAX_HIT_PROCS && st->on_hit[i].one_in > 0; i++) {
+        const MobBuffProc *p = &st->on_hit[i];
+        if (p->one_in == 1 || rng_int(p->one_in) == 0)
+            mob_apply_hit_buff(m, p, enemy, damage);
     }
 
-    return damage;
+    return st->attack_proc ? st->attack_proc(m, enemy, damage) : damage;
 }
 
 static int mob_defense_proc(Char *self, Char *attacker, int damage) {
-    if (((Mob *)self)->kind == MOB_ACIDIC) {
-        int splash = rng_range(0, damage);
-        if (splash > 0) char_damage(attacker, splash, self, DMGSRC_ACID);
-    }
-    return damage;
+    Mob *m = (Mob *)self;
+    return m->stats.defense_proc ? m->stats.defense_proc(m, attacker, damage) : damage;
 }
 
 static int mob_buff_immune(Char *self, BuffType type) {
-    switch (((Mob *)self)->kind) {
-    case MOB_GOLEM:
-        return type == BUFF_AMOK || type == BUFF_TERROR || type == BUFF_SLEEP;
-    case MOB_MONK:
-    case MOB_SENIOR:
-        return type == BUFF_AMOK || type == BUFF_TERROR;
-    case MOB_BRUTE:
-    case MOB_SHIELDED:
-        return type == BUFF_TERROR;
-    case MOB_EYE:
-    case MOB_WRAITH:
-        return type == BUFF_TERROR;
-    case MOB_SPINNER:
-        return type == BUFF_ROOTS;
-    case MOB_SUCCUBUS:
-        return type == BUFF_SLEEP;
-    case MOB_ELEMENTAL:
-        return type == BUFF_BURNING;
-    case MOB_FETID_RAT:
-        return type == BUFF_PARALYSIS;
-    case MOB_KING:
-        return type == BUFF_PARALYSIS || type == BUFF_VERTIGO;
-    case MOB_PIRANHA:
-        return type == BUFF_BURNING || type == BUFF_PARALYSIS || type == BUFF_ROOTS || type == BUFF_FROST;
-    case MOB_CURSE_PERSONIFICATION:
-        return type == BUFF_TERROR || type == BUFF_PARALYSIS || type == BUFF_ROOTS;
-    default:
-        return 0;
-    }
+    return type > BUFF_NONE && type < BUFF_TYPE_COUNT &&
+           (((Mob *)self)->stats.buff_immune & BUFFBIT(type)) != 0;
 }
 
 static uint32_t mob_resistances(Char *self) {
-    /* the only one of each mob's resistances() that maps onto a
-       DamageSource we have — Leech/Death/ToxicGas/ScrollOfPsionicBlast/
-       WandOfDisintegration in the source have no equivalent category here */
-    switch (((Mob *)self)->kind) {
-    case MOB_SPINNER:
-    case MOB_SCORPIO:
-    case MOB_ACIDIC:  /* inherits Scorpio's resistances() unchanged */
-    case MOB_TENGU:
-    case MOB_STATUE:
-        return 1u << DMGSRC_POISON;
-    default:
-        return 0;
-    }
+    return ((Mob *)self)->stats.dmg_resist;
+}
+
+static uint32_t mob_immunities(Char *self) {
+    return ((Mob *)self)->stats.dmg_immune;
 }
 
 /*═══════════════════════════════════════════════════════════════
@@ -342,7 +279,7 @@ static int mob_has_los(const Level *lvl, int from_pos, int to_pos) { //REDO AS P
         if (!(x0 == a.x && y0 == a.y)) {
             int pos = xy_to_idx(x0, y0);
 
-            if (gTileFlags[lvl->map[pos]] & TF_LOS_BLOCKING)
+            if (blocks_light(lvl, pos))
                 return 0;
         }
         if (x0 == x1 && y0 == y1)
@@ -364,7 +301,7 @@ static int mob_can_see(Mob *m, Char *target, Level *lvl){
         return 0;
     if (target->invisible > 0)
         return 0;
-    if (char_distance(&m->base, target) > m->base.view_distance)
+    if (cell_distance(m->base.pos, target->pos) > m->base.view_distance)
         return 0;
 
     return mob_has_los(lvl, m->base.pos, target->pos);
@@ -387,7 +324,7 @@ static int mob_try_step(Mob *m, Level *lvl, int npos) {
 
     /* Must be an adjacent tile. */
     if (dx < -1 || dx > 1 || dy < -1 || dy > 1) return 0;
-    if (!(gTileFlags[lvl->map[npos]] & TF_PASSABLE)) return 0;
+    if (!(cell_passable(lvl, npos))) return 0;
     if (char_find_at(npos) != NULL) return 0;
 
     char_move(&m->base, lvl, npos);
@@ -415,7 +352,7 @@ static int mob_step_away_pos(Mob *m, Level *lvl, int from_pos) {
 static int mob_random_destination(Level *lvl) {
     for (int tries = 0; tries < 100; tries++) {
         int pos = rng_int(LEVEL_SIZE);
-        if (gTileFlags[lvl->map[pos]] & TF_PASSABLE) return pos;
+        if (cell_passable(lvl, pos)) return pos;
     }
     return -1;
 }
@@ -453,6 +390,11 @@ static Char *mob_choose_enemy(Mob *m, Level *lvl) {
     return hero;
 }
 
+/* spend(1 / speed()) — char_speed() so Cripple (Javelin, GrippingTrap, Scorpio) slows mobs too */
+static float mob_step_time(Char *self) {
+    return ACTOR_TICK / char_speed(self);
+}
+
 static int mob_on_turn(Char *self) {
     Mob *m = (Mob *)self;
     Level *lvl = char_active_level();
@@ -463,7 +405,7 @@ static int mob_on_turn(Char *self) {
         return 0;
     }
     if (mob_is_busy(m)) {
-        char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+        char_spend(self, mob_step_time(self));
         actor_next(&self->base);
         return 0;
     }
@@ -489,7 +431,7 @@ static int mob_on_turn(Char *self) {
     switch (m->state) {
     case MOB_ASLEEP: {
         int wake_odds = enemy_in_view
-            ? char_distance(self, m->target) + char_stealth_of(m->target) + (m->target->flying ? 2 : 0)
+            ? cell_distance(self->pos, m->target->pos) + char_stealth_of(m->target) + (m->target->flying ? 2 : 0)
             : 1;
         if (enemy_in_view && (wake_odds <= 0 || rng_int(wake_odds) == 0)) {
             m->enemy_seen = 1;
@@ -508,17 +450,17 @@ static int mob_on_turn(Char *self) {
 
     case MOB_WANDERING: {
         int wake_odds = enemy_in_view
-            ? char_distance(self, m->target) / 2 + char_stealth_of(m->target)
+            ? cell_distance(self->pos, m->target->pos) / 2 + char_stealth_of(m->target)
             : 1;
         if (enemy_in_view && (just_alerted || wake_odds <= 0 || rng_int(wake_odds) == 0)) {
             m->enemy_seen = 1;
             m->state = MOB_HUNTING;
             m->dest = m->target->pos;
-            char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+            char_spend(self, mob_step_time(self));
         } else {
             m->enemy_seen = 0;
             if (m->dest != -1 && mob_step_toward_pos(m, lvl, m->dest)) {
-                char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+                char_spend(self, mob_step_time(self));
             } else {
                 m->dest = mob_random_destination(lvl);
                 char_spend(self, ACTOR_TICK);
@@ -529,7 +471,7 @@ static int mob_on_turn(Char *self) {
 
     case MOB_HUNTING:
         m->enemy_seen = enemy_in_view;
-        if (enemy_in_view && char_distance(self, m->target) <= 1 && !char_is_charmed_by(self, m->target)) {
+        if (enemy_in_view && cell_distance(self->pos, m->target->pos) <= 1 && !char_is_charmed_by(self, m->target)) {
             Point mp = idx_to_xy(self->pos);
             Point tp = idx_to_xy(m->target->pos);
 
@@ -538,14 +480,14 @@ static int mob_on_turn(Char *self) {
 
             mob_play_anim(m, MOB_ANIM_ATTACK);
             char_begin_attack_anim(self, m->target);
-            char_spend(self, MOB_DB[m->kind].attack_delay);
+            char_spend(self, m->stats.attack_delay);
             
             attacking = 1;
             mob_resolve_attack(m);
         } else {
             if (enemy_in_view) m->dest = m->target->pos;
             if (m->dest != -1 && mob_step_toward_pos(m, lvl, m->dest)) {
-                char_spend(self, ACTOR_TICK / MOB_DB[m->kind].base_speed);
+                char_spend(self, mob_step_time(self));
             } else {
                 char_spend(self, ACTOR_TICK);
                 m->state = MOB_WANDERING;
@@ -560,14 +502,18 @@ static int mob_on_turn(Char *self) {
 
         int stepped = m->dest != -1 && mob_step_away_pos(m, lvl, m->dest);
 
-        if (m->kind == MOB_SPINNER && !char_buff(self, BUFF_TERROR)) {
-            int poison_gone = !m->target || !char_buff(m->target, BUFF_POISON);
-            if (!stepped || (enemy_in_view && poison_gone)) {
+        if (!char_buff(self, BUFF_TERROR)) {   /* a Terror'd mob keeps running, whatever its kind */
+            const MobStats *st = &m->stats;
+            /* Spinner.act(): back to HUNTING once its victim is in view and no longer poisoned */
+            if ((st->flags & MOBF_FLEE_UNTIL_UNPOISONED) && enemy_in_view &&
+                !char_buff(m->target, BUFF_POISON))
                 m->state = MOB_HUNTING;
-            }
+            /* Fleeing.nowhereToRun(): cornered -> fight (Thief, Bandit, Spinner) */
+            if (!stepped && (st->flags & MOBF_FLEE_CORNERED_FIGHTS))
+                m->state = MOB_HUNTING;
         }
 
-        char_spend(self, stepped ? ACTOR_TICK / MOB_DB[m->kind].base_speed : ACTOR_TICK);
+        char_spend(self, stepped ? mob_step_time(self) : ACTOR_TICK);
         break;
     }
 
@@ -594,6 +540,7 @@ static const CharVTable *mob_vtable(void) {
         vt.attack_proc   = mob_attack_proc;
         vt.defense_proc  = mob_defense_proc;
         vt.resistances   = mob_resistances;
+        vt.immunities    = mob_immunities;
         vt.buff_immune   = mob_buff_immune;
         vt.on_damaged    = mob_on_damaged;
         vt.die           = mob_die;
@@ -608,6 +555,12 @@ static const CharVTable *mob_vtable(void) {
 /*═══════════════════════════════════════════════════════════════
     Spawning / pool management
 ═══════════════════════════════════════════════════════════════*/
+static int spawn_depth = 0;
+
+void mob_set_depth(int depth) {
+    spawn_depth = depth;
+}
+
 Mob *mob_spawn(MobKind kind, int pos, Char *target) {
     if (!active_mob_pool)
         return NULL;
@@ -634,20 +587,24 @@ Mob *mob_spawn(MobKind kind, int pos, Char *target) {
         m = &active_mob_pool->mobs[active_mob_pool->count];
     }
 
-    const MobStats *stats = &MOB_DB[kind];
+    MobStats stats;
+    mob_stats_resolve(&stats, kind, spawn_depth);    /* MOB_DB row + depth scaling */
 
-    char_init(&m->base, mob_vtable(), CHAR_KIND_MOB, pos, stats->ht);
-    m->base.name          = stats->name;
-    m->base.base_speed    = stats->base_speed;
-    m->base.view_distance = stats->view_distance;
-    m->base.flying        = stats->flying;
+    char_init(&m->base, mob_vtable(), CHAR_KIND_MOB, pos, stats.ht);
+    m->base.name          = stats.name;
+    m->base.base_speed    = stats.base_speed;
+    m->base.view_distance = stats.view_distance;
+    m->base.flying        = stats.flying;
 
     m->kind   = kind;
-    m->state  = stats->initial_state;
+    m->stats  = stats;
+    m->state  = stats.initial_state;
     m->target = target;
     m->dest       = -1;
     m->enemy_seen = 0;
     m->alerted    = 0;
+    m->alert_icon = 0;
+    m->enraged    = 0;
 
     m->facing      = FACE_RIGHT;
     m->anim        = MOB_ANIM_IDLE;
@@ -672,7 +629,7 @@ int mob_spawn_random(Level *lvl, MobKind kind, int count, Char *target) {
         int pos = rng_int(LEVEL_SIZE);
 
         if (pos == lvl->entrance || pos == lvl->exit) continue;
-        if (!(gTileFlags[lvl->map[pos]] & TF_PASSABLE)) continue;
+        if (!(cell_passable(lvl, pos))) continue;
         if (char_find_at(pos) != NULL) continue;
 
         if (mob_spawn(kind, pos, target)) placed++;
@@ -687,6 +644,7 @@ int mob_spawn_random_no_target(Level *lvl, MobKind kind, int count) {
 }
 
 void mob_spawn_initial(Level *lvl, int depth) {
+    mob_set_depth(depth);
     int n = bestiary_mob_count(depth);
     if (n > MAX_LEVEL_MOBS) n = MAX_LEVEL_MOBS;
 

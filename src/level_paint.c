@@ -527,11 +527,8 @@ static void paint_vault(Level *lvl, Room *r, int depth) {
 
             spawn_random_item_of_category_heap(lvl, center, depth, a, HEAP_CRYSTAL_CHEST);
 
-            static const int dx[8] = {-1,0,1,-1,1,-1,0,1};
-            static const int dy[8] = {-1,-1,-1,0,0,1,1,1};
-
             int dir = rng_int(8);
-            spawn_random_item_of_category_heap(lvl, xy_to_idx(cx + dx[dir], cy + dy[dir]), depth, b, HEAP_CRYSTAL_CHEST);
+            spawn_random_item_of_category_heap(lvl, xy_to_idx(cx + DX[dir], cy + DY[dir]), depth, b, HEAP_CRYSTAL_CHEST);
             level_add_item_to_spawn(lvl, ITEM_KEY_GOLDEN);
             break;
         }

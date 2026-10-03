@@ -1,5 +1,13 @@
 #include "pathfinder.h"
 
+static int path_cell_passable(const Level *lvl, int n, int from, int goal) {
+    if (!cell_passable(lvl, n))
+        return 0;
+    if (n == from || n == goal)
+        return 1;
+    return char_find_at(n) == NULL;
+}
+
 /* ══════════════════════════════════════════════════════════
    port of PathFinder.java REDO 
    TEMPORARY BULLSHIT FOR THE TEST
@@ -8,13 +16,6 @@
 static int     distance[LEVEL_SIZE];
 static int     bfs_queue[LEVEL_SIZE];
 static uint8_t is_goal[LEVEL_SIZE];
-
-static const int DX8[8] = { -1, 1,  0, 0, -1,  1, -1, 1 };
-static const int DY8[8] = {  0, 0, -1, 1, -1, -1,  1, 1 };
-
-static int cell_passable(const Level *lvl, int idx) {
-    return (gTileFlags[lvl->map[idx]] & TF_PASSABLE) != 0;
-}
 
 static int build_distance_map_single(const Level *lvl, int from, int to) {
     if (from == to) return 0;
@@ -33,12 +34,12 @@ static int build_distance_map_single(const Level *lvl, int from, int to) {
         Point sp = idx_to_xy(step);
 
         for (int i = 0; i < 8; i++) {
-            int nx = sp.x + DX8[i], ny = sp.y + DY8[i];
+            int nx = sp.x + DX[i], ny = sp.y + DY[i];
             if (!in_bounds_xy(nx, ny))
                 continue;
             int n = xy_to_idx(nx, ny);
 
-            if (n == from || (cell_passable(lvl, n) && distance[n] > next_dist)) {
+            if (path_cell_passable(lvl, n, from, to) && distance[n] > next_dist) {
                 bfs_queue[tail++] = n;
                 distance[n] = next_dist;
             }
@@ -68,12 +69,12 @@ static int build_distance_map_multi(const Level *lvl, int from, const uint8_t *g
         Point sp = idx_to_xy(step);
 
         for (int i = 0; i < 8; i++) {
-            int nx = sp.x + DX8[i], ny = sp.y + DY8[i];
+            int nx = sp.x + DX[i], ny = sp.y + DY[i];
             if (!in_bounds_xy(nx, ny))
                 continue;
             int n = xy_to_idx(nx, ny);
 
-            if (n == from || (cell_passable(lvl, n) && distance[n] > next_dist)) {
+            if (path_cell_passable(lvl, n, from, -1) && distance[n] > next_dist) {
                 bfs_queue[tail++] = n;
                 distance[n] = next_dist;
             }
@@ -88,7 +89,7 @@ static int best_neighbour(int from) {
     Point fp = idx_to_xy(from);
 
     for (int i = 0; i < 8; i++) {
-        int nx = fp.x + DX8[i], ny = fp.y + DY8[i];
+        int nx = fp.x + DX[i], ny = fp.y + DY[i];
         if (!in_bounds_xy(nx, ny))
             continue;
         int n = xy_to_idx(nx, ny);
@@ -125,12 +126,12 @@ static int build_escape_distance_map(const Level *lvl, int cur, int from) {
         Point sp = idx_to_xy(step);
 
         for (int i = 0; i < 8; i++) {
-            int nx = sp.x + DX8[i], ny = sp.y + DY8[i];
+            int nx = sp.x + DX[i], ny = sp.y + DY[i];
             if (!in_bounds_xy(nx, ny))
                 continue;
             int n = xy_to_idx(nx, ny);
 
-            if (cell_passable(lvl, n) && distance[n] > next_dist) {
+            if (path_cell_passable(lvl, n, cur, from) && distance[n] > next_dist) {
                 bfs_queue[tail++] = n;
                 distance[n] = next_dist;
             }

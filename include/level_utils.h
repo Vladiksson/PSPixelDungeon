@@ -1,6 +1,5 @@
 #pragma once
-#include "level.h"
-#include "rng.h"
+#include "level_geometry.h"
 
 #define LAST_SHOP_DEPTH 20
 #define FINAL_LEVEL_DEPTH 25

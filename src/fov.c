@@ -1,10 +1,6 @@
 #include "fov.h"
 #include <string.h>
 
-static int blocks_light(const Level *lvl, int idx) {
-    return (gTileFlags[lvl->map[idx]] & TF_LOS_BLOCKING) != 0;
-}
-
 /* ══════════════════════════════════════════════════════════════
    RECURSIVE OCTANT SHADOW CASTING
    Direct port of the RogueBasin "FOV using recursive shadow
