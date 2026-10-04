@@ -166,6 +166,7 @@ static void game_handle_move(Game *game) {
 
 static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
     Player *player = &game->player;
+    Level *lvl = game->lvl;
 
     if (btn_pressed(inp, BTN_SELECT)) {
         game->state = GAME_STATE_INVENTORY;
@@ -178,32 +179,21 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
         return;
     }
 
+    if (btn_pressed(inp, BTN_R)) {
+        game->state = GAME_STATE_TARGETING;
+        return;
+    }
+
     if (btn_pressed(inp, BTN_L)) {
         gTileSize = (gTileSize == TILE_SIZE_MIN) ? TILE_SIZE_MAX : TILE_SIZE_MIN;
         TileSize_Update();
         camera_center_on(&game->cam, player->base.pos);
     }
-    //TEST CURSOR TARGET MOVEMENT
-    if (btn_held(inp, BTN_R)) {
-        game->targeting = 1;
 
-        int dx, dy;
-        input_get_move(inp, &dx, &dy);
-
-        if (ui_move_repeat_update(&game->ui_move_repeat, now, dx, dy))
-            player_move_cursor(player, game->fog, dx, dy);
+    //test of search
+    if (btn_pressed(inp, BTN_CIRCLE)) {
+        player_search(player, lvl);
         return;
-    }
-    if (btn_released(inp, BTN_R)) {
-        game->targeting = 0;
-
-        player->target_pos = player->cursor_pos;
-
-        Char *occupant = char_find_at(player->target_pos);
-        if (occupant && occupant->kind == CHAR_KIND_MOB)
-            player->attack_target = occupant;
-
-        player->cursor_pos = player->base.pos;
     }
 
     //TEST OF QUICK SLOT
@@ -273,7 +263,31 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
         break;
     }
 }
+/*══════════════════════════════════════════════════════════
+   TARGET CURSOR MOVEMENT
+  ══════════════════════════════════════════════════════════*/
+static void targeting_input(Game *game, InputState *inp, uint32_t now) {
+    Player *player = &game->player;
 
+    if (btn_pressed(inp, BTN_R)) {
+        game->state = GAME_STATE_PLAYING;
+
+        player->target_pos = player->cursor_pos;
+
+        Char *occupant = char_find_at(player->target_pos);
+        if (occupant && occupant->kind == CHAR_KIND_MOB)
+            player->attack_target = occupant;
+
+        player->cursor_pos = player->base.pos;
+        return;
+    }
+
+    int dx, dy;
+    input_get_move(inp, &dx, &dy);
+
+    if (ui_move_repeat_update(&game->ui_move_repeat, now, dx, dy))
+        player_move_cursor(player, game->fog, dx, dy);
+}
 /* ══════════════════════════════════════════════════════════
    Inventory
    ══════════════════════════════════════════════════════════*/
@@ -417,6 +431,9 @@ void game_input(Game *game, InputState *inp, uint32_t now) {
     case GAME_STATE_PLAYING:
         gameplay_input(game, inp, now);
         break;
+    case GAME_STATE_TARGETING:
+        targeting_input(game, inp, now);
+        break;
     case GAME_STATE_INVENTORY:
         inventory_input(game, inp, now);
         break;
@@ -457,13 +474,12 @@ void game_render(Game *game, RenderCtx *rctx) {
     render_player(rctx, &game->player, &game->cam);
     render_hud(rctx, &game->player, &game->dungeon);
 
-    if (game->targeting == 1)
-        render_target_cursor(rctx, game->player.cursor_pos, &game->cam);//test
-
+    if (game->state == GAME_STATE_TARGETING) {
+        render_target_cursor(rctx, game->player.cursor_pos, &game->cam);
+    }
     if (game->state == GAME_STATE_INVENTORY) {
         render_inventory(rctx, &game->player, &game->inv);
     }
-
     if (game->state == GAME_STATE_POPUP) {
         switch (game->popup) {
         case POPUP_ITEM_DESC:

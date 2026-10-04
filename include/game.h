@@ -6,6 +6,7 @@
 
 typedef enum {
     GAME_STATE_PLAYING,
+    GAME_STATE_TARGETING,
     GAME_STATE_INVENTORY,
     GAME_STATE_POPUP
 } GameState;
@@ -36,8 +37,6 @@ typedef struct {
 
     uint32_t rest_next_ms; //TEST
     int rest_pending;
-
-    int targeting;
 
     GameState state;
     PopupType popup;

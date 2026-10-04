@@ -7,10 +7,6 @@
 
 #include "game.h"
 
-/* ── PSP kernel module metadata ────────────────────────── */
-PSP_HEAP_SIZE_KB(16384); // 16 MB, in other case sdl gonna eat all of ram, shitty temporary solution
-
-/* ── Main ─────────────────────────────────────────────── */
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
 
@@ -27,7 +23,7 @@ int main(int argc, char *argv[]) {
     input_init(&inp);
 
     uint32_t last = SDL_GetTicks();
-    /* ── Game loop ──────────────────────────────────── */
+
     while (!inp.quit) {
         uint32_t now = SDL_GetTicks();
         float dt = (now - last) / 1000.0f;

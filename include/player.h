@@ -141,6 +141,7 @@ int player_pickup(Player *p, Level *lvl);
 int player_operate(Player *p, Level *lvl, int idx);
 
 void player_rest(Player *p);
+void player_search(Player *p, Level *lvl);
 
 int player_move(Player *p, Level *lvl, int dx, int dy);
 int player_bump(Player *p, Level *lvl, int dx, int dy);

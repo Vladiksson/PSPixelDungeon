@@ -674,11 +674,15 @@ void render_present(RenderCtx *ctx) {
 
 //test of target
 
-void render_target_cursor(RenderCtx *ctx, int pos, const Camera *cam){
+void render_target_cursor(RenderCtx *ctx, int pos, const Camera *cam) {
     Point p = idx_to_xy(pos);
     Point screen = camera_tile_to_screen(cam, p.x, p.y);
 
-    SDL_SetRenderDrawColor(ctx->renderer, 255, 0, 0, 255);
-    SDL_Rect rect = { screen.x, screen.y, gTileSize, gTileSize };
-    SDL_RenderDrawRect(ctx->renderer, &rect);
+    uint8_t x, y, w, h;
+    icon_sprite(ICON_TARGET, &x, &y, &w, &h);
+
+    SDL_Rect src = { x, y, w, h };
+    SDL_Rect dst = { screen.x, screen.y, gTileSize, gTileSize };
+
+    SDL_RenderCopy(ctx->renderer, ctx->icons, &src, &dst);
 }

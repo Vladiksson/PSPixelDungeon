@@ -920,6 +920,19 @@ void player_rest(Player *p) {
     /* TODO: the original also breaks resting after mob comes into fov (Hero.checkVisibleMobs())*/
 }
 
+void player_search(Player *p, Level *lvl) { //test for search
+    if (player_is_busy(p))
+        return;
+
+    for(int i = 0; i < 8; i++) {
+        int idx = neighbour_idx(p->base.pos, DX[i], DY[i]);
+
+        if (lvl->map[idx] == TILE_SECRET_DOOR) //redo by flags
+            lvl->map[idx] = TILE_DOOR;
+    }
+    char_spend(&p->base, 1.0f);
+    actor_next(&p->base.base);
+}
 
 int player_move(Player *p, Level *lvl, int dx, int dy) {
     if (p->base.rooted) 
