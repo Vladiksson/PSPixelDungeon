@@ -108,7 +108,7 @@ void game_init(Game *game) {
 
     game_floor(game);
 
-    player_init(&game->player, game->lvl, 0);
+    player_init(&game->player, game->lvl, 3);
 
     camera_center_on(&game->cam, game->player.base.pos);
 
@@ -459,6 +459,8 @@ void game_update(Game *game, RenderCtx *rctx, float dt) {
     mob_animate_all(dt);
     npc_animate_all(dt);
     
+    missiles_update(dt);
+    
     actor_process();
 }
 
@@ -470,6 +472,7 @@ void game_render(Game *game, RenderCtx *rctx) {
     render_items(rctx, game->lvl, game->fog, &game->cam);
     render_mobs(rctx, game->fog, &game->cam);
     render_npcs(rctx, &game->player, game->fog, &game->cam);
+    render_missiles(rctx, &game->cam);
     render_fog(rctx, game->fog, &game->cam);
     render_player(rctx, &game->player, &game->cam);
     render_hud(rctx, &game->player, &game->dungeon);

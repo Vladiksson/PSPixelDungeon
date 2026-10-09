@@ -3,6 +3,7 @@
 #include "bag.h"
 #include "char.h"
 #include "sprite_db.h"
+#include "ballistica.h"
 
 #define HERO_STARTING_HP         2000 //test, original was 20
 #define HERO_STARTING_STR        100 //test, original was 10
@@ -71,6 +72,13 @@ typedef enum {
 } PlayerBumpResult;
 
 typedef struct {
+   int       active;
+   ItemStack item;
+   int       cell;
+   float     delay;
+} ThrownItem;
+
+typedef struct {
    Char base;
    
    HeroClass cls;
@@ -103,7 +111,8 @@ typedef struct {
    int base_attack_skill;
    int base_defense_skill;
 
-   int ranged_attack;
+   int ranged_attack;      /* set only while shoot() resolves a hit; selects thrown.item as the weapon */
+   ThrownItem thrown;
 
    int resting;
 
@@ -134,6 +143,13 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 
 int player_set_quick_slot(Player *p, Bag *bag, int slot);
 int player_use_quick_slot(Player *p);
+
+/* Item.cast(): throw the item at bag[slot] towards cell `dst`.
+   The flight is Ballistica's line (it stops at walls, doors and the first
+   character); the hero stays busy until the item lands, and the turn time is
+   spent on landing, like the original. Returns 1 if a throw started.
+   Needs missiles_update(dt) running every frame to ever finish. */
+int player_throw(Player *p, Level *lvl, Bag *bag, int slot, int dst);
 
 int fov_radius(Player *player, int depth);
 

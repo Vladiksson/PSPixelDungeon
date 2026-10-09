@@ -168,3 +168,10 @@ int weapon_average_damage(ItemStack *w);
 int armor_str_req(ItemStack *a);
 int armor_dr(ItemStack *stack);
 int get_armor_tier(const ItemStack *stack);
+
+extern const MissileWeaponDef *missile_def(ItemType type);
+
+MissileSpin missile_spin_for(ItemType type);
+
+struct Char;
+void missile_weapon_proc(ItemType type, struct Char *defender, int damage);

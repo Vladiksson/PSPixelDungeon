@@ -50,6 +50,8 @@ void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
 void render_mobs   (RenderCtx *ctx, const Fog *fog, const Camera *cam);
 void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *cam);
 
+void render_missiles(RenderCtx *ctx, const Camera *cam);
+
 void render_present (RenderCtx *ctx);
 
 

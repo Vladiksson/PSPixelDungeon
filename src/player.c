@@ -7,8 +7,15 @@
 /*═══════════════════════════════════════════════════════════════
     Animation
 ═══════════════════════════════════════════════════════════════*/
+static int player_throw_in_flight(const Player *p) {
+    return p->thrown.active && missile_is_flying();
+}
+
 static int player_is_busy(const Player *p) {
     if (!char_is_alive(&p->base))
+        return 1;
+
+    if (player_throw_in_flight(p))
         return 1;
 
     return char_is_busy(&p->base);
@@ -77,6 +84,7 @@ void player_animate(Player *p, float dt) {
                 break;
             case ANIM_OPERATE:
             case ANIM_READ:
+            case ANIM_ZAP:
                 player_play_anim(p, ANIM_IDLE);
                 break;
             default:
@@ -136,6 +144,35 @@ static void hero_receive_kill_xp(Char *killer, int xp) {
 /*═══════════════════════════════════════════════════════════════
     HERO COMBAT 
 ═══════════════════════════════════════════════════════════════*/
+static ItemStack *hero_weapon(Player *p) {
+    return p->ranged_attack ? &p->thrown.item : &p->weapon;
+}
+
+/* Weapon.acuracyFactor(hero) for any weapon stack */
+static float hero_weapon_accuracy(const Player *p, ItemStack *wep) {
+    //if(ITEM_DB[wep->type].cat != ITEMCAT_WEAPON) return 0;
+
+    int encumbrance = weapon_str_req(wep) - player_str(p);
+    if (ITEM_DB[wep->type].weapon.type == WEAPON_MISSILE) {
+        if (p->cls == HERO_WARRIOR)       encumbrance += 3;
+        else if (p->cls == HERO_HUNTRESS) encumbrance -= 2;
+    }
+    float acu = weapon_acu(wep);
+    return (encumbrance > 0) ? (float)(acu / pow(1.5, encumbrance)) : acu;
+    /* Imbue.ACCURACY (weapon-balancing scroll) isn't ported yet — no 1.5x term */
+}
+
+/* Weapon.speedFactor(hero) for any weapon stack */
+static float hero_weapon_speed(const Player *p, ItemStack *wep) {
+    int encumbrance = weapon_str_req(wep) - player_str(p);
+    if (ITEM_DB[wep->type].weapon.type == WEAPON_MISSILE && p->cls == HERO_HUNTRESS) {
+        encumbrance -= 2;
+    }
+    float dly = weapon_dly(wep);
+    return (encumbrance > 0) ? (float)(dly * pow(1.2, encumbrance)) : dly;
+    /* Imbue.SPEED (weapon-balancing scroll) isn't ported yet — no 0.6x term */
+}
+
 static int hero_attack_skill(Char *self, Char *target) {
     Player *p = (Player *)self;
 
@@ -145,18 +182,8 @@ static int hero_attack_skill(Char *self, Char *target) {
         accuracy *= 0.5f; /* melee penalty for a ranged weapon up close — fully portable, kept as-is */
     }
 
-    float wep_factor = 1.0f;
-    if (p->weapon.type != ITEM_NONE) {
-        /* Weapon.acuracyFactor(hero) */
-        int encumbrance = weapon_str_req(&p->weapon) - player_str(p);
-        if (ITEM_DB[p->weapon.type].weapon.type == WEAPON_MISSILE) {
-            if (p->cls == HERO_WARRIOR)       encumbrance += 3;
-            else if (p->cls == HERO_HUNTRESS) encumbrance -= 2;
-        }
-        float acu = weapon_acu(&p->weapon);
-        wep_factor = (encumbrance > 0) ? (float)(acu / pow(1.5, encumbrance)) : acu;
-        /* Imbue.ACCURACY (weapon-balancing scroll) isn't ported yet — no 1.5x term */
-    }
+    ItemStack *wep = hero_weapon(p);
+    float wep_factor = (wep->type != ITEM_NONE) ? hero_weapon_accuracy(p, wep) : 1.0f;
 
     return (int)(p->base_attack_skill * accuracy * wep_factor);
 }
@@ -204,15 +231,16 @@ static int hero_damage_roll(Char *self) {
     Player *p = (Player *)self;
     int dmg;
 
-    if (p->weapon.type != ITEM_NONE) {
+    ItemStack *wep = hero_weapon(p);
+    if (wep->type != ITEM_NONE) {
         int mn, mx;
-        weapon_min_max(&p->weapon, &mn, &mx);
+        weapon_min_max(wep, &mn, &mx);
         dmg = rng_normal_range(mn, mx);  /* KindOfWeapon.damageRoll(): Random.NormalIntRange(min(),max()) */
 
         /* Weapon.damageRoll()'s exStr top-up: Huntress-with-ranged, or
            anyone-else-with-melee, rolls a uniform 0..exStr bonus. */
         if ((p->ranged_attack != 0) == (p->cls == HERO_HUNTRESS)) {
-            int exStr = player_str(p) - weapon_str_req(&p->weapon);
+            int exStr = player_str(p) - weapon_str_req(wep);
             if (exStr > 0) {
                 dmg += rng_range(0, exStr);
             }
@@ -226,16 +254,8 @@ static int hero_damage_roll(Char *self) {
 }
 
 static float hero_attack_delay(Player *p) {
-    if (p->weapon.type == ITEM_NONE) return 1.0f;
-
-    /* Weapon.speedFactor(hero) */
-    int encumbrance = weapon_str_req(&p->weapon) - player_str(p);
-    if (ITEM_DB[p->weapon.type].weapon.type == WEAPON_MISSILE && p->cls == HERO_HUNTRESS) {
-        encumbrance -= 2;
-    }
-    float dly = weapon_dly(&p->weapon);
-    return (encumbrance > 0) ? (float)(dly * pow(1.2, encumbrance)) : dly;
-    /* Imbue.SPEED (weapon-balancing scroll) isn't ported yet — no 0.6x term */
+    ItemStack *wep = hero_weapon(p);
+    return (wep->type == ITEM_NONE) ? 1.0f : hero_weapon_speed(p, wep);
 }
 
 static float hero_speed(Char *self) {
@@ -262,15 +282,19 @@ static void hero_wear_item(ItemStack *it) {
 
 static int hero_attack_proc(Char *self, Char *enemy, int damage) {
     Player *p = (Player *)self;
-    (void)enemy;
 
     /* Hero.attackProc(): wep = rangedWeapon != null ? rangedWeapon : belongings.weapon;
        wep.proc() -> Weapon.proc() -> use().  char_attack() only gets here on a
        landed hit, so misses don't wear the weapon — same as the original.
-       A ranged attack's weapon is the thrown stack, not p->weapon (that stack
-       isn't modelled yet), so skip it rather than wear the wrong item. */
-    if (!p->ranged_attack && p->weapon.type != ITEM_NONE) {
-        hero_wear_item(&p->weapon);
+       For a ranged attack the weapon is the thrown stack, and the missile
+       subclasses add their own proc() on top (Javelin's cripple, Curare's
+       paralysis, ...). */
+    ItemStack *wep = hero_weapon(p);
+    if (wep->type != ITEM_NONE) {
+        hero_wear_item(wep);
+        if (p->ranged_attack) {
+            missile_weapon_proc(wep->type, enemy, damage);
+        }
     }
 
     /* Placeholder — Weapon.proc()'s enchantment + hitsToKnow auto-identify
@@ -286,6 +310,12 @@ static int hero_attack_proc(Char *self, Char *enemy, int damage) {
 
     return damage;
 }
+
+/* Char.attack(): `dr = hero && rangedWeapon != null && subClass == SNIPER ? 0 : IntRange(0, enemy.dr())` */
+/*static int hero_ignores_dr(Char *self) {
+    Player *p = (Player *)self;
+    return p->ranged_attack && p->sub_class == HERO_SUB_SNIPER;
+}*/
 
 static int hero_defense_proc(Char *self, Char *attacker, int damage) {
     Player *p = (Player *)self;
@@ -563,16 +593,6 @@ static int player_init_item(Player *p, ItemType type, int quantity) {
     return player_add_stack(p, stack);
 }
 
-/* //TODO UNUSED FUNCTIONS FROM HERE TO THE NEXT PART
-int player_remove_item(Player *p, int slot, int quantity) {
-    return bag_remove_item(&p->bags[BAG_BACKPACK], slot, quantity);
-}
-
-int player_find_item(const Player *p, ItemType type) {
-    return bag_find_item(&p->bags[BAG_BACKPACK], type);
-}
-*/
-
 /*═══════════════════════════════════════════════════════════════
     Equipment
 ═══════════════════════════════════════════════════════════════*/
@@ -719,6 +739,136 @@ static void equip_ring_from_bag(Player *p, ItemType type, EquipSlot target) {
     }
 }
 
+/*═══════════════════════════════════════════════════════════════
+    Throwing
+═══════════════════════════════════════════════════════════════*/
+static int player_shoot(Player *p, Char *enemy) {
+    p->ranged_attack = 1;
+    CharAttackResult r = char_attack(&p->base, enemy);
+    p->ranged_attack = 0;
+    return r.hit;
+}
+
+static void player_land_item(Player *p, Level *lvl, ItemStack item, int cell) {
+    Heap *heap = level_heap_at(lvl, cell);
+
+    if (!heap) {
+        if (cell_pit(lvl, cell)) {
+            /* Level.drop(): `map[cell] == CHASM || pit[cell]` -> Dungeon.dropToChasm(item) */
+            return;
+        }
+        heap = level_create_heap(lvl, cell, HEAP_NORMAL);
+
+        if (!heap) return;
+    }
+
+    heap_add_stack(heap, item);
+    return;
+}
+
+static void player_circle_back(Player *p, Level *lvl, int from) {
+
+    missile_launch(from, p->base.pos, p->thrown.item.type, missile_spin_for(p->thrown.item.type), NULL, NULL);
+
+    if (!player_add_stack(p, p->thrown.item)) {
+        player_land_item(p, lvl, p->thrown.item, p->base.pos);
+    }
+}
+
+/* Item.onThrow() / MissileWeapon.onThrow() and the per-missile overrides. */
+static void player_throw_resolve(Player *p, Level *lvl) {
+    const int cell = p->thrown.cell;
+    const ItemStack item = p->thrown.item;
+    const MissileWeaponDef *mwd = missile_def(item.type);
+
+    if (!mwd) {
+        player_land_item(p, lvl, item, cell);   /* TODO: Potion/Seed/Bomb... override onThrow() */
+        return;
+    }
+
+    Char *enemy = char_find_at(cell);
+    int nobody = (enemy == NULL || enemy == &p->base);
+
+    if (nobody) {
+        if ((mwd->flags & MISSILE_F_IGNITES) && cell_flamable(lvl, cell)) {
+            /* IncendiaryDart.onThrow(): used up, lights the ground */
+        } else {
+            player_land_item(p, lvl, item, cell);
+        }
+        return;
+    }
+
+    int hit = player_shoot(p, enemy);
+
+    if (mwd->flags & MISSILE_F_RETURNS) {
+        player_circle_back(p, lvl, cell);
+    } else if (!hit) {
+        player_land_item(p, lvl, p->thrown.item, cell);   /* MissileWeapon.miss() */
+    }
+}
+
+/* The callback of Item.cast()'s MissileSprite. */
+static void player_throw_land(void *ctx) {
+    Player *p = (Player *)ctx;
+    Level *lvl = char_active_level();
+
+    if (lvl) player_throw_resolve(p, lvl);
+
+    p->thrown.active  = 0;
+    p->thrown.item    = item_stack_none();
+
+    char_spend(&p->base, p->thrown.delay);      /* user.spendAndNext(finalDelay) */
+    actor_next(&p->base.base);
+}
+
+
+int player_throw(Player *p, Level *lvl, Bag *bag, int slot, int dst) {
+    if (!lvl || !bag || slot < 0 || slot >= bag->count)
+        return 0;
+    if (!player_can_act(p))
+        return 0;
+    if (!in_bounds(dst))
+        return 0;
+
+    ItemStack item = bag->items[slot];
+    if ((unsigned)item.type >= (unsigned)ITEM_TYPE_COUNT)   /* ITEM_NONE or garbage */
+        return 0;
+    item.quantity = 1;
+
+    if (!bag_remove_item(bag, slot, 1))
+        return 0;
+
+    int cell = ballistica_cast(NULL, lvl, p->base.pos, dst, 0, 1);
+
+    Point self = idx_to_xy(p->base.pos);
+    Point target = idx_to_xy(cell);
+    if (target.x != self.x)
+        p->facing = (target.x < self.x) ? FACE_LEFT : FACE_RIGHT;
+    player_play_anim(p, ANIM_ZAP);
+
+    Char *enemy = char_find_at(cell);
+    float delay = 1.0f;
+    
+    if (missile_def(item.type)) {
+        delay *= hero_weapon_speed(p, &item);
+        if (enemy && char_consume_snipers_mark(&p->base, enemy))
+            delay *= 0.5f;
+    }
+
+    p->thrown.active = 1;
+    p->thrown.item   = item;
+    p->thrown.cell   = cell;
+    p->thrown.delay  = delay;
+
+    uint8_t col, row;
+    item_display_sprite(item.type, &col, &row);
+    
+    if (!missile_launch(p->base.pos, cell, item.type, missile_spin_for(item.type), player_throw_land, p)) {
+        player_throw_land(p);
+    }
+    return 1;
+}
+
 int player_set_quick_slot(Player *p, Bag *bag, int slot) {
     if (!bag || slot < 0 || slot >= bag->count)
         return 0;
@@ -748,6 +898,13 @@ int player_set_quick_slot(Player *p, Bag *bag, int slot) {
     default:
         return 0;
     }
+}
+
+static int player_quick_target(const Player *p) { //REDO temporary 
+    if (char_is_alive(p->attack_target))
+        return p->attack_target->pos;
+    else
+        return p->target_pos;
 }
 
 int player_use_quick_slot(Player *p) {
@@ -780,8 +937,9 @@ int player_use_quick_slot(Player *p) {
 
     case ITEMCAT_WEAPON:
         if (ITEM_DB[type].weapon.type == WEAPON_MISSILE) {
-            /* TODO: throw missile weapon. */
-            player_consume_item(p, bag, slot);
+            int dst = player_quick_target(p);
+            if (dst != p->base.pos)
+                player_throw(p, char_active_level(), bag, slot, dst);
             return 0;
         }
         return 0;
@@ -1073,7 +1231,11 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->awareness           = HERO_STARTING_AWARENESS;
     p->base_attack_skill   = HERO_STARTING_ATTACK;
     p->base_defense_skill  = HERO_STARTING_DEFENSE;
+
     p->ranged_attack       = 0;
+    memset(&p->thrown, 0, sizeof(p->thrown));
+    p->thrown.item         = item_stack_none();
+
     p->resting             = 0;
 
     p->cursor_pos = p->base.pos;

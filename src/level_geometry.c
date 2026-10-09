@@ -41,12 +41,18 @@ int cell_passable(const Level *lvl, int idx) {
 int blocks_light(const Level *lvl, int idx) {
     return (gTileFlags[lvl->map[idx]] & TF_LOS_BLOCKING) != 0;
 }
-//tf_flamable
+int cell_flamable(const Level *lvl, int idx) {
+    return (gTileFlags[lvl->map[idx]] & TF_FLAMABLE) != 0;
+}
+int cell_avoid(const Level *lvl, int idx) {
+    return (gTileFlags[lvl->map[idx]] & TF_AVOID) != 0;
+}
+int cell_pit(const Level *lvl, int idx) {
+    return (gTileFlags[lvl->map[idx]] & TF_PIT) != 0;
+}
 //tf_secret
 //tf_solid
-//tf_avoid
 //tf_liquid
-//tf_pit
 
 bool tile_unstitchable(uint8_t t) {
     return (gTileFlags[t] & TF_UNSTITCHABLE) != 0;

@@ -1,11 +1,7 @@
 cat > .gitignore <<EOF
-*.o
-*.out
-*.exe
 
 build/
-bin/
+bullshit/
 
 .vscode/
-.idea/
 EOF

@@ -55,7 +55,8 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     }
 
     Level *lvl = dungeon_current_level(d);
-    player->base.pos = lvl->entrance;
+    player->base.pos = player->cursor_pos = player->target_pos = lvl->entrance;
+    player->attack_target = NULL;
 
     char_clear();
     actor_clear();
@@ -88,7 +89,8 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
     d->current_depth--;
 
     Level *lvl = dungeon_current_level(d);
-    player->base.pos = lvl->exit;
+    player->base.pos = player->cursor_pos = player->target_pos = lvl->exit;
+    player->attack_target = NULL;
 
     char_clear();
     actor_clear();

@@ -1,6 +1,7 @@
 #include "render.h"
 #include "assets.h"
 #include "icons.h"
+#include "ballistica.h"
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
@@ -665,6 +666,30 @@ void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *
     }
 }
 
+
+/* ── render_missiles ───────────────────────────────────── */
+void render_missiles(RenderCtx *ctx, const Camera *cam) {
+    if (!ctx->items) return;
+
+    MissileView mv;
+    if (missiles_snapshot(&mv) <= 0) return;
+
+    if (mv.x < cam->tile_x - 1 || mv.x > cam->tile_x + gViewCols ||
+        mv.y < cam->tile_y - 1 || mv.y > cam->tile_y + gViewRows)
+        return;
+
+    Point origin = camera_tile_to_screen(cam, 0, 0);
+
+    SDL_Rect src = { mv.col * ICON_SIZE, mv.row * ICON_SIZE, ICON_SIZE, ICON_SIZE };
+    SDL_Rect dst = {
+        origin.x + (int)(mv.x * gTileSize + 0.5f),
+        origin.y + (int)(mv.y * gTileSize + 0.5f),
+        gTileSize,
+        gTileSize
+    };
+
+    SDL_RenderCopyEx(ctx->renderer, ctx->items, &src, &dst, (double)mv.angle, NULL, SDL_FLIP_NONE);
+}
 
 /* ── render_present ───────────────────────────────── */
 void render_present(RenderCtx *ctx) {

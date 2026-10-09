@@ -1,7 +1,7 @@
 #pragma once 
 #include <string.h>
 #include <stdint.h>
-
+#include "buff.h" //for BUFFTYPE MB REDO????
 /* ══════════════════════════════════════════════════════════
    ITEM SPRITE SHEET port of ItemSpriteSheet.java
    ══════════════════════════════════════════════════════════*/
@@ -341,12 +341,30 @@ typedef struct {
    uint8_t str;
 } MeleeWeaponDef;
 
+typedef enum {
+   MISSILE_NO_SPIN,
+   MISSILE_SPIN_SLOW,
+   MISSILE_SPIN_FAST
+} MissileSpin;
+
+typedef enum {
+   MISSILE_F_NONE    = 0,
+   MISSILE_F_IGNITES = 1 << 0,
+   MISSILE_F_BLEEDS  = 1 << 1,
+   MISSILE_F_RETURNS = 1 << 2
+} MissileFlags;
+
 typedef struct {
-   uint8_t str;
-   float   acu;
-   float   dly;
-   uint8_t dmg_min;
-   uint8_t dmg_max;
+   int str;
+   float acu;
+   float dly;
+   int dmg_min;
+   int dmg_max;
+
+   BuffType proc_buff;
+   float proc_duration;
+   uint8_t flags;
+   MissileSpin spin;
 } MissileWeaponDef;
 
 typedef struct {

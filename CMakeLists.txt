@@ -17,9 +17,9 @@ add_executable(${PROJECT_NAME}
     src/item.c
     src/item_db.c
     src/item_spawn.c
-    src/item_identify.c
     src/item_generator.c
     src/bag.c
+    src/ballistica.c
     src/actor.c
     src/char.c
     src/buff.c
