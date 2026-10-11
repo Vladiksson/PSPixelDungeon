@@ -280,7 +280,7 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
 
     //TEST OF QUICK SLOT
     if (btn_pressed(inp, BTN_SQUARE)) {
-        player_use_quick_slot(player);
+        player_use_quick_slot(player, lvl);
         return;
     }
 

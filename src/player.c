@@ -903,11 +903,10 @@ int player_set_quick_slot(Player *p, Bag *bag, int slot) {
 static int player_quick_target(const Player *p) { //REDO temporary 
     if (char_is_alive(p->attack_target))
         return p->attack_target->pos;
-    else
-        return p->target_pos;
+    return -1;
 }
 
-int player_use_quick_slot(Player *p) {
+int player_use_quick_slot(Player *p, Level *lvl) {
     if (player_is_busy(p))
         return 0;
 
@@ -936,10 +935,10 @@ int player_use_quick_slot(Player *p) {
         return 0;
 
     case ITEMCAT_WEAPON:
-        if (ITEM_DB[type].weapon.type == WEAPON_MISSILE) {
+        if (p->attack_target != NULL && ITEM_DB[type].weapon.type == WEAPON_MISSILE) {
             int dst = player_quick_target(p);
             if (dst != p->base.pos)
-                player_throw(p, char_active_level(), bag, slot, dst);
+                player_throw(p, lvl, bag, slot, dst);
             return 0;
         }
         return 0;
@@ -1273,6 +1272,7 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     player_init_item(p, ITEM_WARRIOR_ARMOR, 1);//TEST
     player_init_item(p, ITEM_WAR_HAMMER, 1);//TEST
     player_init_item(p, ITEM_SCROLL_UPGRADE, 100);//TEST
+    player_init_item(p, ITEM_JAVELIN, 100);//TEST
 
     switch (p->cls) {
     case HERO_WARRIOR:
