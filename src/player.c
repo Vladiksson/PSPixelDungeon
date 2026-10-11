@@ -444,7 +444,7 @@ static Bag *player_bag_for_item(Player *p, ItemType item_type) {
     return &p->bags[BAG_BACKPACK];
 }
 
-static int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
+int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot) {
     for (int t = 0; t < BAG_TYPE_COUNT; t++) {
         if (!player_has_bag(p, (BagType)t)) continue;
 
@@ -951,6 +951,28 @@ int player_use_quick_slot(Player *p) {
     default:
         return 0;
     }
+}
+
+int player_throw_quick_slot(Player *p, Level *lvl) {
+    if (player_is_busy(p))
+        return 0;
+
+    ItemType type = p->quick_slot.type;
+
+    if (type == ITEM_NONE)
+        return 0;
+
+    if (type < 0 || type >= ITEM_TYPE_COUNT)
+        return 0;
+
+    Bag *bag = NULL;
+    int slot = -1;
+
+    if (!player_locate_item(p, type, &bag, &slot))
+        return 0;
+
+    player_throw(p, lvl, bag, slot, p->target_pos);
+    return 0;
 }
 
 /*═══════════════════════════════════════════════════════════════

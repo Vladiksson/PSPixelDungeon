@@ -23,6 +23,11 @@ typedef struct {
     int blocked;
 } MoveRepeat;
 
+typedef enum {
+    TARGET_ACTION_QUICK_SLOT,
+    TARGET_ACTION_INVENTORY
+} TargetAction;
+
 typedef struct {
     Dungeon dungeon;
     Player player;
@@ -41,6 +46,10 @@ typedef struct {
     GameState state;
     PopupType popup;
     GameState popup_return_state;
+
+    TargetAction target_action;
+    int throw_bag;
+    int throw_slot;
 } Game;
 
 void game_init(Game *game);

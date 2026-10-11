@@ -128,6 +128,7 @@ int player_str(const Player *p);
 int player_max_exp(const Player *p);
 
 int player_has_bag(const Player *p, BagType type);
+int player_locate_item(Player *p, ItemType type, Bag **out_bag, int *out_slot);
 int player_has_item(const Player *p, ItemType type);
 
 int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot);
@@ -143,12 +144,8 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 
 int player_set_quick_slot(Player *p, Bag *bag, int slot);
 int player_use_quick_slot(Player *p);
+int player_throw_quick_slot(Player *p, Level *lvl);
 
-/* Item.cast(): throw the item at bag[slot] towards cell `dst`.
-   The flight is Ballistica's line (it stops at walls, doors and the first
-   character); the hero stays busy until the item lands, and the turn time is
-   spent on landing, like the original. Returns 1 if a throw started.
-   Needs missiles_update(dt) running every frame to ever finish. */
 int player_throw(Player *p, Level *lvl, Bag *bag, int slot, int dst);
 
 int fov_radius(Player *player, int depth);

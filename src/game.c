@@ -121,7 +121,7 @@ void game_init(Game *game) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   Popup helpers
+   Popup
    ══════════════════════════════════════════════════════════*/
 
 static void game_open_popup(Game *game, PopupType popup) {
@@ -133,6 +133,88 @@ static void game_open_popup(Game *game, PopupType popup) {
 static void game_close_popup(Game *game) {
     game->popup = POPUP_NONE;
     game->state = game->popup_return_state;
+}
+
+static void popup_input(Game *game, InputState *inp) {
+    switch (game->popup) {
+    case POPUP_ITEM_DESC:
+    case POPUP_STATS:
+        if (btn_pressed(inp, BTN_START)) {
+            game_close_popup(game);
+            return;
+        }
+        break;
+    case POPUP_NONE:
+    default:
+        game_close_popup(game);
+        break;
+    }
+}
+
+/*══════════════════════════════════════════════════════════
+   TARGET INPUT
+  ══════════════════════════════════════════════════════════*/
+static void game_begin_targeting(Game *game, TargetAction action) {
+    game->target_action = action;
+    game->player.cursor_pos = game->player.base.pos;
+    game->state = GAME_STATE_TARGETING;
+}
+static void targeting_input(Game *game, InputState *inp, uint32_t now) {
+    Player *player = &game->player;
+
+    if (btn_pressed(inp, BTN_R)) {
+        game->state = GAME_STATE_PLAYING;
+
+        player->target_pos = player->cursor_pos;
+        player->cursor_pos = player->base.pos;
+
+        Char *occupant = char_find_at(player->target_pos);
+        if (occupant && occupant->kind == CHAR_KIND_MOB)
+            player->attack_target = occupant;
+
+        return;
+    }
+
+    if (btn_pressed(inp, BTN_CROSS)) {
+        player->target_pos = player->cursor_pos;
+
+        switch (game->target_action) {
+        case TARGET_ACTION_INVENTORY: {
+            Bag *bag = &player->bags[game->throw_bag];
+
+            player_throw(player, game->lvl, bag, game->throw_slot, player->target_pos);
+            break;
+        }
+        case TARGET_ACTION_QUICK_SLOT:
+            player_throw_quick_slot(player, game->lvl);
+            break;
+
+        default:
+            return;
+        }
+
+        player->cursor_pos = player->base.pos;
+        game->state = GAME_STATE_PLAYING;
+        return;
+    }
+
+    if (btn_pressed(inp, BTN_CIRCLE)) {
+        if (game->target_action == TARGET_ACTION_INVENTORY) {
+            player->cursor_pos = player->base.pos;
+            game->state = GAME_STATE_INVENTORY;
+            return;
+        }
+    }
+
+    int dx, dy;
+    input_get_move(inp, &dx, &dy);
+
+    if (ui_move_repeat_update(&game->ui_move_repeat, now, dx, dy))
+        player_move_cursor(player, game->fog, dx, dy);
+
+    if (btn_pressed(inp, BTN_START)) {
+        //TODO POPUP WITH INFO OF TILES/HEAPS/MOBS (ANALOGUE FOR ? BUTTON)
+    }
 }
 
 /*══════════════════════════════════════════════════════════
@@ -180,7 +262,7 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
     }
 
     if (btn_pressed(inp, BTN_R)) {
-        game->state = GAME_STATE_TARGETING;
+        game_begin_targeting(game, TARGET_ACTION_QUICK_SLOT);
         return;
     }
 
@@ -263,31 +345,7 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
         break;
     }
 }
-/*══════════════════════════════════════════════════════════
-   TARGET CURSOR MOVEMENT
-  ══════════════════════════════════════════════════════════*/
-static void targeting_input(Game *game, InputState *inp, uint32_t now) {
-    Player *player = &game->player;
 
-    if (btn_pressed(inp, BTN_R)) {
-        game->state = GAME_STATE_PLAYING;
-
-        player->target_pos = player->cursor_pos;
-
-        Char *occupant = char_find_at(player->target_pos);
-        if (occupant && occupant->kind == CHAR_KIND_MOB)
-            player->attack_target = occupant;
-
-        player->cursor_pos = player->base.pos;
-        return;
-    }
-
-    int dx, dy;
-    input_get_move(inp, &dx, &dy);
-
-    if (ui_move_repeat_update(&game->ui_move_repeat, now, dx, dy))
-        player_move_cursor(player, game->fog, dx, dy);
-}
 /* ══════════════════════════════════════════════════════════
    Inventory
    ══════════════════════════════════════════════════════════*/
@@ -305,7 +363,7 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
         Bag *bag = &player->bags[inv->active_bag];
         int slot = inv->pending_ring;
 
-        if (btn_pressed(inp, BTN_CIRCLE)) {
+        if (btn_pressed(inp, BTN_START)) {
             inv->pending_ring = -1;
             return;
         }
@@ -356,14 +414,30 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
         }
     }
 
-    if (btn_pressed(inp, BTN_SQUARE))
+    if (btn_pressed(inp, BTN_TRIANGLE))
         player_drop_from_bag(player, lvl, &player->bags[inv->active_bag], inv->cursor);
 
-    if (btn_pressed(inp, BTN_TRIANGLE)) {
+    if (btn_pressed(inp, BTN_SQUARE)) {
         Bag *bag = &player->bags[inv->active_bag];
 
         item_identify(&bag->items[inv->cursor]); //TEST
         player_consume_item(player, &player->bags[inv->active_bag], inv->cursor);
+    }
+
+    if (btn_pressed(inp, BTN_CIRCLE)) {
+        Bag *bag = &player->bags[inv->active_bag];
+
+        if (inv->cursor < 0 || inv->cursor >= MAX_INVENTORY)
+            return;
+
+        if (bag->items[inv->cursor].type == ITEM_NONE)
+            return;
+
+        game->throw_bag = inv->active_bag;
+        game->throw_slot = inv->cursor;
+
+        game_begin_targeting(game, TARGET_ACTION_INVENTORY);
+        return;
     }
 
     if (btn_pressed(inp, BTN_R))
@@ -371,7 +445,7 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
     if (btn_pressed(inp, BTN_L))
         inventory_ui_prev_tab(inv, player);
 
-    if (btn_pressed(inp, BTN_CIRCLE)) {
+    if (btn_pressed(inp, BTN_START)) {
         if (inv->cursor >= 0 && inv->cursor < MAX_INVENTORY) {
             Bag *bag = &player->bags[inv->active_bag];
 
@@ -390,36 +464,6 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
             if (item && item->type != ITEM_NONE)
                 game_open_popup(game, POPUP_ITEM_DESC);
         }
-    }
-}
-/* ══════════════════════════════════════════════════════════
-   Popup
-   ══════════════════════════════════════════════════════════*/
-static void item_desc_input(Game *game, InputState *inp) {
-    if (btn_pressed(inp, BTN_CIRCLE)) {
-        game_close_popup(game);
-        return;
-    }
-}
-static void stats_input(Game *game, InputState *inp) {
-    if (btn_pressed(inp, BTN_START)) {
-        game_close_popup(game);
-        return;
-    }
-}
-
-static void popup_input(Game *game, InputState *inp) {
-    switch (game->popup) {
-    case POPUP_ITEM_DESC:
-        item_desc_input(game, inp);
-        break;
-    case POPUP_STATS:
-        stats_input(game, inp);
-        break;
-    case POPUP_NONE:
-    default:
-        game_close_popup(game);
-        break;
     }
 }
 
