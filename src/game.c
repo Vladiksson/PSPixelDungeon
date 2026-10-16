@@ -96,7 +96,7 @@ static void player_move_cursor(Player *p, const Fog *fog, int dx, int dy) {
 /*══════════════════════════════════════════════════════════
   Initialization
   ══════════════════════════════════════════════════════════*/
-void game_init(Game *game) {
+void game_init(Game *game, HeroClass hero) {
     memset(game, 0, sizeof(*game));
 
     gTileSize = TILE_SIZE_MIN;
@@ -108,7 +108,7 @@ void game_init(Game *game) {
 
     game_floor(game);
 
-    player_init(&game->player, game->lvl, 3);
+    player_init(&game->player, game->lvl, hero);
 
     camera_center_on(&game->cam, game->player.base.pos);
 
@@ -542,5 +542,5 @@ void game_render(Game *game, RenderCtx *rctx) {
             break;
         }
     }
-    render_present(rctx);
+    //render_present(rctx);
 }

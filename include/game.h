@@ -52,7 +52,7 @@ typedef struct {
     int throw_slot;
 } Game;
 
-void game_init(Game *game);
+void game_init(Game *game, HeroClass hero);
 void game_input(Game *game, InputState *inp, uint32_t now);
 void game_update(Game *game, RenderCtx *rctx, float dt);
 void game_render(Game *game, RenderCtx *rctx);

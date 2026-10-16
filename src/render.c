@@ -83,7 +83,7 @@ static bool load_tiles(RenderCtx *ctx) {
     }
     return true;
 }
-static bool load_chars(RenderCtx *ctx) { //GONNA BE ACTOR LOAD AFTER ADDING BUFFS/BLOBS 
+static bool load_chars(RenderCtx *ctx) { 
     /* ── heroes ─────────────────────────────────── */
     const char *hero_files[] = ASSET_HERO_BY_CLASS;
 
@@ -161,7 +161,14 @@ static bool load_ui(RenderCtx *ctx) {
     ctx->icons = load_tex(ctx->renderer, ASSET_ICONS);
     if (!ctx->icons)
         return false;
-
+    /* ── banners ──────────────────────────────────── */
+    ctx->banners = load_tex(ctx->renderer, ASSET_BANNERS);
+    if (!ctx->banners)
+        return false;
+    /* ── avatars ──────────────────────────────────── */
+    ctx->avatars = load_tex(ctx->renderer, ASSET_AVATARS);
+    if (!ctx->avatars)
+        return false;
     return true;
 }
 
@@ -178,6 +185,21 @@ static bool load_shadow(RenderCtx *ctx) {
     return true;
 }
 
+static bool load_menu(RenderCtx *ctx) {
+    ctx->menu.arcs_bg = load_tex(ctx->renderer, ASSET_ARCS_BG);
+    if (!ctx->menu.arcs_bg)
+        return false;
+
+    ctx->menu.arcs_fg = load_tex(ctx->renderer, ASSET_ARCS_FG);
+    if (!ctx->menu.arcs_fg)
+        return false;
+
+    ctx->menu.arcs_bg_offset = 0.0f;
+    ctx->menu.arcs_fg_offset = 0.0f;
+    
+    return true;
+}
+
 int render_init(RenderCtx *ctx) {
     memset(ctx, 0, sizeof(*ctx));
     if (!init_sdl(ctx))
@@ -191,6 +213,8 @@ int render_init(RenderCtx *ctx) {
     if (!load_items(ctx))
         goto fail;
     if (!load_shadow(ctx))
+        goto fail;
+    if (!load_menu(ctx))
         goto fail;
     return 0;
 fail:
@@ -216,6 +240,10 @@ static void ui_free(UITextures *ui) {
     destroy_tex(&ui->hp_bar);
     destroy_tex(&ui->xp_bar);
 }
+static void menu_free(MenuTextures *menu) {
+    destroy_tex(&menu->arcs_bg);
+    destroy_tex(&menu->arcs_fg);
+}
 void render_free(RenderCtx *ctx) {
     destroy_textures(ctx->font.tex, 3);
 
@@ -228,7 +256,11 @@ void render_free(RenderCtx *ctx) {
 
     destroy_tex(&ctx->items);
     destroy_tex(&ctx->icons);
+    destroy_tex(&ctx->banners);
+    destroy_tex(&ctx->avatars);
+
     ui_free(&ctx->ui);
+    menu_free(&ctx->menu);
 
     destroy_tex(&ctx->shadow);
 
@@ -240,6 +272,58 @@ void render_free(RenderCtx *ctx) {
         SDL_DestroyWindow(ctx->window);
         ctx->window = NULL;
     }
+}
+
+/* ── menu ────────────────────── */
+#define ARCHS_SCROLL_SPEED 20.0f
+
+void render_menu_update(RenderCtx *ctx, float dt, bool reversed) {
+    float shift = ARCHS_SCROLL_SPEED * dt;
+
+    if (reversed)
+        shift = -shift;
+
+    ctx->menu.arcs_bg_offset += shift;
+    ctx->menu.arcs_fg_offset += shift * 2.0f;
+}
+
+static int positive_mod(int value, int divisor) {
+    int result = value % divisor;
+    return result < 0 ? result + divisor : result;
+}
+
+static void render_tiled_texture(RenderCtx *ctx, SDL_Texture *tex, float offset_y) {
+    if (!tex)
+        return;
+
+    int tex_w, tex_h;
+
+    if (SDL_QueryTexture(tex, NULL, NULL, &tex_w, &tex_h) != 0)
+        return;
+
+    if (tex_w <= 0 || tex_h <= 0)
+        return;
+
+    int offset_x = tex_w / 4 - (SCREEN_W % tex_w) / 2;
+    int oy = positive_mod((int)offset_y, tex_h);
+
+    int start_x = -positive_mod(-offset_x, tex_w);
+    int start_y = -oy;
+
+    for (int y = start_y; y < SCREEN_H; y += tex_h) {
+        for (int x = start_x; x < SCREEN_W; x += tex_w) {
+            SDL_Rect dst = { x, y, tex_w, tex_h };
+            SDL_RenderCopy(ctx->renderer, tex, NULL, &dst);
+        }
+    }
+}
+
+void render_menu(RenderCtx *ctx) {
+    SDL_SetRenderDrawColor(ctx->renderer, 0, 0, 0, 255);
+    SDL_RenderClear(ctx->renderer);
+
+    render_tiled_texture(ctx, ctx->menu.arcs_bg, ctx->menu.arcs_bg_offset);
+    render_tiled_texture(ctx, ctx->menu.arcs_fg, ctx->menu.arcs_fg_offset);
 }
 
 /* ── render_frame ──────────────────────  */
@@ -710,4 +794,91 @@ void render_target_cursor(RenderCtx *ctx, int pos, const Camera *cam) {
     SDL_Rect dst = { screen.x, screen.y, gTileSize, gTileSize };
 
     SDL_RenderCopy(ctx->renderer, ctx->icons, &src, &dst);
+}
+
+//todo shift somewhere
+
+void render_banner(RenderCtx *ctx, BannerId banner, const SDL_Rect *dst) {
+    if (!ctx->banners || !dst)
+        return;
+
+    SDL_Rect src;
+    banner_sprite(banner, &src);
+
+    if (src.w <= 0 || src.h <= 0)
+        return;
+
+    SDL_RenderCopy(ctx->renderer, ctx->banners, &src, dst);
+}
+
+#define BANNER_GLOW_SPEED 1.0f
+#define BANNER_GLOW_MIN   40
+#define BANNER_GLOW_MAX   255
+
+void render_banner_update(RenderCtx *ctx, float dt) {
+    ctx->banner_signs_time += dt * BANNER_GLOW_SPEED;
+
+    if (ctx->banner_signs_time >= 2.0f * (float)M_PI)
+        ctx->banner_signs_time -= 2.0f * (float)M_PI;
+}
+
+void render_banner_glow(RenderCtx *ctx, const SDL_Rect *dst) {
+    if (!ctx->banners || !dst)
+        return;
+
+    SDL_Rect src;
+    banner_sprite(BANNER_PIXEL_DUNGEON_SIGNS, &src);
+
+    float pulse = (sinf(ctx->banner_signs_time) + 1.0f) * 0.5f;
+
+    Uint8 alpha = (Uint8)(BANNER_GLOW_MIN + pulse * (BANNER_GLOW_MAX - BANNER_GLOW_MIN));
+
+    SDL_SetTextureAlphaMod(ctx->banners, alpha);
+    SDL_SetTextureBlendMode(ctx->banners, SDL_BLENDMODE_ADD);
+
+    SDL_RenderCopy(ctx->renderer, ctx->banners, &src, dst);
+
+    SDL_SetTextureAlphaMod(ctx->banners, 255);
+    SDL_SetTextureBlendMode(ctx->banners, SDL_BLENDMODE_BLEND);
+}
+
+static void render_avatar(RenderCtx *ctx, HeroClass hero, const SDL_Rect *dst) {
+    if (!ctx->avatars || !dst)
+        return;
+
+    SDL_Rect src;
+    avatar_sprite(hero, &src);
+
+    if (src.w <= 0 || src.h <= 0)
+        return;
+
+    SDL_RenderCopy(ctx->renderer, ctx->avatars, &src, dst);
+}
+
+const HeroClass heroes[] = {
+    HERO_WARRIOR,
+    HERO_MAGE,
+    HERO_ROGUE,
+    HERO_HUNTRESS
+};
+
+void render_avatars(RenderCtx *ctx, int scale) {
+    int avatar_w = 24 * scale;
+    int avatar_h = 32 * scale;
+    int gap = 12;
+
+    int total_w = 4 * avatar_w + 3 * gap;
+    int start_x = (SCREEN_W - total_w) / 2;
+    int y = (SCREEN_H - avatar_h) / 2;
+
+    for (int i = 0; i < 4; ++i) {
+        SDL_Rect dst = {
+            start_x + i * (avatar_w + gap),
+            y,
+            avatar_w,
+            avatar_h
+        };
+
+        render_avatar(ctx, heroes[i], &dst);
+    }
 }

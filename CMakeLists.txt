@@ -34,6 +34,8 @@ add_executable(${PROJECT_NAME}
     src/rng.c
     src/font.c
     src/icons.c
+    src/banners.c
+    src/avatars.c
     src/ui.c
     src/ui_ninepatch.c
     src/fov.c

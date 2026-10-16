@@ -18,3 +18,7 @@ int cell_avoid(const Level *lvl, int idx);
 int cell_pit(const Level *lvl, int idx);
 bool tile_unstitchable(uint8_t t);
 int tile_free_for_item(const Level *lvl, int idx);
+int cell_solid(const Level *lvl, int idx);
+int cell_secret(const Level *lvl, int idx);
+
+int tile_discover(const Level *lvl, int idx);

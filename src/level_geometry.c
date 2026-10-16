@@ -50,8 +50,12 @@ int cell_avoid(const Level *lvl, int idx) {
 int cell_pit(const Level *lvl, int idx) {
     return (gTileFlags[lvl->map[idx]] & TF_PIT) != 0;
 }
-//tf_secret
-//tf_solid
+int cell_secret(const Level *lvl, int idx) {
+    return (gTileFlags[lvl->map[idx]] & TF_SECRET) != 0;
+}
+int cell_solid(const Level *lvl, int idx) {
+    return (gTileFlags[lvl->map[idx]] & TF_SOLID) != 0;
+}
 //tf_liquid
 
 bool tile_unstitchable(uint8_t t) {
@@ -61,4 +65,19 @@ int tile_free_for_item(const Level *lvl, int idx) {
     if (idx == lvl->entrance || idx == lvl->exit) 
         return 0;
     return (gTileFlags[lvl->map[idx]] & TF_OPEN_FLOOR) != 0;
+}
+
+int tile_discover(const Level *lvl, int idx) {
+    switch (lvl->map[idx]) {
+        case TILE_SECRET_DOOR:            return TILE_DOOR;
+        case TILE_SECRET_FIRE_TRAP:       return TILE_FIRE_TRAP;
+        case TILE_SECRET_PARALYTIC_TRAP:  return TILE_PARALYTIC_TRAP;
+        case TILE_SECRET_TOXIC_TRAP:      return TILE_TOXIC_TRAP;
+        case TILE_SECRET_POISON_TRAP:     return TILE_POISON_TRAP;
+        case TILE_SECRET_ALARM_TRAP:      return TILE_ALARM_TRAP;
+        case TILE_SECRET_LIGHTNING_TRAP:  return TILE_LIGHTNING_TRAP;
+        case TILE_SECRET_GRIPPING_TRAP:   return TILE_GRIPPING_TRAP;
+        case TILE_SECRET_SUMMONING_TRAP:  return TILE_SUMMONING_TRAP;
+        default:                          return lvl->map[idx];
+    }
 }
