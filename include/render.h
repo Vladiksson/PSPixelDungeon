@@ -5,6 +5,7 @@
 #include "font.h"
 #include "banners.h"
 #include "avatars.h"
+#include "particle.h"
 
 typedef struct {
    SDL_Texture *chrome;
@@ -49,6 +50,9 @@ typedef struct {
    float banner_signs_time;
    SDL_Texture  *avatars;
 
+   SDL_Texture  *specks;
+   SDL_Texture  *particle_pixel;
+
    DungeonTheme  active_theme;
 
    MenuTextures  menu;
@@ -61,6 +65,7 @@ void render_menu_update(RenderCtx *ctx, float dt, bool reversed);
 void render_menu(RenderCtx *ctx);
 
 void render_update_water(RenderCtx *ctx, float elapsed);
+void render_update_particles(Level *lvl, const Fog *fog, float elapsed);
 
 void render_frame  (RenderCtx *ctx, const Level *lvl, const Camera *cam);
 void render_items  (RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam);
@@ -68,6 +73,8 @@ void render_fog    (RenderCtx *ctx, const Fog *fog, const Camera *cam);
 void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
 void render_mobs   (RenderCtx *ctx, const Fog *fog, const Camera *cam);
 void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *cam);
+
+void render_parctiles(RenderCtx *ctx, const Level *lvl, const Camera *cam);
 
 void render_missiles(RenderCtx *ctx, const Camera *cam);
 

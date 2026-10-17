@@ -19,6 +19,10 @@ static bool is_visible(const Fog *fog, const Camera *cam, Point pos) {
     int idx = xy_to_idx(pos.x, pos.y);
     return fog->visible[idx];
 }
+static int fog_cell_visible(int cell, void *user) {
+    const Fog *fog = (const Fog *)user;
+    return fog->visible[cell];
+}
 
 /* ── INIT ─────────────────────────────────────── */
 static int ensure_png(void) {
@@ -200,6 +204,32 @@ static bool load_menu(RenderCtx *ctx) {
     return true;
 }
 
+/* 1x1 white texture */
+static SDL_Texture *make_pixel_tex(SDL_Renderer *r) {
+    SDL_Texture *t = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, 1, 1);
+    if (!t)
+        return NULL;
+    Uint32 white = 0xFFFFFFFFu;
+    if (SDL_UpdateTexture(t, NULL, &white, sizeof(white)) != 0) {
+        SDL_DestroyTexture(t);
+        return NULL;
+    }
+    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+    return t;
+}
+
+static bool load_particles(RenderCtx *ctx) {
+    ctx->specks = load_tex(ctx->renderer, ASSET_SPECKS);
+    if (!ctx->specks)
+        return false;
+
+    ctx->particle_pixel = make_pixel_tex(ctx->renderer);
+    if (!ctx->particle_pixel)
+        return false;
+
+    return true;
+}
+
 int render_init(RenderCtx *ctx) {
     memset(ctx, 0, sizeof(*ctx));
     if (!init_sdl(ctx))
@@ -215,6 +245,8 @@ int render_init(RenderCtx *ctx) {
     if (!load_shadow(ctx))
         goto fail;
     if (!load_menu(ctx))
+        goto fail;
+    if (!load_particles(ctx))
         goto fail;
     return 0;
 fail:
@@ -258,6 +290,9 @@ void render_free(RenderCtx *ctx) {
     destroy_tex(&ctx->icons);
     destroy_tex(&ctx->banners);
     destroy_tex(&ctx->avatars);
+
+    destroy_tex(&ctx->specks);
+    destroy_tex(&ctx->particle_pixel);
 
     ui_free(&ctx->ui);
     menu_free(&ctx->menu);
@@ -427,6 +462,11 @@ void render_update_water(RenderCtx *ctx, float elapsed) { //MB TRANSFER SOMEWHER
         ctx->water_offset_y += 32.0f;
 }
 
+void render_update_particles(Level *lvl, const Fog *fog, float elapsed) {
+    particle_update_all(lvl, elapsed);
+    particle_update_blobs(lvl, &lvl->blob_pool, elapsed, fog_cell_visible, (void *)fog);
+}
+
 /* ── render_items ──────────────────────────────────── */
 void render_items(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam) {
     SDL_Texture *tex = ctx->items;
@@ -450,6 +490,88 @@ void render_items(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera
         SDL_Rect dst = { screen.x, screen.y, gTileSize, gTileSize };
  
         SDL_RenderCopy(ctx->renderer, tex, &src, &dst);
+    }
+}
+/* ── render_blobs ───────────────────────────────────── */
+
+static Uint8 to_byte(float v01) {
+    if (v01 < 0.0f) v01 = 0.0f;
+    if (v01 > 1.0f) v01 = 1.0f;
+    return (Uint8)(v01 * 255.0f + 0.5f);
+}
+
+static void draw_speck(RenderCtx *ctx, const Particle *pt, float scr_x, float scr_y, float px_scale) {
+    if (!ctx->specks) return;
+
+    uint8_t sx, sy, sw, sh;
+    speck_sprite(pt->speck_type, &sx, &sy, &sw, &sh);
+    SDL_Rect src = { sx, sy, sw, sh };
+
+    float draw_w = sw * px_scale * pt->scale_x;
+    float draw_h = sh * px_scale * pt->scale_y;
+
+    SDL_Rect dst = {
+        (int)(scr_x - draw_w / 2.0f + 0.5f),
+        (int)(scr_y - draw_h / 2.0f + 0.5f),
+        (int)(draw_w + 0.5f),
+        (int)(draw_h + 0.5f)
+    };
+
+    SDL_SetTextureColorMod(ctx->specks, to_byte(pt->rm), to_byte(pt->gm), to_byte(pt->bm));
+    SDL_SetTextureAlphaMod(ctx->specks, to_byte(pt->am));
+    SDL_SetTextureBlendMode(ctx->specks, pt->light_mode ? SDL_BLENDMODE_ADD : SDL_BLENDMODE_BLEND);
+
+    SDL_RenderCopyEx(ctx->renderer, ctx->specks, &src, &dst, (double)pt->angle, NULL, SDL_FLIP_NONE);
+
+    SDL_SetTextureColorMod(ctx->specks, 255, 255, 255);
+    SDL_SetTextureBlendMode(ctx->specks, SDL_BLENDMODE_BLEND);
+}
+
+static void draw_pixel_particle(RenderCtx *ctx, const Particle *pt, float scr_x, float scr_y, float px_scale) {
+    if (!ctx->particle_pixel) return;
+
+    float draw_w = pt->size * pt->scale_x * px_scale;
+    float draw_h = pt->size * pt->scale_y * px_scale;
+
+    if (draw_w < 0.0f) draw_w = 0.0f;
+    if (draw_h < 0.0f) draw_h = 0.0f;
+
+    SDL_Rect dst = {
+        (int)(scr_x - draw_w / 2.0f + 0.5f),
+        (int)(scr_y - draw_h / 2.0f + 0.5f),
+        (int)(draw_w + 0.5f),
+        (int)(draw_h + 0.5f)
+    };
+
+    SDL_SetTextureColorMod(ctx->particle_pixel, to_byte(pt->rm), to_byte(pt->gm), to_byte(pt->bm));
+    SDL_SetTextureAlphaMod(ctx->particle_pixel, to_byte(pt->am));
+    SDL_SetTextureBlendMode(ctx->particle_pixel, pt->light_mode ? SDL_BLENDMODE_ADD : SDL_BLENDMODE_BLEND);
+
+    SDL_RenderCopyEx(ctx->renderer, ctx->particle_pixel, NULL, &dst, (double)pt->angle, NULL, SDL_FLIP_NONE);
+
+    SDL_SetTextureBlendMode(ctx->particle_pixel, SDL_BLENDMODE_BLEND); /* restore — shared texture */
+}
+
+void render_parctiles(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
+    float px_scale = (float)gTileSize / (float)TILE_SIZE_MIN;
+    Point origin = camera_tile_to_screen(cam, 0, 0);
+
+    for (int i = 0; i < lvl->num_particles; i++) {
+        const Particle *pt = &lvl->particles[i];
+        if (!pt)
+            continue;
+
+        Point tile = { (int)(pt->x / TILE_SIZE_MIN), (int)(pt->y / TILE_SIZE_MIN) };
+        if (!is_visible_on_camera(cam, tile))
+            continue;
+
+        float scr_x = origin.x + (pt->x / (float)TILE_SIZE_MIN) * gTileSize;
+        float scr_y = origin.y + (pt->y / (float)TILE_SIZE_MIN) * gTileSize;
+
+        if (pt->kind == PK_SPECK)
+            draw_speck(ctx, pt, scr_x, scr_y, px_scale);
+        else
+            draw_pixel_particle(ctx, pt, scr_x, scr_y, px_scale);
     }
 }
 

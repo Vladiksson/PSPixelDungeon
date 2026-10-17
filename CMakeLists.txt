@@ -21,6 +21,7 @@ add_executable(${PROJECT_NAME}
     src/bag.c
     src/ballistica.c
     src/actor.c
+    src/blob.c
     src/char.c
     src/buff.c
     src/player.c
@@ -42,6 +43,7 @@ add_executable(${PROJECT_NAME}
     src/input.c
     src/camera.c
     src/render.c
+    src/particle.c
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O2 -G0 -Wall)

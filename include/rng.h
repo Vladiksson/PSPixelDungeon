@@ -7,6 +7,7 @@ extern uint32_t rng_state;
 uint32_t rng_next(void);
 int rng_range(int min, int max);
 float rng_float(void);
+float rng_float_range(float a, float b);
 int rng_int(int max);
 int rng_normal_range(int min, int max);
 

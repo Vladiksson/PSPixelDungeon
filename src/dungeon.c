@@ -15,6 +15,9 @@ static void dungeon_create_floor(Dungeon *d, int depth){
 
     mob_set_pool(&d->floors[depth].mob_pool);
     npc_set_pool(&d->floors[depth].npc_pool);
+    blob_set_pool(&d->floors[depth].blob_pool);
+
+    blob_clear(&d->floors[depth].blob_pool);
 
     const int DUNGEON_FLOOR_MAX_ATTEMPTS = 5;
     for (int attempt = 0; attempt < DUNGEON_FLOOR_MAX_ATTEMPTS; attempt++) {
@@ -32,12 +35,13 @@ void dungeon_init(Dungeon *d){
     d->world_seed = (uint32_t)time(NULL);
     d->current_depth = 0;
 
-    d->blacksmith_depth = 11 + (d->world_seed % 3); 
+    d->blacksmith_depth = 11 + (d->world_seed % 3);
 
     dungeon_create_floor(d, d->current_depth);
+    blob_set_depth(d->current_depth);
     fog_init(&d->fog[d->current_depth]);
 
-    char_set_active_level(&d->floors[d->current_depth]); 
+    char_set_active_level(&d->floors[d->current_depth]);
 }
 
 int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
@@ -49,6 +53,7 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     npc_unload_all();
 
     d->current_depth++;
+    blob_set_depth(d->current_depth);
 
     if (!d->generated[d->current_depth]) {
         dungeon_create_floor(d, d->current_depth);
@@ -64,6 +69,7 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
 
     mob_set_pool(&lvl->mob_pool);
     npc_set_pool(&lvl->npc_pool);
+    blob_set_pool(&lvl->blob_pool);
 
     player->base.base.time = 0.0f;
     char_add(&player->base);
@@ -72,6 +78,8 @@ int dungeon_go_down(Dungeon *d, Player *player, Camera *cam){
     mob_restore_grid();
     mob_restore_targets(&player->base);
     npc_restore_grid();
+    blob_restore_pool(&lvl->blob_pool);
+    particle_clear(lvl);
 
     camera_center_on(cam, player->base.pos);
 
@@ -85,8 +93,9 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
 
     mob_unload_all();
     npc_unload_all();
-    
+
     d->current_depth--;
+    blob_set_depth(d->current_depth);
 
     Level *lvl = dungeon_current_level(d);
     player->base.pos = player->cursor_pos = player->target_pos = lvl->exit;
@@ -98,6 +107,7 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
 
     mob_set_pool(&lvl->mob_pool);
     npc_set_pool(&lvl->npc_pool);
+    blob_set_pool(&lvl->blob_pool);
 
     player->base.base.time = 0.0f;
     char_add(&player->base);
@@ -106,6 +116,8 @@ int dungeon_go_up(Dungeon *d, Player *player, Camera *cam){
     mob_restore_grid();
     mob_restore_targets(&player->base);
     npc_restore_grid();
+    blob_restore_pool(&lvl->blob_pool);
+    particle_clear(lvl);
 
     camera_center_on(cam, player->base.pos);
 

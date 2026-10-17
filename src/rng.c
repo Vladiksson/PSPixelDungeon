@@ -12,6 +12,9 @@ int rng_range(int min, int max) {
 float rng_float(void) {
     return (float)(rng_next() >> 8) / (float)(1 << 24);
 }
+float rng_float_range(float a, float b) { 
+    return a + rng_float() * (b - a); 
+}
 int rng_int(int max) {
     if (max <= 1) return 0;
     return (int)((rng_next() >> 16) % (unsigned)max);

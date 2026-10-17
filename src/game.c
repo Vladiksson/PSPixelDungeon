@@ -498,6 +498,7 @@ void game_update(Game *game, RenderCtx *rctx, float dt) {
     hud_update(rctx, &game->player);
 
     render_update_water(rctx, dt); //TODO PARTICLES GONNA LIVE HERE
+    render_update_particles(game->lvl, game->fog, dt);
 
     player_animate(&game->player, dt);
     mob_animate_all(dt);
@@ -514,6 +515,9 @@ void game_update(Game *game, RenderCtx *rctx, float dt) {
 void game_render(Game *game, RenderCtx *rctx) {
     render_frame(rctx, game->lvl, &game->cam);
     render_items(rctx, game->lvl, game->fog, &game->cam);
+
+    render_parctiles(rctx, game->lvl, &game->cam);
+
     render_mobs(rctx, game->fog, &game->cam);
     render_npcs(rctx, &game->player, game->fog, &game->cam);
     render_missiles(rctx, &game->cam);
@@ -542,5 +546,4 @@ void game_render(Game *game, RenderCtx *rctx) {
             break;
         }
     }
-    //render_present(rctx);
 }

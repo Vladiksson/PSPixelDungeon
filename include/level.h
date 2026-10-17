@@ -3,6 +3,8 @@
 #include "item.h"
 #include "mob.h"
 #include "npc.h"
+#include "blob.h"
+#include "particle.h"
 
 /* ── Room constants ──────────────────────────────────── */
 #define MAX_ROOMS       64
@@ -114,6 +116,27 @@ typedef struct Level {
     int boss_triggered;
 
     NPCPool npc_pool;
+
+    BlobPool blob_pool;  /* see blob.h — level.c needs to wire this up the
+                             same way it already wires mob_pool/npc_pool:
+                             blob_set_pool(&lvl->blob_pool) + blob_clear()
+                             wherever Level_create()/restoreFromBundle-
+                             equivalent calls mob_set_pool()/mob_clear_all(),
+                             and blob_restore_pool() wherever level re-entry
+                             calls mob_restore_grid() (not part of this
+                             batch — level.c wasn't provided). */
+
+    Particle particles[MAX_LEVEL_PARTICLES];  /* see particle.h — purely
+                             cosmetic, not gameplay state, so stored flat on
+                             Level exactly like Heap (item.h): particles[i]
+                             for i in [0,num_particles) IS the live set, no
+                             separate pool type and no alive-flag scan.
+                             dungeon.c calls particle_clear() on every
+                             go_down()/go_up() re-entry (not needed at
+                             first-time creation — a fresh Level already
+                             has num_particles==0, same as num_heaps needs
+                             no explicit clear either). */
+    int num_particles;
 } Level;
 
 typedef struct {

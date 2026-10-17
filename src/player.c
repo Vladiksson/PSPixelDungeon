@@ -971,6 +971,22 @@ int player_throw_quick_slot(Player *p, Level *lvl) {
         return 0;
 
     player_throw(p, lvl, bag, slot, p->target_pos);
+    //TEST BULLSHIT 
+    /*
+    BLOB_FIRE = 0,
+    BLOB_TOXIC_GAS,
+    BLOB_PARALYTIC_GAS,
+    BLOB_CONFUSION_GAS,
+    BLOB_WEB,
+    BLOB_FOLIAGE,
+    BLOB_REGROWTH,
+    BLOB_ALCHEMY,
+    BLOB_SACRIFICIAL_FIRE,
+    BLOB_WATER_OF_AWARENESS,
+    BLOB_WATER_OF_HEALTH,
+    BLOB_WATER_OF_TRANSMUTATION,
+    BLOB_TYPE_COUNT*/
+    blob_seed(p->target_pos, 120, BLOB_FIRE);
     return 0;
 }
 
@@ -1303,6 +1319,7 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
         break;
     }
 
+    blob_set_hero(&p->base);
     mob_set_hero(&p->base);
     mob_set_kill_reward_hook(hero_receive_kill_xp);
 }
