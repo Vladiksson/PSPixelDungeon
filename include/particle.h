@@ -13,6 +13,9 @@ typedef enum {
    PK_LEAF,          /* Regrowth blob    — LeafParticle  */
    PK_SACRIFICIAL,   /* Sacrificial Fire — SacrificialParticle */
    PK_SNOW,          /* Freezing, via CellEmitter (not a Blob) — SnowParticle */
+   PK_WIND,          /* Chasm updraft, per-tile emitter (not a Blob) — WindParticle */
+   PK_FLOW,          /* Water dripping into a chasm, per-tile emitter (not a Blob) — FlowParticle */
+   PK_WATER,         /* Sewer WALL_DECO drip, per-tile emitter (not a Blob) — SewerLevel.WaterParticle/Sink */
 } ParticleKind;
 
 typedef enum {
@@ -46,24 +49,24 @@ typedef enum {
 } SpeckType;
 
 typedef struct {
-    ParticleKind kind;
-    int speck_type;        /* valid when kind==PK_SPECK (a SpeckType value) */
+   ParticleKind kind;
+   int speck_type;        /* valid when kind==PK_SPECK (a SpeckType value) */
 
-    /* position/velocity/accel */
-    float x, y;
-    float vx, vy;
-    float ax, ay;
+   /* position/velocity/accel */
+   float x, y;
+   float vx, vy;
+   float ax, ay;
 
-    float angle;            /* degrees */
-    float angular_speed;    /* degrees/sec */
-    float scale_x, scale_y; /* multiplies the base sprite/size */
-    float size;             
-    float size0;
+   float angle;            /* degrees */
+   float angular_speed;    /* degrees/sec */
+   float scale_x, scale_y; /* multiplies the base sprite/size */
+   float size;             
+   float size0;
 
-    float left, lifespan;
+   float left, lifespan;
 
-    float rm, gm, bm, am; /* (R, G, B, alpha) */
-    int light_mode;
+   float rm, gm, bm, am; /* (R, G, B, alpha) */
+   int light_mode;
 } Particle;
 
 
@@ -71,8 +74,10 @@ void particle_update_all(Level *lvl, float dt);
 typedef int (*CellVisibleFn)(int cell, void *user);
 void particle_update_blobs(Level *lvl, const BlobPool *pool, float dt, CellVisibleFn is_visible_fn, void *user);
 
+void particle_emit_speck(Level *lvl, int cell, SpeckType type);
 void particle_emit_snow(Level *lvl, int cell);
-
-void speck_sprite(int type, uint8_t *x, uint8_t *y, uint8_t *w, uint8_t *h);
+void particle_emit_wind(Level *lvl, int cell);
+void particle_emit_flow(Level *lvl, int cell);
+void particle_emit_water(Level *lvl, int cell);
 
 void particle_clear(Level *lvl);

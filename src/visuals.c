@@ -1,10 +1,42 @@
-#include "icons.h"
+#include "visuals.h"
 
 typedef struct {
     uint8_t x, y, w, h;
-} IconInfo;
+} SpriteRect;
 
-static const IconInfo ICONS[] = {
+static void sprite_get(const SpriteRect *sprites, int count, int index, SDL_Rect *rect) {
+    if (!rect)
+        return;
+
+    if (!sprites || index < 0 || index >= count) {
+        *rect = (SDL_Rect){0};
+        return;
+    }
+
+    SpriteRect s = sprites[index];
+
+    *rect = (SDL_Rect) {
+        .x = s.x,
+        .y = s.y,
+        .w = s.w,
+        .h = s.h
+    };
+}
+
+
+static const SpriteRect BANNERS[BANNER_COUNT] = {
+    [BANNER_PIXEL_DUNGEON]       = { 0,   0, 128, 70 },
+    [BANNER_BOSS_SLAIN]          = { 0,  70, 128, 35 },
+    [BANNER_GAME_OVER]           = { 0, 105, 128, 35 },
+    [BANNER_SELECT_YOUR_HERO]    = { 0, 140, 128, 21 },
+    [BANNER_PIXEL_DUNGEON_SIGNS] = { 0, 161, 128, 57 }
+};
+
+void banner_sprite(BannerId banner, SDL_Rect *rect) {
+    sprite_get(BANNERS, BANNER_COUNT, banner, rect);
+}
+
+static const SpriteRect ICONS[ICON_COUNT] = {
     [ICON_SKULL]          = {  0,  0,  8,  8 },
     [ICON_BUSY]           = {  8,  0,  8,  8 },
     [ICON_COMPASS]        = {  0,  8,  7,  5 },
@@ -58,9 +90,51 @@ IconId bag_icon(BagType type) {
     }
 }
 
-void icon_sprite(IconId icon, uint8_t *x, uint8_t *y, uint8_t *w, uint8_t *h) {
-    *x = ICONS[icon].x;
-    *y = ICONS[icon].y;
-    *w = ICONS[icon].w;
-    *h = ICONS[icon].h;
+void icon_sprite(IconId icon, SDL_Rect *rect) {
+    sprite_get(ICONS, ICON_COUNT, icon, rect);
 }
+
+void speck_sprite(int type, SDL_Rect *rect) {
+    if (!rect)
+        return;
+
+    int frame;
+
+    switch (type) {
+    case SPECK_DISCOVER:
+        frame = SPECK_LIGHT;
+        break;
+
+    case SPECK_EVOKE:
+    case SPECK_MASTERY:
+    case SPECK_KIT:
+    case SPECK_FORGE:
+        frame = SPECK_STAR;
+        break;
+
+    case SPECK_RATTLE:
+        frame = SPECK_BONE;
+        break;
+
+    case SPECK_JET:
+    case SPECK_TOXIC:
+    case SPECK_PARALYSIS:
+    case SPECK_CONFUSION:
+    case SPECK_DUST:
+        frame = SPECK_STEAM;
+        break;
+
+    default:
+        frame = type;
+        break;
+    }
+
+    *rect = (SDL_Rect) {
+        .x = frame * 7,
+        .y = 0,
+        .w = 7,
+        .h = 7
+    };
+}
+
+//TODO ADD EFFECTS + BUFF ICONS

@@ -491,14 +491,44 @@ void game_input(Game *game, InputState *inp, uint32_t now) {
 /* ══════════════════════════════════════════════════════════
    Update
    ══════════════════════════════════════════════════════════*/
+static float wind_emit_timer = 0.0f;
+
 void game_update(Game *game, RenderCtx *rctx, float dt) {
     actor_process();
 
     fog_update(game->fog, game->lvl, game->player.base.pos, fov_radius(&game->player, game->dungeon.current_depth));
     hud_update(rctx, &game->player);
 
-    render_update_water(rctx, dt); //TODO PARTICLES GONNA LIVE HERE
+    render_update_water(rctx, dt);
     render_update_particles(game->lvl, game->fog, dt);
+
+    //TEST OF THE DECORATIVE PARTICLES, MOVE SOMEWHERE
+    wind_emit_timer -= dt;
+
+    bool emit_wind = wind_emit_timer <= 0.0f;
+    if (emit_wind) {
+        wind_emit_timer += 0.75f;
+    }
+
+    for (int cur = 0; cur < LEVEL_SIZE; cur++) {
+        if (!is_visible(game->fog, &game->cam, idx_to_xy(cur))) {
+            continue;
+        }
+
+        int tile = game->lvl->map[cur];
+
+        if (emit_wind && cell_pit(game->lvl, cur)) {
+            particle_emit_wind(game->lvl, cur);
+        }
+
+        if (game->lvl->theme == THEME_SEWERS && tile == TILE_WALL_DECO) {
+            particle_emit_water(game->lvl, cur);
+        }
+
+        if (tile == TILE_CHASM_WATER) {
+            particle_emit_flow(game->lvl, cur);
+        }
+    }
 
     player_animate(&game->player, dt);
     mob_animate_all(dt);
@@ -516,7 +546,7 @@ void game_render(Game *game, RenderCtx *rctx) {
     render_frame(rctx, game->lvl, &game->cam);
     render_items(rctx, game->lvl, game->fog, &game->cam);
 
-    render_parctiles(rctx, game->lvl, &game->cam);
+    render_particles(rctx, game->lvl, &game->cam);
 
     render_mobs(rctx, game->fog, &game->cam);
     render_npcs(rctx, &game->player, game->fog, &game->cam);

@@ -27,7 +27,8 @@ static Particle *spawn_slot(Level *lvl) {
     memset(p, 0, sizeof(*p));
     p->scale_x = p->scale_y = 1.0f;
     p->size    = 1.0f;
-    p->rm = p->gm = p->bm = p->am = 1.0f;
+    p->rm = p->gm = p->bm =  1.0f;
+    p->am = 0.0f;
     return p;
 }
 
@@ -108,16 +109,17 @@ static Particle *spawn_speck(Level *lvl, int index, float x, float y, int type) 
         p->angle = rng_float() * 360.0f;
         p->angular_speed = 90.0f;
         p->lifespan = 0.5f;
-        p->am = 0.0f;
         break;
 
     case SPECK_QUESTION:
         p->lifespan = 0.8f;
+        p->am = 1.0f;
         break;
 
     case SPECK_UP:
         p->vy = -20.0f;
         p->lifespan = 1.0f;
+        p->am = 1.0f;
         break;
 
     case SPECK_SCREAM:
@@ -318,6 +320,7 @@ static Particle *spawn_leaf(Level *lvl, float x, float y) {
     p->vx = rng_float_range(-8.0f, 8.0f);
     p->vy = -20.0f;
     p->size = p->size0 = rng_float_range(2.0f, 3.0f);
+    p->am = 1.0f;
     p->left = p->lifespan;
     return p;
 }
@@ -334,91 +337,75 @@ static Particle *spawn_snow(Level *lvl, float x, float y) {
     return p;
 }
 
-typedef struct {
-    int active;
-    ParticleKind kind;
-    int speck_type;
-    float rate;
-    int spawn_count;
-    int light_mode;
-} BlobFx;
+static int   wind_seeded = 0;
+static float wind_angle  = 0.0f;
+static float wind_vx = 0.0f, wind_vy = 0.0f;
 
-static const BlobFx BLOB_FX[BLOB_TYPE_COUNT] = {
-    [BLOB_FIRE]                    = { 1, PK_FLAME,       0,               0.03f, 1, 1 },
-    [BLOB_TOXIC_GAS]               = { 1, PK_SPECK,  SPECK_TOXIC,          0.6f,  1, 0 },
-    [BLOB_PARALYTIC_GAS]           = { 1, PK_SPECK,  SPECK_PARALYSIS,      0.6f,  1, 0 },
-    [BLOB_CONFUSION_GAS]           = { 1, PK_SPECK,  SPECK_CONFUSION,      0.6f,  1, 1 },
-    [BLOB_WEB]                     = { 1, PK_WEB,         0,               0.4f,  3, 0 },
-    [BLOB_FOLIAGE]                 = { 1, PK_SHAFT,       0,               0.9f,  1, 1 },
-    [BLOB_REGROWTH]                = { 1, PK_LEAF,        0,               0.2f,  1, 0 },
-    [BLOB_ALCHEMY]                 = { 1, PK_SPECK,  SPECK_BUBBLE,         0.4f,  1, 0 },
-    [BLOB_SACRIFICIAL_FIRE]        = { 1, PK_SACRIFICIAL, 0,               0.04f, 1, 1 },
-    [BLOB_WATER_OF_AWARENESS]      = { 1, PK_SPECK,  SPECK_QUESTION,       0.3f,  1, 0 },
-    [BLOB_WATER_OF_HEALTH]         = { 1, PK_SPECK,  SPECK_HEALING,        0.5f,  1, 0 },
-    [BLOB_WATER_OF_TRANSMUTATION]  = { 1, PK_SPECK,  SPECK_CHANGE,         0.2f,  1, 0 },
-};
-
-static float blob_emit_timer[BLOB_TYPE_COUNT];
-
-static void seed_blob_emit_timers(void) {
-    for (int t = 0; t < BLOB_TYPE_COUNT; t++)
-        blob_emit_timer[t] = rng_float() * BLOB_FX[t].rate;
-}
-
-static Particle *spawn_for_kind(Level *lvl, ParticleKind kind, int speck_type, float x, float y) {
-    switch (kind) {
-        case PK_SPECK:       return spawn_speck(lvl, 0, x, y, speck_type);
-        case PK_FLAME:       return spawn_flame(lvl, x, y);
-        case PK_WEB:         return spawn_web_one(lvl, x, y);
-        case PK_SHAFT:       return spawn_shaft(lvl, x, y);
-        case PK_LEAF:        return spawn_leaf(lvl, x, y);
-        case PK_SACRIFICIAL: return spawn_sacrificial(lvl, x, y);
-        case PK_SNOW:        break;
-    }
-    return NULL;
-}
-
-static void emit_blob_tick(Level *lvl, const Blob *b, const BlobFx *fx, CellVisibleFn is_visible_fn, void *user) {
-    for (int i = 0; i < LEVEL_SIZE; i++) {
-        if (b->cur[i] <= 0) continue;
-        if (is_visible_fn && !is_visible_fn(i, user)) continue;
-
-        Point cell = idx_to_xy(i);
-        float x = (cell.x + rng_float()) * (float)TILE_SIZE_MIN;
-        float y = (cell.y + rng_float()) * (float)TILE_SIZE_MIN;
-
-        for (int n = 0; n < fx->spawn_count; n++) {
-            Particle *p = spawn_for_kind(lvl, fx->kind, fx->speck_type, x, y);
-            if (p) p->light_mode = fx->light_mode;
-        }
+static void wind_seed(void) {
+    if (!wind_seeded) {
+        wind_angle  = rng_float() * (2.0f * M_PI);
+        wind_vx     = 5.0f * cosf(wind_angle);
+        wind_vy     = 5.0f * sinf(wind_angle);
+        wind_seeded = 1;
     }
 }
 
-void particle_update_blobs(Level *lvl, const BlobPool *pool, float dt, CellVisibleFn is_visible_fn, void *user) {
-    if (!lvl || !pool) return;
+static Particle *spawn_wind(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    wind_seed();
 
-    for (int t = 0; t < BLOB_TYPE_COUNT; t++) {
-        const BlobFx *fx = &BLOB_FX[t];
-        if (!fx->active) continue;
+    p->kind = PK_WIND;
+    p->lifespan = rng_float_range(1.0f, 2.0f);
 
-        const Blob *b = &pool->slots[t];
-        if (b->volume <= 0) continue;
+    float size = rng_float() * 3.0f;
+    p->scale_x = p->scale_y = size;
 
-        blob_emit_timer[t] -= dt;
+    float vx = wind_vx * size;
+    float vy = wind_vy * size;
+    p->vx = vx;
+    p->vy = vy;
 
-        while (blob_emit_timer[t] < 0.0f) {
-            blob_emit_timer[t] += fx->rate;
-            emit_blob_tick(lvl, b, fx, is_visible_fn, user);
-        }
-    }
+    p->x = x - vx * p->lifespan * 0.5f;
+    p->y = y - vy * p->lifespan * 0.5f;
+
+    wind_angle += rng_float_range(-0.1f, 0.1f);
+    wind_vx = 5.0f * cosf(wind_angle);
+    wind_vy = 5.0f * sinf(wind_angle);
+
+    p->left = p->lifespan;
+    return p;
 }
 
-void particle_emit_snow(Level *lvl, int cell) {
-    Point c = idx_to_xy(cell);
-    float x = (c.x + rng_float()) * (float)TILE_SIZE_MIN;
-    float y = (c.y + 1.0f) * (float)TILE_SIZE_MIN;
-    spawn_snow(lvl, x, y);
+static Particle *spawn_flow(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_FLOW;
+    p->lifespan = 0.6f;
+    p->ay = 32.0f;
+    p->angular_speed = rng_float_range(-360.0f, 360.0f);
+    p->x = x; p->y = y;
+    p->size = 0.0f;
+    p->left = p->lifespan;
+    return p;
 }
+
+static Particle *spawn_water(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_WATER;
+    p->ay = 50.0f;
+    p->am = 0.5f;
+    color_lerp_random(p, 0xb6ccc2, 0x3b6653);
+    p->size = 2.0f;
+    p->x = x; p->y = y;
+    p->vx = rng_float_range(-2.0f, 2.0f);
+    p->vy = 0.0f;
+    p->lifespan = 0.5f;
+    p->left = p->lifespan;
+    return p;
+}
+
 
 void particle_update_all(Level *lvl, float dt) {
     if (!lvl) return;
@@ -566,42 +553,146 @@ void particle_update_all(Level *lvl, float dt) {
             p->am = ((prog < 0.5f) ? prog : 1.0f - prog) * 1.5f;
             break;
         }
+
+        case PK_WIND: {
+            float prog = p->left / p->lifespan;
+            p->am = (prog < 0.5f ? prog : 1.0f - prog) * p->scale_x * 0.2f;
+            break;
+        }
+
+        case PK_FLOW: {
+            float prog = p->left / p->lifespan;
+            p->am = (prog < 0.5f ? prog : 1.0f - prog) * 0.6f;
+            p->size = (1.0f - prog) * 4.0f;
+            break;
+        }
+
+        case PK_WATER:
+            break;
+
         }
 
         i++;
     }
 }
 
-void speck_sprite(int type, uint8_t *x, uint8_t *y, uint8_t *w, uint8_t *h) {
-    int frame;
-    switch (type) {
-    case SPECK_DISCOVER:
-        frame = SPECK_LIGHT;
-        break;
-    case SPECK_EVOKE:
-    case SPECK_MASTERY:
-    case SPECK_KIT:
-    case SPECK_FORGE:
-        frame = SPECK_STAR;
-        break;
-    case SPECK_RATTLE:
-        frame = SPECK_BONE;
-        break;
-    case SPECK_JET:
-    case SPECK_TOXIC:
-    case SPECK_PARALYSIS:
-    case SPECK_CONFUSION:
-    case SPECK_DUST:
-        frame = SPECK_STEAM;
-        break;
-    default:
-        frame = type;
-        break;
+typedef struct {
+    int active;
+    ParticleKind kind;
+    int speck_type;
+    float rate;
+    int spawn_count;
+    int light_mode;
+} BlobFx;
+
+static const BlobFx BLOB_FX[BLOB_TYPE_COUNT] = {
+    [BLOB_FIRE]                    = { 1, PK_FLAME,       0,               0.03f, 1, 1 },
+    [BLOB_TOXIC_GAS]               = { 1, PK_SPECK,  SPECK_TOXIC,          0.6f,  1, 0 },
+    [BLOB_PARALYTIC_GAS]           = { 1, PK_SPECK,  SPECK_PARALYSIS,      0.6f,  1, 0 },
+    [BLOB_CONFUSION_GAS]           = { 1, PK_SPECK,  SPECK_CONFUSION,      0.6f,  1, 1 },
+    [BLOB_WEB]                     = { 1, PK_WEB,         0,               0.4f,  3, 0 },
+    [BLOB_FOLIAGE]                 = { 1, PK_SHAFT,       0,               0.9f,  1, 1 },
+    [BLOB_REGROWTH]                = { 1, PK_LEAF,        0,               0.2f,  1, 0 },
+    [BLOB_ALCHEMY]                 = { 1, PK_SPECK,  SPECK_BUBBLE,         0.4f,  1, 0 },
+    [BLOB_SACRIFICIAL_FIRE]        = { 1, PK_SACRIFICIAL, 0,               0.04f, 1, 1 },
+    [BLOB_WATER_OF_AWARENESS]      = { 1, PK_SPECK,  SPECK_QUESTION,       0.3f,  1, 0 },
+    [BLOB_WATER_OF_HEALTH]         = { 1, PK_SPECK,  SPECK_HEALING,        0.5f,  1, 0 },
+    [BLOB_WATER_OF_TRANSMUTATION]  = { 1, PK_SPECK,  SPECK_CHANGE,         0.2f,  1, 0 },
+};
+
+static float blob_emit_timer[BLOB_TYPE_COUNT];
+
+static void seed_blob_emit_timers(void) {
+    for (int t = 0; t < BLOB_TYPE_COUNT; t++)
+        blob_emit_timer[t] = rng_float() * BLOB_FX[t].rate;
+}
+
+static Particle *spawn_for_kind(Level *lvl, ParticleKind kind, int speck_type, float x, float y) {
+    switch (kind) {
+        case PK_SPECK:       return spawn_speck(lvl, 0, x, y, speck_type);
+        case PK_FLAME:       return spawn_flame(lvl, x, y);
+        case PK_WEB:         return spawn_web_one(lvl, x, y);
+        case PK_SHAFT:       return spawn_shaft(lvl, x, y);
+        case PK_LEAF:        return spawn_leaf(lvl, x, y);
+        case PK_SACRIFICIAL: return spawn_sacrificial(lvl, x, y);
+        case PK_SNOW:        break;
+        case PK_WIND:        break;
+        case PK_FLOW:        break;
+        case PK_WATER:       break;
     }
-    *x = (uint8_t)(frame * 7);
-    *y = 0;
-    *w = 7;
-    *h = 7;
+    return NULL;
+}
+
+static void emit_blob_tick(Level *lvl, const Blob *b, const BlobFx *fx, CellVisibleFn is_visible_fn, void *user) {
+    for (int i = 0; i < LEVEL_SIZE; i++) {
+        if (b->cur[i] <= 0) continue;
+        if (is_visible_fn && !is_visible_fn(i, user)) continue;
+
+        Point cell = idx_to_xy(i);
+        float x = (cell.x + rng_float()) * (float)TILE_SIZE_MIN;
+        float y = (cell.y + rng_float()) * (float)TILE_SIZE_MIN;
+
+        for (int n = 0; n < fx->spawn_count; n++) {
+            Particle *p = spawn_for_kind(lvl, fx->kind, fx->speck_type, x, y);
+            if (p) p->light_mode = fx->light_mode;
+        }
+    }
+}
+
+void particle_update_blobs(Level *lvl, const BlobPool *pool, float dt, CellVisibleFn is_visible_fn, void *user) {
+    if (!lvl || !pool) return;
+
+    for (int t = 0; t < BLOB_TYPE_COUNT; t++) {
+        const BlobFx *fx = &BLOB_FX[t];
+        if (!fx->active) continue;
+
+        const Blob *b = &pool->slots[t];
+        if (b->volume <= 0) continue;
+
+        blob_emit_timer[t] -= dt;
+
+        while (blob_emit_timer[t] < 0.0f) {
+            blob_emit_timer[t] += fx->rate;
+            emit_blob_tick(lvl, b, fx, is_visible_fn, user);
+        }
+    }
+}
+
+void particle_emit_speck(Level *lvl, int cell, SpeckType type) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + rng_float()) * (float)TILE_SIZE_MIN;
+    float y = (c.y + rng_float()) * (float)TILE_SIZE_MIN;
+    spawn_speck(lvl, 0, x, y, type);
+}
+
+void particle_emit_snow(Level *lvl, int cell) { //TODO use with freezing_affect
+    Point c = idx_to_xy(cell);
+    float x = (c.x + rng_float()) * (float)TILE_SIZE_MIN;
+    float y = (c.y + 0.75f) * (float)TILE_SIZE_MIN;
+    spawn_snow(lvl, x, y);
+}
+
+void particle_emit_wind(Level *lvl, int cell) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + rng_float()) * (float)TILE_SIZE_MIN;
+    float y = (c.y + rng_float()) * (float)TILE_SIZE_MIN;
+    spawn_wind(lvl, x, y);
+}
+
+void particle_emit_flow(Level *lvl, int cell) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + rng_float()) * (float)TILE_SIZE_MIN;
+    float y = (c.y ) * (float)TILE_SIZE_MIN - 1.0f;
+    spawn_flow(lvl, x, y);
+}
+
+void particle_emit_water(Level *lvl, int cell) {
+    Point c = idx_to_xy(cell);
+    float cx = (c.x + 0.5f) * (float)TILE_SIZE_MIN;
+    float cy = (c.y + 0.5f) * (float)TILE_SIZE_MIN;
+    float x = (cx - 2.0f) + rng_float() * 4.0f; 
+    float y = cy + 1.0f;
+    spawn_water(lvl, x, y);
 }
 
 void particle_clear(Level *lvl) {

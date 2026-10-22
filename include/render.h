@@ -3,9 +3,7 @@
 #include "player.h"
 #include "fov.h"
 #include "font.h"
-#include "banners.h"
-#include "avatars.h"
-#include "particle.h"
+#include "visuals.h"
 
 typedef struct {
    SDL_Texture *chrome;
@@ -58,6 +56,8 @@ typedef struct {
    MenuTextures  menu;
 } RenderCtx;
 
+bool is_visible(const Fog *fog, const Camera *cam, Point pos);
+
 int  render_init  (RenderCtx *ctx);
 void render_free  (RenderCtx *ctx);
 
@@ -74,7 +74,7 @@ void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
 void render_mobs   (RenderCtx *ctx, const Fog *fog, const Camera *cam);
 void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *cam);
 
-void render_parctiles(RenderCtx *ctx, const Level *lvl, const Camera *cam);
+void render_particles(RenderCtx *ctx, const Level *lvl, const Camera *cam);
 
 void render_missiles(RenderCtx *ctx, const Camera *cam);
 

@@ -962,10 +962,7 @@ static void paint_laboratory(Level *lvl, Room *r, int depth) {
     if (in_bounds_xy(px, py)) {
         int pidx = xy_to_idx(px, py);
         set_tile(lvl, pidx, TILE_ALCHEMY);
-        /* TODO:
-           Alchemy alchemy = new Alchemy();
-           alchemy.seed(pos,1);
-        */     
+        blob_seed(pidx, 1, BLOB_ALCHEMY);
     }
 
     int n = rng_range(2, 3);
@@ -1019,12 +1016,11 @@ static void paint_garden(Level *lvl, Room *r, int depth){
             /* TODO: plant_spawn(lvl, PLANT_SUNGRASS, x, y); */
         }
     }
-/* TODO: Foliage blob.
-       for (int y = r->top + 1; y < r->bottom; y++) {
-           for (int x = r->left + 1; x < r->right; x++) {
-               blob_seed(BLOB_FOLIAGE, xy_to_idx(x,y), 1);
-           }
-       }*/
+    for (int y = r->top + 1; y < r->bottom; y++) {
+        for (int x = r->left + 1; x < r->right; x++) {
+            blob_seed(xy_to_idx(x, y), 1, BLOB_FOLIAGE);
+        }
+    }
 }
 /* ══════════════════════════════════════════════════════════
    CRYPT ROOM — CryptPainter.paint()
@@ -1266,8 +1262,7 @@ static void paint_altar(Level *lvl, Room *r, int depth){ //REDO broken
     }
     fill_rect(lvl, c.x - 1, c.y - 1, 3, 3, TILE_EMBERS);
     set_tile( lvl, xy_to_idx(c.x, c.y), TILE_PEDESTAL);
-    /* TODO: SacrificialFire blob
-       blob_seed(SACRIFICIAL_FIRE, xy_to_idx(cx,cy), 5 + depth*5); */
+    blob_seed(xy_to_idx(c.x, c.y), 5 + depth * 5, BLOB_SACRIFICIAL_FIRE);
 }
 /* ══════════════════════════════════════════════════════════
    MAGIC WELL ROOM 
@@ -1276,16 +1271,17 @@ static void paint_magic_well(Level *lvl, Room *r) {
     paint_room_base(lvl, r, TILE_EMPTY);
     
     Point c = room_center(r);
-    set_tile(lvl, xy_to_idx(c.x, c.y), TILE_EMPTY_WELL);
+    int well = xy_to_idx(c.x, c.y);
+    set_tile(lvl, well, TILE_EMPTY_WELL);
     switch (rng_int(3)) {
         case 0:
-            /* TODO: Water of Awareness */
+            blob_seed(well, 1, BLOB_WATER_OF_AWARENESS);
             break;
         case 1:
-            /* TODO: Water of Health */
+            blob_seed(well, 1, BLOB_WATER_OF_HEALTH);
             break;
         case 2:
-            /* TODO: Water of Transmutation */
+            blob_seed(well, 1, BLOB_WATER_OF_TRANSMUTATION);
             break;
     }
 }

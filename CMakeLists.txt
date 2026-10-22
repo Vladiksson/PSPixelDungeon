@@ -34,9 +34,7 @@ add_executable(${PROJECT_NAME}
     src/sprite_db.c
     src/rng.c
     src/font.c
-    src/icons.c
-    src/banners.c
-    src/avatars.c
+    src/visuals.c
     src/ui.c
     src/ui_ninepatch.c
     src/fov.c
@@ -165,7 +163,7 @@ if(PSP)
         TITLE           "PSPixel Dungeon"
         VERSION         01.00
         ICON_PATH       ${CMAKE_CURRENT_SOURCE_DIR}/icon/ICON0.PNG
-        BACKGROUND_PATH NULL
+        BACKGROUND_PATH ${CMAKE_CURRENT_SOURCE_DIR}/icon/PIC0.PNG
         PREVIEW_PATH    NULL
     )
 endif()

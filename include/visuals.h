@@ -1,6 +1,19 @@
 #pragma once
-//#include "player.h"
+#include <stdint.h>
+#include <SDL2/SDL.h>
+#include "particle.h"
 #include "bag.h"
+
+typedef enum {
+    BANNER_PIXEL_DUNGEON,
+    BANNER_BOSS_SLAIN,
+    BANNER_GAME_OVER,
+    BANNER_SELECT_YOUR_HERO,
+    BANNER_PIXEL_DUNGEON_SIGNS,
+    BANNER_COUNT
+} BannerId;
+
+void banner_sprite(BannerId banner, SDL_Rect *rect);
 
 typedef enum {
     ICON_SKULL,
@@ -39,4 +52,6 @@ typedef enum {
 /*IconId hero_icon(HeroClass cls);*/
 IconId bag_icon(BagType type);
 
-void icon_sprite(IconId icon, uint8_t *x, uint8_t *y, uint8_t *w, uint8_t *h);
+void icon_sprite(IconId icon, SDL_Rect *rect);
+
+void speck_sprite(int type, SDL_Rect *rect);

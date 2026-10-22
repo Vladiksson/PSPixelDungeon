@@ -269,8 +269,8 @@ static void foliage_evolve(Blob *b) {
     }
 }
 
-void foliage_try_stealth(Char *hero, int enemies_visible) {
-    if (!char_is_alive(hero) || enemies_visible) return;
+void foliage_try_stealth(Char *hero) {
+    if (!char_is_alive(hero)) return;
 
     Blob *foliage = blob_get(BLOB_FOLIAGE);
     if (foliage && foliage->cur[hero->pos] > 0) {
@@ -326,7 +326,7 @@ static void sacrificial_fire_evolve(Blob *b) {
     /* TODO: the original also applies a "Marked for sacrifice" buff (Buff.prolong(ch, Marked.class, 5f)) */
 }
 
-void sacrificial_fire_sacrifice(Char *ch) {
+void sacrificial_fire_sacrifice(Char *ch) { //REDO
     /* TODO: Wound.hit(ch) */
 
     Blob *fire = blob_get(BLOB_SACRIFICIAL_FIRE);
@@ -401,11 +401,6 @@ void wellwater_affect_cell(int cell) {
     for (int i = 0; i < 3; i++) {
         Blob *w = blob_get(WATERS[i]);
         if (w && w->volume > 0 && w->pos == cell && wellwater_affect(w)) {
-            Level *lvl = char_active_level();
-            if (lvl) {
-                /* TODO: GameScene.updateMap(cell) — render hook */
-                lvl->map[cell] = TILE_EMPTY_WELL;
-            }
             return;
         }
     }
@@ -414,7 +409,7 @@ void wellwater_affect_cell(int cell) {
 /* ══════════════════════════════════════════════════════════
    Freezing
    ══════════════════════════════════════════════════════════ */
-int freezing_affect(int cell, Blob *fire) {
+int freezing_affect(int cell, Blob *fire) { //mb redo
     Char *ch = char_find_at(cell);
     if (ch) {
         char_apply_buff(ch, BUFF_FROST, FROST_DURATION * (1.0f + rng_float() * 0.5f));

@@ -1,6 +1,5 @@
 #include "render.h"
 #include "assets.h"
-#include "icons.h"
 #include "ballistica.h"
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
@@ -12,7 +11,7 @@ static bool is_visible_on_camera(const Camera *cam, Point pos) {
            pos.y >= cam->tile_y &&
            pos.y <= cam->tile_y + gViewRows;
 }
-static bool is_visible(const Fog *fog, const Camera *cam, Point pos) {
+bool is_visible(const Fog *fog, const Camera *cam, Point pos) {
     if (!is_visible_on_camera(cam, pos))
         return false;
 
@@ -503,12 +502,11 @@ static Uint8 to_byte(float v01) {
 static void draw_speck(RenderCtx *ctx, const Particle *pt, float scr_x, float scr_y, float px_scale) {
     if (!ctx->specks) return;
 
-    uint8_t sx, sy, sw, sh;
-    speck_sprite(pt->speck_type, &sx, &sy, &sw, &sh);
-    SDL_Rect src = { sx, sy, sw, sh };
+    SDL_Rect src;
+    speck_sprite(pt->speck_type, &src);
 
-    float draw_w = sw * px_scale * pt->scale_x;
-    float draw_h = sh * px_scale * pt->scale_y;
+    float draw_w = src.w * px_scale * pt->scale_x;
+    float draw_h = src.h * px_scale * pt->scale_y;
 
     SDL_Rect dst = {
         (int)(scr_x - draw_w / 2.0f + 0.5f),
@@ -552,7 +550,7 @@ static void draw_pixel_particle(RenderCtx *ctx, const Particle *pt, float scr_x,
     SDL_SetTextureBlendMode(ctx->particle_pixel, SDL_BLENDMODE_BLEND); /* restore — shared texture */
 }
 
-void render_parctiles(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
+void render_particles(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     float px_scale = (float)gTileSize / (float)TILE_SIZE_MIN;
     Point origin = camera_tile_to_screen(cam, 0, 0);
 
@@ -632,21 +630,20 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
 
  
 /* ── render_player ────────────────────────────────── */
-static int hero_armor_tier = 0;
-
-static SDL_Rect hero_frame_rect(const AnimClip *clip, int frame) {
+static SDL_Rect hero_frame_rect(const AnimClip *clip, int frame, int armor_tier) {
     uint8_t col = clip->frames[frame % clip->count];
 
     SDL_Rect src = {
         col * TILESET_HERO_W,
-        hero_armor_tier * TILESET_HERO_H,
+        armor_tier * TILESET_HERO_H,
         TILESET_HERO_W,
         TILESET_HERO_H
     };
     return src;
 }
 static SDL_Rect player_frame_rect(const Player *p) {
-    return hero_frame_rect(&HERO_CLIPS[p->anim], p->frame);
+    int armor_tier = get_armor_tier(&p->armor);
+    return hero_frame_rect(&HERO_CLIPS[p->anim], p->frame, armor_tier);
 }
 
 static Point hero_draw_size(void) {
@@ -681,7 +678,6 @@ void render_player(RenderCtx *ctx, const Player *p, const Camera *cam) {
     Point pos = idx_to_xy(p->base.pos);
     Point screen = camera_tile_to_screen(cam, pos.x, pos.y);
 
-    hero_armor_tier = get_armor_tier(&p->armor);
     SDL_Rect src = player_frame_rect(p);
 
     render_char_sprite(ctx->renderer, tex, src, screen, size.x, size.y, p->facing); 
@@ -759,12 +755,8 @@ void render_mobs(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
 
             IconId icon = mob_status_icon(m);
 
-            uint8_t ix, iy, iw, ih;
-            icon_sprite(icon, &ix, &iy, &iw, &ih);
-
-            SDL_Rect icon_src = {
-                ix, iy, iw, ih
-            };
+            SDL_Rect icon_src;
+            icon_sprite(icon, &icon_src);
 
             int scale = gTileSize / TILE_SIZE_MIN;
             if (scale < 1)
@@ -773,8 +765,8 @@ void render_mobs(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
             SDL_Rect icon_dst = {
                 dst.x + dst.w - 3,
                 dst.y - 5,
-                iw * scale,
-                ih * scale
+                icon_src.w * scale,
+                icon_src.h * scale
             };
 
             SDL_RenderCopy(ctx->renderer, ctx->icons, &icon_src, &icon_dst);
@@ -840,8 +832,8 @@ static void render_mirror_npc(RenderCtx *ctx, const Player *p, const Camera *cam
     Point size = hero_draw_size();
     Point screen = camera_tile_to_screen(cam, pos.x, pos.y);
 
-    hero_armor_tier = get_armor_tier(&p->armor);
-    SDL_Rect src = hero_frame_rect(clip, n->frame);
+    int armor_tier = get_armor_tier(&p->armor);
+    SDL_Rect src = hero_frame_rect(clip, n->frame, armor_tier);
 
     render_char_sprite(ctx->renderer, tex, src, screen, size.x, size.y, n->facing);
 }
@@ -909,10 +901,9 @@ void render_target_cursor(RenderCtx *ctx, int pos, const Camera *cam) {
     Point p = idx_to_xy(pos);
     Point screen = camera_tile_to_screen(cam, p.x, p.y);
 
-    uint8_t x, y, w, h;
-    icon_sprite(ICON_TARGET, &x, &y, &w, &h);
+    SDL_Rect src;
+    icon_sprite(ICON_TARGET, &src);
 
-    SDL_Rect src = { x, y, w, h };
     SDL_Rect dst = { screen.x, screen.y, gTileSize, gTileSize };
 
     SDL_RenderCopy(ctx->renderer, ctx->icons, &src, &dst);
@@ -964,6 +955,21 @@ void render_banner_glow(RenderCtx *ctx, const SDL_Rect *dst) {
     SDL_SetTextureBlendMode(ctx->banners, SDL_BLENDMODE_BLEND);
 }
 
+#define AVATAR_W 24
+#define AVATAR_H 32
+
+static void avatar_sprite(HeroClass hero, SDL_Rect *src) {
+    if (!src || hero < HERO_WARRIOR || hero >= HERO_CLASS_COUNT) {
+        if (src)
+            *src = (SDL_Rect){0, 0, 0, 0};
+        return;
+    }
+
+    src->x = (int)hero * AVATAR_W;
+    src->y = 0;
+    src->w = AVATAR_W;
+    src->h = AVATAR_H;
+}
 static void render_avatar(RenderCtx *ctx, HeroClass hero, const SDL_Rect *dst) {
     if (!ctx->avatars || !dst)
         return;
@@ -977,23 +983,18 @@ static void render_avatar(RenderCtx *ctx, HeroClass hero, const SDL_Rect *dst) {
     SDL_RenderCopy(ctx->renderer, ctx->avatars, &src, dst);
 }
 
-const HeroClass heroes[] = {
-    HERO_WARRIOR,
-    HERO_MAGE,
-    HERO_ROGUE,
-    HERO_HUNTRESS
-};
-
 void render_avatars(RenderCtx *ctx, int scale) {
-    int avatar_w = 24 * scale;
-    int avatar_h = 32 * scale;
-    int gap = 12;
+    int avatar_w = AVATAR_W * scale;
+    int avatar_h = AVATAR_H * scale;
+    int gap = (AVATAR_W / 2);
 
-    int total_w = 4 * avatar_w + 3 * gap;
+    int hero_count = HERO_CLASS_COUNT;
+    int total_w = hero_count * avatar_w + (hero_count - 1) * gap;
+
     int start_x = (SCREEN_W - total_w) / 2;
     int y = (SCREEN_H - avatar_h) / 2;
 
-    for (int i = 0; i < 4; ++i) {
+    for (int i = HERO_WARRIOR; i < HERO_CLASS_COUNT; ++i) {
         SDL_Rect dst = {
             start_x + i * (avatar_w + gap),
             y,
@@ -1001,6 +1002,6 @@ void render_avatars(RenderCtx *ctx, int scale) {
             avatar_h
         };
 
-        render_avatar(ctx, heroes[i], &dst);
+        render_avatar(ctx, (HeroClass)i, &dst);
     }
 }

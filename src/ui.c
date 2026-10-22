@@ -1,6 +1,6 @@
 #include "ui.h"
 #include "ui_ninepatch.h"
-#include "icons.h"
+#include "visuals.h"
 #include "common.h"
 #include "player.h"
 
@@ -171,11 +171,10 @@ static void draw_wrapped_text(RenderCtx *ctx, int x, int y, SDL_Color color, con
 }
 
 static void draw_icon(RenderCtx *ctx, IconId icon, int x, int y, int size) {
-    uint8_t sx, sy, sw, sh;
-    icon_sprite(icon, &sx, &sy, &sw, &sh);
+    SDL_Rect src;
+    icon_sprite(icon, &src);
 
-    SDL_Rect src = { sx, sy, sw, sh };
-    SDL_Rect dst = { x + (size - sw) / 2, y + (size - sh) / 2, sw, sh };
+    SDL_Rect dst = { x + (size - src.w) / 2, y + (size - src.h) / 2, src.w, src.h };
     SDL_RenderCopy(ctx->renderer, ctx->icons, &src, &dst);
 }
 
@@ -765,11 +764,11 @@ static void render_quick_slot(RenderCtx *ctx, const Player *p) {
 static void render_busy_indicator(RenderCtx *ctx, const Player *p) {
     if (!char_is_alive(&p->base)) // || p->ready)
         return;
-    uint8_t sx, sy, sw, sh;
-    icon_sprite(ICON_BUSY, &sx, &sy, &sw, &sh);
 
-    SDL_Rect src = { sx, sy, sw, sh };
-    SDL_Rect dst = { 0,  50, sw * 2, sh * 2 };
+    SDL_Rect src;
+    icon_sprite(ICON_BUSY, &src);
+
+    SDL_Rect dst = { 0,  50, src.w * 2, src.h * 2 };
 
     SDL_SetTextureBlendMode(ctx->icons, SDL_BLENDMODE_BLEND);
     SDL_SetTextureAlphaMod(ctx->icons, 128);

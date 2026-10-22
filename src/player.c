@@ -986,7 +986,7 @@ int player_throw_quick_slot(Player *p, Level *lvl) {
     BLOB_WATER_OF_HEALTH,
     BLOB_WATER_OF_TRANSMUTATION,
     BLOB_TYPE_COUNT*/
-    blob_seed(p->target_pos, 120, BLOB_FIRE);
+    blob_seed(p->target_pos, 120, BLOB_TOXIC_GAS);
     return 0;
 }
 
@@ -1146,6 +1146,10 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
 
     char_move(&p->base, lvl, idx);
     p->cursor_pos = p->base.pos;
+    
+    //TEST OF BLOBS
+    wellwater_affect_cell(idx);
+    foliage_try_stealth(&p->base);
 
     char_spend(&p->base, 1.0f / char_speed(&p->base));
     actor_next(&p->base.base); 
