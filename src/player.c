@@ -24,6 +24,9 @@ static int player_can_act(const Player *p) {
     if (!char_is_alive(&p->base))
         return 0;
 
+    if (p->base.paralysed)
+        return 0;
+
     if (player_is_busy(p))
         return 0;
 
@@ -540,7 +543,9 @@ void player_sort_inventory(Player *p) {
 }
 
 void player_consume_item(Player *p, Bag *bag, int slot) {
-    if (item_consume(&bag->items[slot]) == ITEM_USE_CONSUMED) {
+    ItemStack stack = bag->items[slot];
+    ItemConsumeResult result = item_consume(&stack);
+    if (result == ITEM_USE_CONSUMED) {
         //TODO ADD USING CONSUMABLES
         //MB ADD MORE STATES + USE SWITCH
 
@@ -565,6 +570,58 @@ void player_consume_item(Player *p, Bag *bag, int slot) {
         actor_next(&p->base.base);
         /* TEST: random buff with random duration */
 
+        bag_remove_item(bag, slot, 1);
+    }
+
+    if (result == ITEM_CONSUME_POTION) { //TODO SIMILAR STUFF FOR THROWING POTIONS
+        switch (stack.type) {
+            case ITEM_POTION_HEALING:
+                p->base.HP = p->base.HT;
+                break;
+            case ITEM_POTION_EXPERIENCE:
+                p->exp = 0;
+                p->lvl++;
+                break;
+            case ITEM_POTION_TOXIC_GAS:
+                blob_seed(p->base.pos, 1000, BLOB_TOXIC_GAS);
+                break;
+            case ITEM_POTION_PARALYTIC_GAS:
+                blob_seed(p->base.pos, 1000, BLOB_PARALYTIC_GAS);
+                break;
+            case ITEM_POTION_LIQUID_FLAME:
+                blob_seed(p->base.pos, 2, BLOB_FIRE);
+                break;
+            case ITEM_POTION_LEVITATION:
+                char_apply_buff(&p->base, BUFF_LEVITATION, LEVITATION_DURATION);
+                break;
+            case ITEM_POTION_STRENGTH:
+                p->STR++;
+                break;
+            case ITEM_POTION_MIND_VISION:
+                char_apply_buff(&p->base, BUFF_MIND_VISION, MIND_VISION_DURATION);
+                break;
+            case ITEM_POTION_PURITY:
+                char_apply_buff(&p->base, BUFF_GASES_IMMUNITY, BUFF_GASES_IMMUNITY_DURATION);
+                break;
+            case ITEM_POTION_INVISIBILITY:
+                char_apply_buff(&p->base, BUFF_INVISIBILITY, INVISIBILITY_DURATION);
+                break;
+            case ITEM_POTION_MIGHT:
+                p->base.HT += 5;
+                p->base.HP += 5;
+                p->STR++;
+                break;
+            case ITEM_POTION_FROST:
+                freezing_affect(p->base.pos);
+                break;
+            default:
+                break;
+        }
+
+        player_play_anim(p, ANIM_OPERATE);
+
+        char_spend(&p->base, 1.0f);
+        actor_next(&p->base.base);
         bag_remove_item(bag, slot, 1);
     }
 }
@@ -986,7 +1043,7 @@ int player_throw_quick_slot(Player *p, Level *lvl) {
     BLOB_WATER_OF_HEALTH,
     BLOB_WATER_OF_TRANSMUTATION,
     BLOB_TYPE_COUNT*/
-    blob_seed(p->target_pos, 120, BLOB_TOXIC_GAS);
+    blob_seed(p->target_pos, 1000, BLOB_PARALYTIC_GAS);
     return 0;
 }
 
@@ -1292,6 +1349,9 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     player_init_item(p, ITEM_WAR_HAMMER, 1);//TEST
     player_init_item(p, ITEM_SCROLL_UPGRADE, 100);//TEST
     player_init_item(p, ITEM_JAVELIN, 100);//TEST
+
+    player_init_item(p, ITEM_POTION_LIQUID_FLAME, 1);//TEST
+    player_init_item(p, ITEM_POTION_FROST, 10);//TEST
 
     switch (p->cls) {
     case HERO_WARRIOR:

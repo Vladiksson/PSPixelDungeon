@@ -135,6 +135,7 @@ void item_identify(ItemStack *stack);
 //temporary bullshit variant for using consumable items:
 typedef enum {
     ITEM_USE_FAIL,
+    ITEM_CONSUME_POTION,
     ITEM_USE_CONSUMED,
 } ItemConsumeResult;
 

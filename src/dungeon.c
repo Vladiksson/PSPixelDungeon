@@ -37,8 +37,9 @@ void dungeon_init(Dungeon *d){
 
     d->blacksmith_depth = 11 + (d->world_seed % 3);
 
-    dungeon_create_floor(d, d->current_depth);
     blob_set_depth(d->current_depth);
+
+    dungeon_create_floor(d, d->current_depth);
     fog_init(&d->fog[d->current_depth]);
 
     char_set_active_level(&d->floors[d->current_depth]);

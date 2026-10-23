@@ -70,6 +70,10 @@ typedef struct {
 #define HUNGER_STEP      10.0f
 #define HUNGER_HUNGRY    260.0f
 #define HUNGER_STARVING  360.0f
+#define LEVITATION_DURATION 20.0f
+#define MIND_VISION_DURATION 20.0f
+#define BUFF_GASES_IMMUNITY_DURATION 15.0f
+#define INVISIBILITY_DURATION 15.0f
 
 Buff *char_buff(Char *self, BuffType type);
 

@@ -385,9 +385,14 @@ void item_identify(ItemStack *stack) {
  
 
 ItemConsumeResult item_consume(ItemStack *stack) { //temporary bullshit variant for using consumable items
-    if (!ITEM_DB[stack->type].stackable)
+    const ItemDef item = ITEM_DB[stack->type];
+
+    if (!item.stackable || item.cat == ITEMCAT_WEAPON)
         return ITEM_USE_FAIL;
 
+    if (item.cat == ITEMCAT_POTION)
+        return ITEM_CONSUME_POTION;
+    
     return ITEM_USE_CONSUMED;
 }
 

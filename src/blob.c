@@ -85,6 +85,13 @@ Blob *blob_get(BlobType type) {
     return b->active ? b : NULL;
 }
 
+Blob *blob_get_at(int cell, BlobType type) {
+    Blob *b = blob_get(type);
+    if (!b || b->volume <= 0) return NULL;
+
+    return b->cur[cell] > 0 ? b : NULL;
+}
+
 void blob_clear_cell(Blob *b, int cell) {
     b->volume  -= b->cur[cell];
     b->cur[cell] = 0;
@@ -409,12 +416,13 @@ void wellwater_affect_cell(int cell) {
 /* ══════════════════════════════════════════════════════════
    Freezing
    ══════════════════════════════════════════════════════════ */
-int freezing_affect(int cell, Blob *fire) { //mb redo
+int freezing_affect(int cell) {
     Char *ch = char_find_at(cell);
     if (ch) {
         char_apply_buff(ch, BUFF_FROST, FROST_DURATION * (1.0f + rng_float() * 0.5f));
     }
 
+    Blob *fire = blob_get_at(cell, BLOB_FIRE);
     if (fire) {
         blob_clear_cell(fire, cell);
     }
@@ -510,6 +518,7 @@ void blob_clear(BlobPool *pool) {
 void blob_restore_pool(BlobPool *pool) {
     for (int i = 0; i < BLOB_TYPE_COUNT; i++) {
         if (pool->slots[i].active) {
+            pool->slots[i].base.time = 0.0f;
             actor_add(&pool->slots[i].base);
         }
     }

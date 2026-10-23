@@ -55,7 +55,7 @@ void blob_clear_cell(Blob *b, int cell);
 
 void wellwater_affect_cell(int cell);
 void sacrificial_fire_sacrifice(Char *ch);
-int freezing_affect(int cell, Blob *fire /* nullable */);
+int freezing_affect(int cell);
 void foliage_try_stealth(Char *hero);
 
 const char *blob_tile_desc(BlobType type);
