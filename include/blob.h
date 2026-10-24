@@ -52,6 +52,7 @@ void blob_set_hero(Char *hero);
 
 Blob *blob_get(BlobType type);
 void blob_clear_cell(Blob *b, int cell);
+void clear_blob(int cell, BlobType type);
 
 void wellwater_affect_cell(int cell);
 void sacrificial_fire_sacrifice(Char *ch);

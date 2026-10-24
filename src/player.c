@@ -351,7 +351,7 @@ static void hero_on_damaged(Char *self, int dmg_taken, void *src, DamageSource s
 }
 
 static int hero_buff_immune(Char *self, BuffType type) {
-    if ((type == BUFF_PARALYSIS || type == BUFF_VERTIGO) && char_buff(self, BUFF_GASES_IMMUNITY)) {
+    if ((type == BUFF_PARALYSIS || type == BUFF_VERTIGO) && char_buff(self, BUFF_GASES_IMMUNITY)) { //ADD immunity to DMGSRC_TOXIC_GAS
         return 1;
     }
     return 0;
@@ -832,6 +832,41 @@ static void player_circle_back(Player *p, Level *lvl, int from) {
     }
 }
 
+static void player_throw_potion(ItemType type, int cell) {
+    if (ITEM_DB[type].cat != ITEMCAT_POTION)
+        return;
+    switch (type) {
+        case ITEM_POTION_FROST:
+            freezing_affect(cell);
+            break;
+        case ITEM_POTION_TOXIC_GAS:
+            blob_seed(cell, 1000, BLOB_TOXIC_GAS);
+            break;
+        case ITEM_POTION_PARALYTIC_GAS:
+            blob_seed(cell, 1000, BLOB_PARALYTIC_GAS);
+            break;
+        case ITEM_POTION_LIQUID_FLAME:
+            blob_seed(cell, 2, BLOB_FIRE);
+            break;
+        case ITEM_POTION_PURITY:
+            clear_blob(cell, BLOB_PARALYTIC_GAS);
+            clear_blob(cell, BLOB_TOXIC_GAS);
+            clear_blob(cell, BLOB_CONFUSION_GAS);
+            break;
+
+        case ITEM_POTION_INVISIBILITY:
+        case ITEM_POTION_HEALING:
+        case ITEM_POTION_EXPERIENCE:
+        case ITEM_POTION_MIGHT:
+        case ITEM_POTION_LEVITATION:
+        case ITEM_POTION_STRENGTH:
+        case ITEM_POTION_MIND_VISION:
+        default:
+            break;
+    }
+    return;
+}
+
 /* Item.onThrow() / MissileWeapon.onThrow() and the per-missile overrides. */
 static void player_throw_resolve(Player *p, Level *lvl) {
     const int cell = p->thrown.cell;
@@ -839,7 +874,9 @@ static void player_throw_resolve(Player *p, Level *lvl) {
     const MissileWeaponDef *mwd = missile_def(item.type);
 
     if (!mwd) {
-        player_land_item(p, lvl, item, cell);   /* TODO: Potion/Seed/Bomb... override onThrow() */
+        player_throw_potion(item.type, cell);
+        if (ITEM_DB[item.type].cat != ITEMCAT_POTION)
+            player_land_item(p, lvl, item, cell);   /* TODO: Potion/Seed/Bomb... override onThrow() */
         return;
     }
 
@@ -1028,22 +1065,7 @@ int player_throw_quick_slot(Player *p, Level *lvl) {
         return 0;
 
     player_throw(p, lvl, bag, slot, p->target_pos);
-    //TEST BULLSHIT 
-    /*
-    BLOB_FIRE = 0,
-    BLOB_TOXIC_GAS,
-    BLOB_PARALYTIC_GAS,
-    BLOB_CONFUSION_GAS,
-    BLOB_WEB,
-    BLOB_FOLIAGE,
-    BLOB_REGROWTH,
-    BLOB_ALCHEMY,
-    BLOB_SACRIFICIAL_FIRE,
-    BLOB_WATER_OF_AWARENESS,
-    BLOB_WATER_OF_HEALTH,
-    BLOB_WATER_OF_TRANSMUTATION,
-    BLOB_TYPE_COUNT*/
-    blob_seed(p->target_pos, 1000, BLOB_PARALYTIC_GAS);
+
     return 0;
 }
 
@@ -1350,8 +1372,9 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     player_init_item(p, ITEM_SCROLL_UPGRADE, 100);//TEST
     player_init_item(p, ITEM_JAVELIN, 100);//TEST
 
-    player_init_item(p, ITEM_POTION_LIQUID_FLAME, 1);//TEST
-    player_init_item(p, ITEM_POTION_FROST, 10);//TEST
+    player_init_item(p, ITEM_POTION_PURITY, 10);//TEST
+    player_init_item(p, ITEM_POTION_TOXIC_GAS, 10);//TEST
+    player_init_item(p, ITEM_POTION_PARALYTIC_GAS, 10);//TEST
 
     switch (p->cls) {
     case HERO_WARRIOR:

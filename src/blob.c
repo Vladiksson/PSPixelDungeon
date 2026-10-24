@@ -97,6 +97,12 @@ void blob_clear_cell(Blob *b, int cell) {
     b->cur[cell] = 0;
 }
 
+void clear_blob(int cell, BlobType type) {
+    Blob *blob = blob_get_at(cell, type);
+    if (blob) {
+        blob_clear_cell(blob, cell);
+    }
+}
 /* ══════════════════════════════════════════════════════════
    Fire
    ══════════════════════════════════════════════════════════ */
