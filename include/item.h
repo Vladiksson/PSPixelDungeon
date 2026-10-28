@@ -14,6 +14,10 @@ typedef struct {
    uint8_t cursed;        /* is this specific instance cursed?            */
    uint8_t cursed_known;  /* found out yet? equipping always reveals it   */
    int16_t durability;    /* current durability, out of item_max_durability() */
+
+   int8_t  charges;       /* current charge count, 0..wand_max_charges()     */
+   
+   uint8_t usages_to_id;  /* zaps left until this TYPE auto-identifies, mirrors Wand.usagesToKnow */
 } ItemStack;
 
 typedef enum {
@@ -61,8 +65,13 @@ int heap_add_stack(Heap *heap, ItemStack stack);
    original's use() — a fresh, un-enchanted item never breaks. */
  
 #define ITEM_DURABILITY_WARN_NUM 1
-#define ITEM_DURABILITY_WARN_DEN 6   /* matches Item.java's DURABILITY_WARNING_LEVEL = 1/6f */
- 
+#define ITEM_DURABILITY_WARN_DEN 6
+
+#define ITEM_WAND_USAGES_TO_KNOW 40
+#define ITEM_ARMOR_USAGES_TO_KNOW 10 
+#define ITEM_WEAPON_USAGES_TO_KNOW 20 
+#define ITEM_RING_TICKS_TO_KNOW 200 
+
 typedef enum {
     ITEM_USE_OK = 0,          /* nothing notable happened                    */
     ITEM_USE_WARN_BREAKING,   /* durability just crossed the low threshold   */
@@ -102,7 +111,13 @@ static inline ItemStack item_stack_none(void) {
  
 /* Placeholder max-durability formula */
 int item_max_durability(ItemType type, int level);
- 
+
+/* Wand.updateLevel(): maxCharges = min(initialCharges()+level, 9), floored
+   at 1 so a heavily-degraded wand still has somewhere for charges to sit.
+   Pure function of (type,level), same shape as item_max_durability() —
+   the rest of the wand-specific state/behavior lives in wand.h/wand.c. */
+int wand_max_charges(ItemType type, int level);
+
 void item_stack_init(ItemStack *stack, ItemType type, int quantity);
 void item_stack_init_start(ItemStack *stack, ItemType type, int quantity);
 
@@ -130,7 +145,7 @@ ItemUseResult item_use(ItemStack *stack);
    POTION/SCROLL/WAND/RING) mark the whole TYPE known for the rest of
    the run. */
 void item_identify(ItemStack *stack);
-
+void item_register_use(ItemStack *stack);
 
 //temporary bullshit variant for using consumable items:
 typedef enum {

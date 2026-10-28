@@ -295,13 +295,28 @@ int item_max_durability(ItemType type, int level) {
     }
     return base;
 }
- 
+
+int wand_max_charges(ItemType type, int level) {
+    int initial = ITEM_DB[type].wand.initial_charges;
+    int max = initial + level;
+    if (max > 9) max = 9;
+    if (max < 1) max = 1;
+    return max;
+}
+
+static void wand_stack_init_charges(ItemStack *stack, ItemType type) {
+    if (ITEM_DB[type].cat != ITEMCAT_WAND) return;
+    stack->charges      = (int8_t)wand_max_charges(type, stack->level); /* public int curCharges = maxCharges; */
+}
+
 void item_stack_init(ItemStack *stack, ItemType type, int quantity) {
     stack->type     = type;
     stack->quantity = quantity;
-    stack->level    = 0; 
+    stack->level    = 0;
     stack->cursed = 0;
- 
+    stack->level_known  = 1;
+    stack->cursed_known = 1;
+
     if (ITEM_DB[type].upgradable) {
         switch (ITEM_DB[type].cat) {
             case ITEMCAT_WEAPON:
@@ -319,21 +334,32 @@ void item_stack_init(ItemStack *stack, ItemType type, int quantity) {
             default:
                 break;
         }
+        switch (ITEM_DB[type].cat) {
+            case ITEMCAT_WEAPON:
+            case ITEMCAT_ARMOR:
+            case ITEMCAT_WAND:
+            case ITEMCAT_RING:
+                stack->level_known  = 0;
+                stack->cursed_known = 0;
+                break;
+            default:
+                break;
+        }
     }
-    stack->level_known  = 0; 
-    stack->cursed_known = 0;
+    
     stack->durability = (int16_t)item_max_durability(type, stack->level);
+    wand_stack_init_charges(stack, type);
 }
 
 void item_stack_init_start(ItemStack *stack, ItemType type, int quantity) {
     stack->type     = type;
     stack->quantity = quantity;
     stack->level = stack->cursed = 0;
-    stack->level_known = stack->cursed_known = 1; 
+    stack->level_known = stack->cursed_known = 1;
     stack->durability = (int16_t)item_max_durability(type, stack->level);
+    wand_stack_init_charges(stack, type);
 }
 
- 
 void item_fix(ItemStack *stack) {
     stack->durability = (int16_t)item_max_durability(stack->type, stack->level);
 }
@@ -350,13 +376,26 @@ void item_upgrade(ItemStack *stack) {
     stack->cursed       = 0;
     stack->cursed_known = 1;
     item_fix(stack);
+
+    if (ITEM_DB[stack->type].cat == ITEMCAT_WAND) {
+        /* updateLevel() then `curCharges = min(curCharges+1, maxCharges)` */
+        int max = wand_max_charges(stack->type, stack->level);
+        if (stack->charges > max) stack->charges = (int8_t)max;
+        if (stack->charges < max) stack->charges++;
+    }
 }
- 
+
 void item_degrade(ItemStack *stack) {
     if (!ITEM_DB[stack->type].upgradable)
         return;
     stack->level--;
     item_fix(stack);
+
+    if (ITEM_DB[stack->type].cat == ITEMCAT_WAND) {
+        /* updateLevel(): no charge bump on degrade, just clamp down if maxCharges shrank */
+        int max = wand_max_charges(stack->type, stack->level);
+        if (stack->charges > max) stack->charges = (int8_t)max;
+    }
 }
 
  
@@ -390,13 +429,23 @@ ItemConsumeResult item_consume(ItemStack *stack) { //temporary bullshit variant 
     if (!item.stackable || item.cat == ITEMCAT_WEAPON)
         return ITEM_USE_FAIL;
 
+    item_identify(stack);
+    
     if (item.cat == ITEMCAT_POTION)
         return ITEM_CONSUME_POTION;
     
     return ITEM_USE_CONSUMED;
 }
 
+void item_register_use(ItemStack *stack) {
+    if (item_is_identified(stack) && item_status_is_known(stack->type))
+        return;
 
+    if (stack->usages_to_id > 0) stack->usages_to_id--;
+    if (stack->usages_to_id == 0) {
+        item_identify(stack);
+    }
+}
 
 /*═══════════════════════════════════════════════════════════════
     Weapon / armor stats

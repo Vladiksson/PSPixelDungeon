@@ -56,7 +56,9 @@ int cell_secret(const Level *lvl, int idx) {
 int cell_solid(const Level *lvl, int idx) {
     return (gTileFlags[lvl->map[idx]] & TF_SOLID) != 0;
 }
-//tf_liquid
+int cell_liquid(const Level *lvl, int idx) {
+    return (gTileFlags[lvl->map[idx]] & TF_LIQUID) != 0;
+}
 
 bool tile_unstitchable(uint8_t t) {
     return (gTileFlags[t] & TF_UNSTITCHABLE) != 0;

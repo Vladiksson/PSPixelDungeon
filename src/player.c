@@ -2,6 +2,7 @@
 #include "npc.h"
 #include "item_spawn.h"
 #include "level_geometry.h"
+#include "item_wand.h"
 #include <stddef.h>
 
 /*═══════════════════════════════════════════════════════════════
@@ -11,11 +12,18 @@ static int player_throw_in_flight(const Player *p) {
     return p->thrown.active && missile_is_flying();
 }
 
+static int player_zap_in_flight(const Player *p) {
+    return p->zapping.active && missile_is_flying();
+}
+
 static int player_is_busy(const Player *p) {
     if (!char_is_alive(&p->base))
         return 1;
 
     if (player_throw_in_flight(p))
+        return 1;
+
+    if (player_zap_in_flight(p))
         return 1;
 
     return char_is_busy(&p->base);
@@ -109,6 +117,43 @@ void player_set_moving(Player *p, int moving) {
     }
 }
 
+/*═══════════════════════════════════════════════════════════════
+    Wand charging
+═══════════════════════════════════════════════════════════════*/
+static void player_charge_all_wands(Player *p) {
+    for (int t = 0; t < BAG_TYPE_COUNT; t++) {
+        if (!player_has_bag(p, (BagType)t))
+            continue;
+
+        Bag *bag = &p->bags[t];
+        for (int i = 0; i < bag->count; i++) {
+            ItemStack *item = &bag->items[i];
+            if (ITEM_DB[item->type].cat != ITEMCAT_WAND)
+                continue;
+
+            int max = wand_max_charges(item->type, item->level);
+            if (item->charges < max)
+                item->charges++;
+        }
+    }
+}
+
+static void player_charge_wands(Player *p) {
+    if (++p->wand_charge_turns < WAND_CHARGE_TURN_INTERVAL)
+        return;
+
+    p->wand_charge_turns = 0;
+    player_charge_all_wands(p);
+}
+
+static void player_end_turn(Player *p, float time) {
+    char_spend(&p->base, time);
+    actor_next(&p->base.base);
+    
+    player_charge_wands(p); //TODO add mage's bonus for charging
+    item_register_use(&p->ring1);
+    item_register_use(&p->ring2); //TODO add rogue's bonus for rings
+}
 /*═══════════════════════════════════════════════════════════════
     Hero stats — STR/leveling
 ═══════════════════════════════════════════════════════════════*/
@@ -300,9 +345,10 @@ static int hero_attack_proc(Char *self, Char *enemy, int damage) {
         }
     }
 
-    /* Placeholder — Weapon.proc()'s enchantment + hitsToKnow auto-identify
-       still isn't ported. The subclass switch below covers Gladiator and
-       Sniper; Battlemage's wand-charging branch needs the Wand item type
+    item_register_use(hero_weapon(p));
+    /* Placeholder — Weapon.proc()'s enchantment still isn't ported. 
+       The subclass switch below covers Gladiator and Sniper; 
+       Battlemage's wand-charging branch needs the Wand item type
        and stays a placeholder too. */
     if (p->sub_class == HERO_SUB_GLADIATOR && !p->ranged_attack && p->weapon.type != ITEM_NONE) {
         damage += char_combo_hit(self, enemy, damage);
@@ -327,12 +373,10 @@ static int hero_defense_proc(Char *self, Char *attacker, int damage) {
     /* Placeholder — the original first checks Ring of Thorns (reflects a
        cut of damage back) and an Earthroot-armor buff (flat absorb). */
 
-    /* belongings.armor.proc() -> Armor.proc() -> use().  Runs on EVERY hit that
-       lands, including one fully soaked up by dr (damage == 0) — which is why
-       this can't live in on_damaged behind a dmg_taken > 0 check. Armor.proc()'s
-       glyph + hitsToKnow auto-identify go here too once ported. */
+    /* Armor.proc()'s glyph  */
     if (p->armor.type != ITEM_NONE) {
         hero_wear_item(&p->armor);
+        item_register_use(&p->armor);
     }
     return damage;
 }
@@ -490,8 +534,7 @@ int player_drop_from_bag(Player *p, Level *lvl, Bag *bag, int slot) {
     if (!heap_add_stack(h, stack))
         return 0;
 
-    char_spend(&p->base, 0.5f); /* Item.TIME_TO_DROP */
-    actor_next(&p->base.base);
+    player_end_turn(p, 0.5f);
     return bag_remove_item(bag, slot, stack.quantity);
 }
 
@@ -566,14 +609,15 @@ void player_consume_item(Player *p, Bag *bag, int slot) {
 
         char_apply_buff(&p->base, type, duration);
         
-        char_spend(&p->base, 1.0f);
-        actor_next(&p->base.base);
+        player_end_turn(p, 1.0f);
         /* TEST: random buff with random duration */
+        char_remove_buffs_of_type(&p->base, BUFF_INVISIBILITY); //for future scrolls reading
+        char_remove_buffs_of_type(&p->base, BUFF_SHADOWS);
 
         bag_remove_item(bag, slot, 1);
     }
 
-    if (result == ITEM_CONSUME_POTION) { //TODO SIMILAR STUFF FOR THROWING POTIONS
+    if (result == ITEM_CONSUME_POTION) {
         switch (stack.type) {
             case ITEM_POTION_HEALING:
                 p->base.HP = p->base.HT;
@@ -620,8 +664,8 @@ void player_consume_item(Player *p, Bag *bag, int slot) {
 
         player_play_anim(p, ANIM_OPERATE);
 
-        char_spend(&p->base, 1.0f);
-        actor_next(&p->base.base);
+        player_end_turn(p, 1.0f);
+
         bag_remove_item(bag, slot, 1);
     }
 }
@@ -702,8 +746,7 @@ int player_equip_item(Player *p, Bag *bag, int slot, int spend_time) {
     dst->cursed_known = 1;
 
     if(spend_time) {
-        char_spend(&p->base, equip_time(p, dst));
-        actor_next(&p->base.base);
+        player_end_turn(p, equip_time(p, dst));
     }
     player_sort_inventory(p);
     return EQUIP_OK;
@@ -743,8 +786,7 @@ int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target, int spend
     dst->cursed_known = 1;
 
     if(spend_time) {
-        char_spend(&p->base, equip_time(p, dst));
-        actor_next(&p->base.base);
+        player_end_turn(p, equip_time(p, dst));
     }
     player_sort_inventory(p);
     return 1;
@@ -762,8 +804,7 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
 
     if (player_add_stack(p, stack)) {
         *src = item_stack_none();
-        char_spend(&p->base, equip_time(p, &stack));
-        actor_next(&p->base.base);
+        player_end_turn(p, equip_time(p, &stack));
         player_sort_inventory(p);
         return 1;
     }
@@ -773,8 +814,7 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl) {
 
         if (h && heap_add_stack(h, stack)) {
             *src = item_stack_none();
-            char_spend(&p->base, equip_time(p, &stack));
-            actor_next(&p->base.base);
+            player_end_turn(p, equip_time(p, &stack));
             player_sort_inventory(p);
             return 1;
         }
@@ -911,8 +951,7 @@ static void player_throw_land(void *ctx) {
     p->thrown.active  = 0;
     p->thrown.item    = item_stack_none();
 
-    char_spend(&p->base, p->thrown.delay);      /* user.spendAndNext(finalDelay) */
-    actor_next(&p->base.base);
+    player_end_turn(p, p->thrown.delay);
 }
 
 
@@ -959,6 +998,87 @@ int player_throw(Player *p, Level *lvl, Bag *bag, int slot, int dst) {
     
     if (!missile_launch(p->base.pos, cell, item.type, missile_spin_for(item.type), player_throw_land, p)) {
         player_throw_land(p);
+    }
+    return 1;
+}
+
+/*═══════════════════════════════════════════════════════════════
+    Zapping
+═══════════════════════════════════════════════════════════════*/
+static void player_zap_land(void *ctx) {
+    Player *p = (Player *)ctx;
+    Level *lvl = char_active_level();
+
+    Bag *bag = NULL;
+    int slot = -1;
+
+    if (lvl && player_locate_item(p, p->zapping.type, &bag, &slot)) {
+        ItemStack *item = &bag->items[slot];
+
+        wand_zap(item, &p->base, lvl, &p->zapping.path, p->zapping.cell);
+
+        wand_consume_charge(item);     /* wandUsed(): curCharges-- */
+        item_register_use(item);       /* wandUsed(): usagesToKnow countdown -> identify() */
+        hero_wear_item(item);          /* wandUsed(): use() -- durability wear */
+    }
+
+    p->zapping.active = 0;
+    wand_bolt_clear();
+
+    player_end_turn(p, 1.0f);
+}
+
+int player_zap(Player *p, Level *lvl, Bag *bag, int slot, int dst) {
+    if (!lvl || !bag || slot < 0 || slot >= bag->count)
+        return 0;
+    if (!player_can_act(p))
+        return 0;
+    if (!in_bounds(dst))
+        return 0;
+
+    ItemStack *item = &bag->items[slot];
+    if ((unsigned)item->type >= (unsigned)ITEM_TYPE_COUNT)
+        return 0;
+    if (ITEM_DB[item->type].cat != ITEMCAT_WAND)
+        return 0;
+    if (item->charges <= 0)
+        return 0;
+
+    if (dst == p->base.pos)   /* Wand.zapper: "You can't target yourself" -- silently refused, no turn spent */
+        return 0;
+
+    Ballistica path;
+    int cell = ballistica_cast(&path, lvl, p->base.pos, dst, 1 /* magic */, wand_hits_chars(item->type));
+
+    item_status_know(item->type);      /* curWand.setKnown() -- unconditional, even on a fizzle */
+
+    Point self   = idx_to_xy(p->base.pos);
+    Point target = idx_to_xy(cell);
+    if (target.x != self.x)
+        p->facing = (target.x < self.x) ? FACE_LEFT : FACE_RIGHT;
+    player_play_anim(p, ANIM_ZAP);
+
+    int charges = item->charges;
+
+    if (charges <= 0) {
+        /* zapper's fizzle path: reveals the enchant level (not a full
+           identify), costs a turn, no charge/durability spent. */
+        item->level_known = 1;
+        player_end_turn(p, 1.0f);
+        return 1;
+    }
+
+    p->zapping.active = 1;
+    p->zapping.type   = item->type;
+    p->zapping.cell   = cell;
+    p->zapping.path   = path;
+
+    char_remove_buffs_of_type(&p->base, BUFF_INVISIBILITY);
+    char_remove_buffs_of_type(&p->base, BUFF_SHADOWS);
+
+    wand_bolt_set_flying(item->type);
+    if (!missile_launch(p->base.pos, cell, item->type, MISSILE_NO_SPIN, player_zap_land, p)) {
+        player_zap_land(p);
     }
     return 1;
 }
@@ -1038,7 +1158,11 @@ int player_use_quick_slot(Player *p, Level *lvl) {
         return 0;
 
     case ITEMCAT_WAND:
-        /* TODO: ZAP */
+        if (p->attack_target != NULL) {
+            int dst = player_quick_target(p);
+            if (dst != p->base.pos)
+                player_zap(p, lvl, bag, slot, dst);
+        }
         return 0;
 
     default:
@@ -1123,8 +1247,7 @@ int player_pickup(Player *p, Level *lvl) {
         *h = lvl->heaps[--lvl->num_heaps];
     }
 
-    char_spend(&p->base, 1.0f); /* Item.TIME_TO_PICK_UP */
-    actor_next(&p->base.base);
+    player_end_turn(p, 1.0f);
     return 1;
 }
 
@@ -1141,8 +1264,7 @@ int player_operate(Player *p, Level *lvl, int idx) {
         return 0;
     player_play_anim(p, ANIM_OPERATE);
     h->type = HEAP_NORMAL;
-    char_spend(&p->base, 1.0f);
-    actor_next(&p->base.base);
+    player_end_turn(p, 1.0f);
     return 1;
 }
 static int player_interact_tile(Player *p, Level *lvl, int idx) {
@@ -1154,23 +1276,20 @@ static int player_interact_tile(Player *p, Level *lvl, int idx) {
             return 1;
 
         lvl->map[idx] = TILE_OPEN_DOOR;
-        char_spend(&p->base, 1.0f);
-        actor_next(&p->base.base);
+        player_end_turn(p, 1.0f);
         player_play_anim(p, ANIM_OPERATE);
         return 1;
 
     case TILE_LOCKED_EXIT:
         //if (!player_use_key(p, ITEM_KEY_SKELETON)) return 0; /*TODO: REMOVE COMMENT AFTER ADDING BOSSES WITH KEY DROPS */
         lvl->map[idx] = TILE_UNLOCKED_EXIT;
-        char_spend(&p->base, 1.0f);
-        actor_next(&p->base.base);
+        player_end_turn(p, 1.0f);
         player_play_anim(p, ANIM_OPERATE);
         return 1;
 
     case TILE_HIGH_GRASS:
         lvl->map[idx] = TILE_GRASS;
         //TODO SPAWN SEEDS + ITEM_DEWDROP 
-        //IS IT HAS ANIMATION???
         return 0;
     }
 
@@ -1179,8 +1298,7 @@ static int player_interact_tile(Player *p, Level *lvl, int idx) {
 
 void player_rest(Player *p) {
     if (!p->resting) {
-        char_spend(&p->base, 1.0f);
-        actor_next(&p->base.base);
+        player_end_turn(p, 1.0f);
         return;
     }
     if (p->base.HP >= p->base.HT || char_hunger_is_starving(&p->base)) {
@@ -1188,8 +1306,7 @@ void player_rest(Player *p) {
         return;
     }
 
-    char_spend(&p->base, 1.0f);
-    actor_next(&p->base.base);
+    player_end_turn(p, 1.0f);
 
     /* TODO: the original also breaks resting after mob comes into fov (Hero.checkVisibleMobs())*/
 }
@@ -1203,8 +1320,7 @@ void player_search(Player *p, Level *lvl) { //test for search
         lvl->map[idx] = tile_discover(lvl, idx);
         //TODO particles
     }
-    char_spend(&p->base, 1.0f);
-    actor_next(&p->base.base);
+    player_end_turn(p, 1.0f);
 }
 
 int player_move(Player *p, Level *lvl, int dx, int dy) {
@@ -1226,12 +1342,16 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
     char_move(&p->base, lvl, idx);
     p->cursor_pos = p->base.pos;
     
-    //TEST OF BLOBS
+    //mb move on new function????
     wellwater_affect_cell(idx);
     foliage_try_stealth(&p->base);
 
-    char_spend(&p->base, 1.0f / char_speed(&p->base));
-    actor_next(&p->base.base); 
+    if (cell_liquid(lvl, idx)) {
+        char_remove_buffs_of_type(&p->base, BUFF_OOZE);
+        char_remove_buffs_of_type(&p->base, BUFF_BURNING);
+    }
+
+    player_end_turn(p, 1.0f / char_speed(&p->base));
 
     return 1;
 }
@@ -1253,7 +1373,11 @@ static int player_start_attack(Player *p, Char *target) {
     char_begin_attack_anim(&p->base, target);
 
     char_attack(&p->base, target);
-    actor_next(&p->base.base);
+
+    char_remove_buffs_of_type(&p->base, BUFF_INVISIBILITY);
+    char_remove_buffs_of_type(&p->base, BUFF_SHADOWS);
+
+    player_end_turn(p, 0.0f);
 
     return 1;
 }
@@ -1354,6 +1478,8 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->ranged_attack       = 0;
     memset(&p->thrown, 0, sizeof(p->thrown));
     p->thrown.item         = item_stack_none();
+    memset(&p->zapping, 0, sizeof(p->zapping));
+    p->wand_charge_turns   = 0;
 
     p->resting             = 0;
 
@@ -1370,11 +1496,11 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     player_init_item(p, ITEM_WARRIOR_ARMOR, 1);//TEST
     player_init_item(p, ITEM_WAR_HAMMER, 1);//TEST
     player_init_item(p, ITEM_SCROLL_UPGRADE, 100);//TEST
-    player_init_item(p, ITEM_JAVELIN, 100);//TEST
+    player_init_item(p, ITEM_CURARE_DART, 100);//TEST
 
-    player_init_item(p, ITEM_POTION_PURITY, 10);//TEST
+    player_init_item(p, ITEM_POTION_INVISIBILITY, 10);//TEST
     player_init_item(p, ITEM_POTION_TOXIC_GAS, 10);//TEST
-    player_init_item(p, ITEM_POTION_PARALYTIC_GAS, 10);//TEST
+    player_init_item(p, ITEM_POTION_STRENGTH, 10);//TEST
 
     switch (p->cls) {
     case HERO_WARRIOR:
@@ -1382,11 +1508,13 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
         player_init_item(p, ITEM_SHORT_SWORD, 1);
         equip_from_bag(p, ITEM_SHORT_SWORD);
         player_init_item(p, ITEM_DART, 8);
+        item_status_know(ITEM_POTION_STRENGTH);
         break;
     case HERO_MAGE:
         player_init_item(p, ITEM_KNUCKLES, 1);
         equip_from_bag(p, ITEM_KNUCKLES);
         player_init_item(p, ITEM_WAND_MAGIC_MISSILE, 1);
+        item_status_know(ITEM_SCROLL_IDENTIFY);
         break;
     case HERO_ROGUE:
         player_init_item(p, ITEM_DAGGER, 1);
@@ -1394,6 +1522,9 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
         player_init_item(p, ITEM_DART, 8);
         player_init_item(p, ITEM_RING_SHADOWS, 1);
         equip_ring_from_bag(p, ITEM_RING_SHADOWS, EQUIP_RING1);
+        item_upgrade(&p->ring1);
+        item_identify(&p->ring1);
+        item_status_know(ITEM_SCROLL_MAGIC_MAPPING);
         break;
     case HERO_HUNTRESS:
         p->base.HT -= 5;                         /* Huntresses start with 15 HP */

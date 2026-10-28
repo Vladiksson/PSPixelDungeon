@@ -13,6 +13,7 @@ void generate_ring(ItemStack *stack) {
         stack->cursed = 0;
     }
     item_fix(stack);
+    stack->usages_to_id  = ITEM_RING_TICKS_TO_KNOW;
 }
 
 /* common part Weapon.random() and Armor.random() */
@@ -36,11 +37,12 @@ static void roll_upgrade_or_curse(ItemStack *stack) {
  
 void generate_weapon(ItemStack *stack) {
     roll_upgrade_or_curse(stack);
+    stack->usages_to_id  = ITEM_WEAPON_USAGES_TO_KNOW;
 }
  
 void generate_armor(ItemStack *stack) {
     roll_upgrade_or_curse(stack);
- 
+    stack->usages_to_id  = ITEM_ARMOR_USAGES_TO_KNOW;
     /* Armor.random() also rolls a 1-in-10 chance to inscribe() a
        random glyph. There's no glyph/enchantment system on
        ItemStack yet (same gap as Weapon's enchantments) */
@@ -53,14 +55,13 @@ void generate_wand(ItemStack *stack) {
             item_upgrade(stack);
         }
     }
+    stack->usages_to_id  = ITEM_WAND_USAGES_TO_KNOW;
 }
  
 /* ══════════════════════════════════════════════════════════
    RANDOM ITEM SELECTION  —  Generator.random() / Category.prob
    ══════════════════════════════════════════════════════════ */
 
-/* Weighted pick among a category's members — mirrors
-   Random.chances(cat.probs) picking an index into cat.classes[]. */
 ItemType random_item_of_category(ItemCategory cat) {
     float total = 0.0f;
     for (int t = 0; t < ITEM_TYPE_COUNT; t++)
@@ -75,19 +76,12 @@ ItemType random_item_of_category(ItemCategory cat) {
         if (roll < SPAWN_ITEM_WEIGHT[t]) return (ItemType)t;
         roll -= SPAWN_ITEM_WEIGHT[t];
     }
-    /* Only reachable via float rounding right at the edge of `total`;
-       fall back to the last positive-weight member of the category. */
+
     for (int t = ITEM_TYPE_COUNT - 1; t >= 0; t--)
         if (ITEM_DB[t].cat == cat && SPAWN_ITEM_WEIGHT[t] > 0.0f) return (ItemType)t;
     return ITEM_NONE;
 }
- 
-/* Weighted pick of a category, then a weighted pick within it —
-   mirrors Generator.random(). NOTE: this leaves out Generator.java's
-   "halve this category's odds after picking it" decay — that needs
-   persistent per-run state (a static HashMap of current weights in
-   the original), and nothing in item.h/level.h holds that state yet.
-   Every call here re-rolls from the same fixed table above.*/
+
 ItemType random_item(void) {
     float total = 0.0f;
     for (int c = 0; c < ITEMCAT_COUNT; c++) total += SPAWN_CATEGORY_WEIGHT[c];
@@ -100,7 +94,7 @@ ItemType random_item(void) {
         }
         roll -= SPAWN_CATEGORY_WEIGHT[c];
     }
-    return ITEM_GOLD; /* unreachable in practice */
+    return ITEM_GOLD;
 }
  
 int gold_amount(int depth) {

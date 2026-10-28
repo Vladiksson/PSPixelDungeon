@@ -80,6 +80,7 @@ Buff *char_buff(Char *self, BuffType type);
 void char_hunger_satisfy(Char *self, float energy);
 int  char_hunger_is_starving(Char *self);
 void char_barkskin_grant(Char *self, int level);
+void char_poison_set(Char *self, float duration);
 void char_bleeding_grant(Char *self, int level);
 int  char_combo_hit(Char *self, Char *enemy, int damage);
 int  char_consume_snipers_mark(Char *self, Char *target);

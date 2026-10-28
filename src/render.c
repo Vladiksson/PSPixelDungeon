@@ -1,6 +1,7 @@
 #include "render.h"
 #include "assets.h"
 #include "ballistica.h"
+#include "item_wand.h"
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
@@ -866,9 +867,36 @@ void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *
 
 
 /* ── render_missiles ───────────────────────────────────── */
-void render_missiles(RenderCtx *ctx, const Camera *cam) {
-    if (!ctx->items) return;
+static void render_wand_bolt_at(RenderCtx *ctx, float scr_x, float scr_y, uint8_t r, uint8_t g, uint8_t b) { //REDO temporary bullshit
+    if (!ctx->particle_pixel) return;
 
+    float glow_size = gTileSize * 0.5f;
+    SDL_Rect glow_dst = {
+        (int)(scr_x - glow_size / 2.0f + 0.5f),
+        (int)(scr_y - glow_size / 2.0f + 0.5f),
+        (int)(glow_size + 0.5f),
+        (int)(glow_size + 0.5f)
+    };
+    SDL_SetTextureColorMod(ctx->particle_pixel, r, g, b);
+    SDL_SetTextureAlphaMod(ctx->particle_pixel, 110);
+    SDL_SetTextureBlendMode(ctx->particle_pixel, SDL_BLENDMODE_ADD);
+    SDL_RenderCopy(ctx->renderer, ctx->particle_pixel, NULL, &glow_dst);
+
+    float core_size = gTileSize * 0.4f;
+    SDL_Rect core_dst = {
+        (int)(scr_x - core_size / 2.0f + 0.5f),
+        (int)(scr_y - core_size / 2.0f + 0.5f),
+        (int)(core_size + 0.5f),
+        (int)(core_size + 0.5f)
+    };
+    SDL_SetTextureAlphaMod(ctx->particle_pixel, 255);
+    SDL_RenderCopy(ctx->renderer, ctx->particle_pixel, NULL, &core_dst);
+
+    SDL_SetTextureColorMod(ctx->particle_pixel, 255, 255, 255);
+    SDL_SetTextureBlendMode(ctx->particle_pixel, SDL_BLENDMODE_BLEND);
+}
+
+void render_missiles(RenderCtx *ctx, const Camera *cam) {
     MissileView mv;
     if (missiles_snapshot(&mv) <= 0) return;
 
@@ -877,11 +905,21 @@ void render_missiles(RenderCtx *ctx, const Camera *cam) {
         return;
 
     Point origin = camera_tile_to_screen(cam, 0, 0);
+    float scr_x = origin.x + mv.x * gTileSize;
+    float scr_y = origin.y + mv.y * gTileSize;
+
+    uint8_t r, g, b;
+    if (wand_bolt_color(&r, &g, &b)) {
+        render_wand_bolt_at(ctx, scr_x + gTileSize * 0.5f, scr_y + gTileSize * 0.5f, r, g, b);
+        return;
+    }
+
+    if (!ctx->items) return;
 
     SDL_Rect src = { mv.col * ICON_SIZE, mv.row * ICON_SIZE, ICON_SIZE, ICON_SIZE };
     SDL_Rect dst = {
-        origin.x + (int)(mv.x * gTileSize + 0.5f),
-        origin.y + (int)(mv.y * gTileSize + 0.5f),
+        (int)(scr_x + 0.5f),
+        (int)(scr_y + 0.5f),
         gTileSize,
         gTileSize
     };

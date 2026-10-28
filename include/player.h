@@ -11,6 +11,8 @@
 #define HERO_STARTING_DEFENSE     5
 #define HERO_STARTING_AWARENESS  0.1f
 
+#define WAND_CHARGE_TURN_INTERVAL 40 //redo
+
 typedef enum {
    HERO_WARRIOR = 0,
    HERO_MAGE,
@@ -79,6 +81,13 @@ typedef struct {
 } ThrownItem;
 
 typedef struct {
+   int        active;
+   ItemType   type;     /* re-located by type at land time via player_locate_item(), like the quick slot does */
+   int        cell;
+   Ballistica path;
+} ZapCast;
+
+typedef struct {
    Char base;
    
    HeroClass cls;
@@ -113,6 +122,9 @@ typedef struct {
 
    int ranged_attack;      /* set only while shoot() resolves a hit; selects thrown.item as the weapon */
    ThrownItem thrown;
+   ZapCast    zapping;
+
+   int wand_charge_turns;  /* counts real player turns 0..WAND_CHARGE_TURN_INTERVAL; see player_charge_wands() in player.c */
 
    int resting;
 
@@ -147,6 +159,7 @@ int player_use_quick_slot(Player *p, Level *lvl);
 int player_throw_quick_slot(Player *p, Level *lvl);
 
 int player_throw(Player *p, Level *lvl, Bag *bag, int slot, int dst);
+int player_zap(Player *p, Level *lvl, Bag *bag, int slot, int dst);
 
 int fov_radius(Player *player, int depth);
 

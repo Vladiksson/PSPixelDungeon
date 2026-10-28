@@ -390,8 +390,6 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
 
             player_set_quick_slot(player, bag, inv->cursor); //TEST OF QUICK SLOT, mb try the same holding logic as resting???
 
-            item_identify(&bag->items[inv->cursor]); // TEST
-
             int res = player_equip_item(player, bag, inv->cursor, 1);
             if (res == EQUIP_RING_SELECT) {
                 inv->pending_ring = inv->cursor;
@@ -418,9 +416,6 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
         player_drop_from_bag(player, lvl, &player->bags[inv->active_bag], inv->cursor);
 
     if (btn_pressed(inp, BTN_SQUARE)) {
-        Bag *bag = &player->bags[inv->active_bag];
-
-        item_identify(&bag->items[inv->cursor]); //TEST
         player_consume_item(player, &player->bags[inv->active_bag], inv->cursor);
     }
 

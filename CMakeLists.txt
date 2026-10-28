@@ -16,6 +16,7 @@ add_executable(${PROJECT_NAME}
     src/dungeon.c
     src/item.c
     src/item_db.c
+    src/item_wand.c
     src/item_spawn.c
     src/item_generator.c
     src/bag.c

@@ -238,10 +238,10 @@ static void draw_slot_color(RenderCtx *ctx, int x, int y, int size, ItemStack st
     SDL_Color color = COL_SLOT_NORMAL;
     if (equip_slot)
         color = COL_SLOT_EQUIP;
+    if ((!item_status_is_known(stack.type) || !item_is_identified(&stack)) && stack.type != ITEM_NONE)
+        color = COL_SLOT_UNKNOWN;
     if (item_visibly_cursed(&stack))
         color = COL_SLOT_CURSED;
-    if (!item_status_is_known(stack.type))
-        color = COL_SLOT_UNKNOWN;
     if (stack.type == ITEM_GOLD)
         color = COL_SLOT_GOLD;
     if (selected)

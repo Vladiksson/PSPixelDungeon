@@ -25,6 +25,11 @@ static int buff_poison_act(Buff *self) {
     return 1;
 }
 
+void char_poison_set(Char *self, float duration) {
+    Buff *b = char_apply_buff(self, BUFF_POISON, 0.0f);
+    if (b) b->duration = duration;
+}
+
 /* ---- Bleeding ---- */
 void char_bleeding_grant(Char *self, int level) {
     Buff *b = char_apply_buff(self, BUFF_BLEEDING, -1.0f);
