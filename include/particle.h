@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 #include "blob.h"
 
 typedef struct Level Level;
@@ -16,6 +17,16 @@ typedef enum {
    PK_WIND,          /* Chasm updraft, per-tile emitter (not a Blob) — WindParticle */
    PK_FLOW,          /* Water dripping into a chasm, per-tile emitter (not a Blob) — FlowParticle */
    PK_WATER,         /* Sewer WALL_DECO drip, per-tile emitter (not a Blob) — SewerLevel.WaterParticle/Sink */
+
+   /* ── one-shot / triggered effects (not blob- or ambient-driven) ── */
+   PK_SPLASH,        /* Colored liquid splash: potion shatter, heap alchemy — Splash + PixelParticle.Shrinking */
+   PK_EARTH,         /* Kicked-up earth/dirt: Earthroot, Entanglement glyph — EarthParticle */
+   PK_ELMO,          /* St. Elmo's fire sparkle: burning heap, shop/sign shimmer — ElmoParticle */
+   PK_SPARK,         /* Electric spark: lightning wand/trap — SparkParticle */
+   PK_SMOKE,         /* Smoke puff: bomb aftermath — SmokeParticle */
+   PK_BLAST,         /* Explosion flash: bomb — BlastParticle */
+   PK_POISON,        /* Toxic splash: poison trap/plant/gas damage — PoisonParticle (SPLASH factory) */
+   PK_PURPLE,        /* Dark energy burst: disintegration, eye death gaze — PurpleParticle (BURST factory) */
 } ParticleKind;
 
 typedef enum {
@@ -80,4 +91,44 @@ void particle_emit_wind(Level *lvl, int cell);
 void particle_emit_flow(Level *lvl, int cell);
 void particle_emit_water(Level *lvl, int cell);
 
+void particle_emit_splash(Level *lvl, int cell, uint32_t color); /* potion shatter, heap alchemy puff */
+void particle_emit_earth(Level *lvl, int cell);  /* Earthroot / Entanglement dirt kick-up (bottom of cell) */
+void particle_emit_elmo(Level *lvl, int cell);   /* burning heap, shopkeeper/sign shimmer */
+void particle_emit_spark(Level *lvl, int cell);  /* lightning wand / lightning trap */
+void particle_emit_smoke(Level *lvl, int cell);  /* bomb smoke */
+void particle_emit_blast(Level *lvl, int cell);  /* bomb explosion flash */
+void particle_emit_poison(Level *lvl, int cell); /* poison trap / plant / gas splash */
+void particle_emit_purple(Level *lvl, int cell); /* disintegration / eye death-gaze burst */
+
 void particle_clear(Level *lvl);
+
+
+#define MAX_LEVEL_EMITTERS 32
+
+typedef enum {
+   EMITTER_NONE = 0,
+   EMITTER_EARTH,
+   EMITTER_ELMO,
+   EMITTER_SPARK,
+   EMITTER_SMOKE,
+   EMITTER_BLAST,
+   EMITTER_POISON,
+   EMITTER_PURPLE,
+   EMITTER_SPLASH_POTION,
+   EMITTER_SPLASH_BLOOD,
+   EMITTER_SPLASH_GRASS,
+} EmitterKind;
+
+typedef struct {
+   EmitterKind kind;
+   int cell;
+
+   float timer;
+   float emit_timer;
+   float rate;
+} ParticleEmitter;
+
+void particle_emitter_start(Level *lvl, EmitterKind kind, int cell, float dt, float rate);
+void particle_update_emitters(Level *lvl, float dt, CellVisibleFn is_visible_fn, void *user);
+
+void particle_update_ambient(Level *lvl, float dt, CellVisibleFn is_visible_fn, void *user);

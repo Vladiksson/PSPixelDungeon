@@ -1,6 +1,6 @@
 #include "particle.h"
 #include "level.h"
-#include "rng.h"
+#include "level_geometry.h"
 
 /* ── color helpers ─────────────────────────────────────────── */
 static void color_set(Particle *p, uint32_t hex) {
@@ -9,13 +9,20 @@ static void color_set(Particle *p, uint32_t hex) {
     p->bm = ( hex         & 0xFF) / 255.0f;
 }
 
-static void color_lerp_random(Particle *p, uint32_t c1, uint32_t c2) {
-    float t = rng_float();
+static void color_lerp(Particle *p, uint32_t c1, uint32_t c2, float t) {
+    if (t <= 0.0f) { color_set(p, c1); return; }
+    if (t >= 1.0f) { color_set(p, c2); return; }
     int r1 = (c1 >> 16) & 0xFF, g1 = (c1 >> 8) & 0xFF, b1 = c1 & 0xFF;
     int r2 = (c2 >> 16) & 0xFF, g2 = (c2 >> 8) & 0xFF, b2 = c2 & 0xFF;
-    p->rm = (r1 + (r2 - r1) * t) / 255.0f;
-    p->gm = (g1 + (g2 - g1) * t) / 255.0f;
-    p->bm = (b1 + (b2 - b1) * t) / 255.0f;
+    float t1 = 1.0f - t;
+    p->rm = (t1 * r1 + t * r2) / 255.0f;
+    p->gm = (t1 * g1 + t * g2) / 255.0f;
+    p->bm = (t1 * b1 + t * b2) / 255.0f;
+}
+
+static void color_lerp_random(Particle *p, uint32_t c1, uint32_t c2) {
+    float t = rng_float();
+    color_lerp(p, c1, c2, t);
 }
 /* ────────────────────────────────────────────────────────────────────── */
 
@@ -406,6 +413,135 @@ static Particle *spawn_water(Level *lvl, float x, float y) {
     return p;
 }
 
+static Particle *spawn_splash(Level *lvl, float x, float y, uint32_t color) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_SPLASH;
+    color_set(p, color);
+    p->am = 1.0f;
+    p->x = x; p->y = y;
+    float dir  = -M_PI / 2.0f;
+    float cone = M_PI;
+    float a    = rng_float_range(dir - cone * 0.5f, dir + cone * 0.5f);
+    float len  = rng_float_range(40.0f, 80.0f);
+    p->vx = len * cosf(a);
+    p->vy = len * sinf(a);
+    p->ay = 100.0f;
+    p->size = p->size0 = 4.0f;
+    p->lifespan = rng_float_range(0.5f, 1.0f);
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_earth(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_EARTH;
+    color_lerp_random(p, 0x444444, 0x777766);
+    p->am = 1.0f;
+    p->size = 0.0f;
+    p->angle = rng_float_range(-30.0f, 30.0f);
+    p->x = x; p->y = y;
+    p->lifespan = 0.5f;
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_elmo(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_ELMO;
+    color_set(p, 0x22EE66);
+    p->lifespan = 0.6f;
+    p->ay = -80.0f;
+    p->x = x; p->y = y;
+    p->size = p->size0 = 4.0f;
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_spark(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_SPARK;
+    p->am = 1.0f;
+    p->size = 2.0f;
+    p->ay = 50.0f;
+    p->x = x; p->y = y;
+    float a   = -(rng_float() * M_PI);
+    float len = rng_float_range(20.0f, 40.0f);
+    p->vx = len * cosf(a);
+    p->vy = len * sinf(a);
+    p->lifespan = rng_float_range(0.5f, 1.0f);
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_smoke(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_SMOKE;
+    color_set(p, 0x222222);
+    p->ay = -40.0f;
+    p->x = x; p->y = y;
+    p->vx = rng_float_range(-4.0f, 4.0f);
+    p->vy = rng_float_range(-8.0f, 8.0f);
+    p->lifespan = rng_float_range(0.6f, 1.0f);
+    p->left = p->lifespan;
+    p->size = 8.0f;
+    return p;
+}
+
+static Particle *spawn_blast(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_BLAST;
+    color_set(p, 0xEE7722);
+    p->ay = 50.0f;
+    p->x = x; p->y = y;
+    p->size = p->size0 = 8.0f;
+    float a   = -(rng_float() * M_PI);
+    float len = rng_float_range(32.0f, 64.0f);
+    p->vx = len * cosf(a);
+    p->vy = len * sinf(a);
+    p->lifespan = rng_float();
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_poison(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_POISON;
+    color_set(p, 0x8844FF);
+    p->am = 1.0f;
+    p->ay = 30.0f;
+    p->x = x; p->y = y;
+    float a   = rng_float() * M_PI;
+    float len = rng_float_range(10.0f, 20.0f);
+    p->vx = len * cosf(a);
+    p->vy = len * sinf(a);
+    p->lifespan = 0.6f;
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_purple(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_PURPLE;
+    color_set(p, 0xFF0044);
+    p->am = 1.0f;
+    p->x = x; p->y = y;
+    float a   = rng_float() * (2.0f * M_PI);
+    float len = rng_float_range(16.0f, 32.0f);
+    p->vx = len * cosf(a);
+    p->vy = len * sinf(a);
+    p->lifespan = 0.5f;
+    p->left = p->lifespan;
+    return p;
+}
+
 
 void particle_update_all(Level *lvl, float dt) {
     if (!lvl) return;
@@ -570,6 +706,57 @@ void particle_update_all(Level *lvl, float dt) {
         case PK_WATER:
             break;
 
+        case PK_SPLASH: {
+            float prog = p->left / p->lifespan;
+            p->size = p->size0 * prog;
+            break;
+        }
+
+        case PK_EARTH: {
+            float prog = p->left / p->lifespan;
+            p->size = (prog < 0.5f ? prog : 1.0f - prog) * 16.0f;
+            break;
+        }
+
+        case PK_ELMO: {
+            float prog = p->left / p->lifespan;
+            p->am = (prog > 0.8f) ? (1.0f - prog) * 5.0f : 1.0f;
+            p->size = p->size0 * prog;
+            break;
+        }
+
+        case PK_SPARK:
+            p->size = rng_float() * (5.0f * p->left / p->lifespan);
+            break;
+
+        case PK_SMOKE: {
+            float prog = p->left / p->lifespan;
+            p->am = (prog > 0.8f) ? (2.0f - 2.0f * prog) : (prog * 0.5f);
+            p->size = 16.0f - prog * 8.0f;
+            break;
+        }
+
+        case PK_BLAST: {
+            float prog = p->left / p->lifespan;
+            p->am = (prog > 0.8f) ? (1.0f - prog) * 5.0f : 1.0f;
+            p->size = p->size0 * prog;
+            break;
+        }
+
+        case PK_POISON:
+            /* alpha: 1 -> 0; size: 1 -> 4; color: violet -> green */
+            p->am = p->left / p->lifespan;
+            p->size = 4.0f - p->am * 3.0f;
+            color_lerp(p, 0x00FF00, 0x8844FF, p->am);
+            break;
+
+        case PK_PURPLE:
+            /* alpha: 1 -> 0; size: 1 -> 5; color: pink -> dark purple */
+            p->am = p->left / p->lifespan;
+            p->size = 5.0f - p->am * 4.0f;
+            color_lerp(p, 0x220066, 0xFF0044, p->am);
+            break;
+
         }
 
         i++;
@@ -619,6 +806,14 @@ static Particle *spawn_for_kind(Level *lvl, ParticleKind kind, int speck_type, f
         case PK_WIND:        break;
         case PK_FLOW:        break;
         case PK_WATER:       break;
+        case PK_SPLASH:      break;
+        case PK_EARTH:       break;
+        case PK_ELMO:        break;
+        case PK_SPARK:       break;
+        case PK_SMOKE:       break;
+        case PK_BLAST:       break;
+        case PK_POISON:      break;
+        case PK_PURPLE:      break;
     }
     return NULL;
 }
@@ -695,8 +890,184 @@ void particle_emit_water(Level *lvl, int cell) {
     spawn_water(lvl, x, y);
 }
 
+void particle_emit_splash(Level *lvl, int cell, uint32_t color) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + 0.5f) * (float)TILE_SIZE_MIN;
+    float y = (c.y + 0.5f) * (float)TILE_SIZE_MIN;
+    spawn_splash(lvl, x, y, color);
+}
+
+void particle_emit_earth(Level *lvl, int cell) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + rng_float()) * (float)TILE_SIZE_MIN;
+    float y = (c.y + 1.0f) * (float)TILE_SIZE_MIN;
+    spawn_earth(lvl, x, y);
+}
+
+void particle_emit_elmo(Level *lvl, int cell) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + rng_float()) * (float)TILE_SIZE_MIN;
+    float y = (c.y + rng_float()) * (float)TILE_SIZE_MIN;
+    spawn_elmo(lvl, x, y);
+}
+
+void particle_emit_spark(Level *lvl, int cell) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + 0.5f) * (float)TILE_SIZE_MIN;
+    float y = (c.y + 0.5f) * (float)TILE_SIZE_MIN;
+    spawn_spark(lvl, x, y);
+}
+
+void particle_emit_smoke(Level *lvl, int cell) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + rng_float()) * (float)TILE_SIZE_MIN;
+    float y = (c.y + rng_float()) * (float)TILE_SIZE_MIN;
+    spawn_smoke(lvl, x, y);
+}
+
+void particle_emit_blast(Level *lvl, int cell) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + 0.5f) * (float)TILE_SIZE_MIN;
+    float y = (c.y + 0.5f) * (float)TILE_SIZE_MIN;
+    spawn_blast(lvl, x, y);
+}
+
+void particle_emit_poison(Level *lvl, int cell) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + 0.5f) * (float)TILE_SIZE_MIN;
+    float y = (c.y + 0.5f) * (float)TILE_SIZE_MIN;
+    spawn_poison(lvl, x, y);
+}
+
+void particle_emit_purple(Level *lvl, int cell) {
+    Point c = idx_to_xy(cell);
+    float x = (c.x + 0.5f) * (float)TILE_SIZE_MIN;
+    float y = (c.y + 0.5f) * (float)TILE_SIZE_MIN;
+    spawn_purple(lvl, x, y);
+}
+
 void particle_clear(Level *lvl) {
     if (!lvl) return;
     lvl->num_particles = 0;
+    lvl->num_emitters = 0;
+
+    memset(lvl->particles, 0, sizeof(lvl->particles));
+    memset(lvl->emitters, 0, sizeof(lvl->emitters));
     seed_blob_emit_timers();
+}
+
+void particle_emitter_start(Level *lvl, EmitterKind kind, int cell, float duration, float rate) {
+    if (!lvl || !in_bounds(cell) || duration <= 0.0f || rate <= 0.0f)
+        return;
+
+    for (int i = 0; i < MAX_LEVEL_EMITTERS; i++) {
+        ParticleEmitter *e = &lvl->emitters[i];
+
+        if (e->kind != EMITTER_NONE)
+            continue;
+
+        e->kind = kind;
+        e->cell = cell;
+        e->timer = duration;
+        e->emit_timer = 0.0f;
+        e->rate = rate;
+
+        if (lvl->num_emitters <= i)
+            lvl->num_emitters = i + 1;
+
+        return;
+    }
+}
+
+void particle_update_emitters(Level *lvl, float dt, CellVisibleFn is_visible_fn, void *user) {
+    if (!lvl)
+        return;
+
+    for (int i = 0; i < lvl->num_emitters; i++) {
+        ParticleEmitter *e = &lvl->emitters[i];
+
+        if (e->kind == EMITTER_NONE)
+            continue;
+
+        e->timer -= dt;
+
+        if (e->timer <= 0.0f) {
+            e->kind = EMITTER_NONE;
+            continue;
+        }
+
+        if (is_visible_fn && !is_visible_fn(e->cell, user)) 
+            continue;
+
+        e->emit_timer -= dt;
+
+        while (e->emit_timer <= 0.0f) {
+            switch (e->kind) {
+                case EMITTER_EARTH:
+                    particle_emit_earth(lvl, e->cell);
+                    break;
+                case EMITTER_ELMO:
+                    particle_emit_elmo(lvl, e->cell);
+                    break;
+                case EMITTER_SPARK:
+                    particle_emit_spark(lvl, e->cell);
+                    break;
+                case EMITTER_SMOKE:
+                    particle_emit_smoke(lvl, e->cell);
+                    break;
+                case EMITTER_BLAST:
+                    particle_emit_blast(lvl, e->cell);
+                    break;
+                case EMITTER_POISON:
+                    particle_emit_poison(lvl, e->cell);
+                    break;
+                case EMITTER_PURPLE:
+                    particle_emit_purple(lvl, e->cell);
+                    break;
+                case EMITTER_SPLASH_POTION:
+                    particle_emit_splash(lvl, e->cell, 0x79998a); //temporary for potion throwing
+                    break;
+                case EMITTER_SPLASH_BLOOD:
+                    particle_emit_splash(lvl, e->cell, 0x8a0303);
+                    break;
+                case EMITTER_SPLASH_GRASS:
+                    particle_emit_splash(lvl, e->cell, 0x67933d);
+                    break;
+                default:
+                    break;
+            }
+
+            e->emit_timer += 1.0f / e->rate;
+        }
+    }
+}
+
+static float wind_emit_timer = 0.0f;
+
+void particle_update_ambient(Level *lvl, float dt, CellVisibleFn is_visible_fn, void *user) {
+    wind_emit_timer -= dt;
+
+    bool emit_wind = wind_emit_timer <= 0.0f;
+    if (emit_wind) {
+        wind_emit_timer += 0.75f;
+    }
+
+    for (int cur = 0; cur < LEVEL_SIZE; cur++) {
+        if (is_visible_fn && !is_visible_fn(cur, user))
+            continue;
+
+        int tile = lvl->map[cur];
+
+        if (emit_wind && cell_pit(lvl, cur)) {
+            particle_emit_wind(lvl, cur);
+        }
+
+        if (lvl->theme == THEME_SEWERS && tile == TILE_WALL_DECO) { //TODO add for the rest of themes
+            particle_emit_water(lvl, cur);
+        }
+
+        if (tile == TILE_CHASM_WATER) {
+            particle_emit_flow(lvl, cur);
+        }
+    }
 }

@@ -378,6 +378,7 @@ static int hero_defense_proc(Char *self, Char *attacker, int damage) {
         hero_wear_item(&p->armor);
         item_register_use(&p->armor);
     }
+    particle_emitter_start(char_active_level(), EMITTER_SPLASH_BLOOD, self->pos, 0.5f, 12.0f); //TEST PARTICLES
     return damage;
 }
 
@@ -872,7 +873,7 @@ static void player_circle_back(Player *p, Level *lvl, int from) {
     }
 }
 
-static void player_throw_potion(ItemType type, int cell) {
+static void player_throw_potion(Level *lvl, ItemType type, int cell) {
     if (ITEM_DB[type].cat != ITEMCAT_POTION)
         return;
     switch (type) {
@@ -902,6 +903,7 @@ static void player_throw_potion(ItemType type, int cell) {
         case ITEM_POTION_STRENGTH:
         case ITEM_POTION_MIND_VISION:
         default:
+            particle_emitter_start(lvl, EMITTER_SPLASH_POTION, cell, 0.5f, 12.0f); //TEST PARTICLES
             break;
     }
     return;
@@ -914,7 +916,7 @@ static void player_throw_resolve(Player *p, Level *lvl) {
     const MissileWeaponDef *mwd = missile_def(item.type);
 
     if (!mwd) {
-        player_throw_potion(item.type, cell);
+        player_throw_potion(lvl, item.type, cell);
         if (ITEM_DB[item.type].cat != ITEMCAT_POTION)
             player_land_item(p, lvl, item, cell);   /* TODO: Potion/Seed/Bomb... override onThrow() */
         return;
@@ -1289,6 +1291,7 @@ static int player_interact_tile(Player *p, Level *lvl, int idx) {
 
     case TILE_HIGH_GRASS:
         lvl->map[idx] = TILE_GRASS;
+        particle_emitter_start(lvl, EMITTER_SPLASH_GRASS, idx, 0.5f, 12.0f); //TEST PARTICLES
         //TODO SPAWN SEEDS + ITEM_DEWDROP 
         return 0;
     }

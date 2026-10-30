@@ -121,6 +121,9 @@ typedef struct Level {
     
     Particle particles[MAX_LEVEL_PARTICLES];
     int num_particles;
+    
+    ParticleEmitter emitters[MAX_LEVEL_EMITTERS];
+    int num_emitters;
 } Level;
 
 typedef struct {

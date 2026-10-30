@@ -152,6 +152,7 @@ static int mob_attack_proc(Char *self, Char *enemy, int damage) {
 
 static int mob_defense_proc(Char *self, Char *attacker, int damage) {
     Mob *m = (Mob *)self;
+    particle_emitter_start(char_active_level(), EMITTER_SPLASH_BLOOD, self->pos, 0.5f, 12.0f); //TEST PARTICLES
     return m->stats.defense_proc ? m->stats.defense_proc(m, attacker, damage) : damage;
 }
 

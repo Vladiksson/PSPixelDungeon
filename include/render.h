@@ -56,8 +56,6 @@ typedef struct {
    MenuTextures  menu;
 } RenderCtx;
 
-bool is_visible(const Fog *fog, const Camera *cam, Point pos);
-
 int  render_init  (RenderCtx *ctx);
 void render_free  (RenderCtx *ctx);
 

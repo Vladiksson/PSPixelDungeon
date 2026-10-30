@@ -1,6 +1,5 @@
 #include "render.h"
 #include "assets.h"
-#include "ballistica.h"
 #include "item_wand.h"
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
@@ -12,7 +11,7 @@ static bool is_visible_on_camera(const Camera *cam, Point pos) {
            pos.y >= cam->tile_y &&
            pos.y <= cam->tile_y + gViewRows;
 }
-bool is_visible(const Fog *fog, const Camera *cam, Point pos) {
+static bool is_visible(const Fog *fog, const Camera *cam, Point pos) {
     if (!is_visible_on_camera(cam, pos))
         return false;
 
@@ -465,6 +464,8 @@ void render_update_water(RenderCtx *ctx, float elapsed) { //MB TRANSFER SOMEWHER
 void render_update_particles(Level *lvl, const Fog *fog, float elapsed) {
     particle_update_all(lvl, elapsed);
     particle_update_blobs(lvl, &lvl->blob_pool, elapsed, fog_cell_visible, (void *)fog);
+    particle_update_emitters(lvl, elapsed, fog_cell_visible, (void *)fog);
+    particle_update_ambient(lvl, elapsed, fog_cell_visible, (void *)fog);
 }
 
 /* ── render_items ──────────────────────────────────── */
