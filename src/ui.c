@@ -442,9 +442,12 @@ static void item_build_description(ItemStack *stack, char *out, size_t out_size,
             break;
         }
         case (ITEMCAT_RING): {
+            char name[64];
+            item_display_name(stack, name, sizeof(name));
+
             if (equip_slot == EQUIP_RING1 || equip_slot == EQUIP_RING2) {
                 used += snprintf(out + used, out_size - used, "\n\nThe %s is on your finger%s",
-                                 def->name, stack->cursed ? ", and because it is cursed, you are powerless to remove it." : ".");
+                                 name, stack->cursed ? ", and because it is cursed, you are powerless to remove it." : ".");
             } else if (item_visibly_cursed(stack)) {
                 used += snprintf(out + used, out_size - used, "\n\nYou can feel a malevolent magic lurking within the %s.", def->name);
             }

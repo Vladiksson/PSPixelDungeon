@@ -55,3 +55,14 @@ IconId bag_icon(BagType type);
 void icon_sprite(IconId icon, SDL_Rect *rect);
 
 void speck_sprite(int type, SDL_Rect *rect);
+
+typedef enum {
+    EFFECT_RIPPLE,
+    EFFECT_LIGHTNING,
+    EFFECT_WOUND,
+    EFFECT_RAY,
+
+    EFFECT_COUNT
+} EffectId;
+
+void effect_sprite(EffectId effect, SDL_Rect *rect);

@@ -542,6 +542,141 @@ static Particle *spawn_purple(Level *lvl, float x, float y) {
     return p;
 }
 
+/* wand bolt trail particles */
+static Particle *spawn_trail_magic(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_TRAIL_MAGIC;
+    color_set(p, 0x88CCFF);
+    p->lifespan = 0.5f;
+    p->x = x; p->y = y;
+    p->vx = rng_float_range(-10.0f, 10.0f);
+    p->vy = rng_float_range(-10.0f, 10.0f);
+    p->am = 1.0f;
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_trail_earth(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_TRAIL_EARTH;
+    color_lerp_random(p, 0x555555, 0x777766);
+    p->lifespan = 0.5f;
+    p->ay = 40.0f;
+    p->x = x; p->y = y;
+    p->vx = rng_float_range(-10.0f, 10.0f);
+    p->vy = rng_float_range(-10.0f, 10.0f);
+    p->size = p->size0 = 4.0f;
+    p->am = 1.0f;
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_trail_white(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_TRAIL_WHITE;
+    color_set(p, 0xFFFFFF);
+    p->lifespan = 0.4f;
+    p->x = x; p->y = y;
+    p->size = p->size0 = 3.0f;
+    p->am = 1.0f;
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_trail_slow(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_TRAIL_SLOW;
+    color_set(p, 0x664422);
+    p->lifespan = 0.6f;
+    p->x = x; p->y = y;
+    p->vx = rng_float_range(-20.0f, 20.0f);
+    p->vy = rng_float_range(-20.0f, 20.0f);
+    p->size = p->size0 = 2.0f;
+    p->am = 1.0f;
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_trail_force(Level *lvl, int index, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_TRAIL_FORCE;
+    color_set(p, 0xFFFFFF);
+    p->lifespan = 0.5f;
+    p->size = p->size0 = 8.0f;
+    float a = (float)(index % 8) * (2.0f * (float)M_PI / 8.0f);
+    p->vx = 12.0f * cosf(a);
+    p->vy = 12.0f * sinf(a);
+    p->x = x - p->vx * p->lifespan;
+    p->y = y - p->vy * p->lifespan;
+    p->am = 0.0f;
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_trail_cold(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_TRAIL_COLD;
+    color_set(p, 0x2244FF);
+    p->lifespan = 0.6f;
+    p->x = x; p->y = y;
+    p->size = p->size0 = 8.0f;
+    p->am = 0.0f;
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_trail_wool(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_TRAIL_WOOL;
+    color_lerp_random(p, 0x999999, 0xEEEEE0);
+    p->ay = -40.0f;
+    p->x = x; p->y = y;
+    p->vx = rng_float_range(-10.0f, 10.0f);
+    p->vy = rng_float_range(-10.0f, 10.0f);
+    p->size = p->size0 = 5.0f;
+    p->am = 1.0f;
+    p->lifespan = rng_float_range(0.6f, 1.0f);
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_trail_poison(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_POISON;
+    color_set(p, 0x8844FF);
+    p->am = 1.0f;
+    p->ay = 30.0f;
+    p->x = x; p->y = y;
+    float a   = -rng_float() * (float)M_PI;
+    float len = rng_float() * 6.0f;
+    p->vx = len * cosf(a);
+    p->vy = len * sinf(a);
+    p->lifespan = 0.6f;
+    p->left = p->lifespan;
+    return p;
+}
+
+static Particle *spawn_trail_purple(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_PURPLE;
+    color_set(p, 0xFF0044);
+    p->am = 1.0f;
+    p->x = x; p->y = y;
+    p->vx = rng_float_range(-5.0f, 5.0f);
+    p->vy = rng_float_range(-5.0f, 5.0f);
+    p->lifespan = 0.5f;
+    p->left = p->lifespan;
+    return p;
+}
 
 void particle_update_all(Level *lvl, float dt) {
     if (!lvl) return;
@@ -757,12 +892,55 @@ void particle_update_all(Level *lvl, float dt) {
             color_lerp(p, 0x220066, 0xFF0044, p->am);
             break;
 
+        case PK_TRAIL_MAGIC:
+            /* alpha: 1 -> 0; size: 1 -> 4 */
+            p->am = p->left / p->lifespan;
+            p->size = 4.0f - p->am * 3.0f;
+            break;
+
+        case PK_TRAIL_EARTH: {
+            float prog = p->left / p->lifespan;
+            p->size = p->size0 * prog;
+            break;
+        }
+
+        case PK_TRAIL_WHITE: {
+            float prog = p->left / p->lifespan;
+            p->size = p->size0 * prog;
+            break;
+        }
+
+        case PK_TRAIL_SLOW:
+            p->am = p->left / p->lifespan;
+            break;
+
+        case PK_TRAIL_FORCE: {
+            float prog = p->left / p->lifespan;
+            p->size = p->size0 * prog;
+            p->am = (1.0f - prog) * 0.5f;
+            break;
+        }
+
+        case PK_TRAIL_COLD: {
+            float prog = p->left / p->lifespan;
+            p->size = p->size0 * prog;
+            p->am = 1.0f - prog;
+            break;
+        }
+
+        case PK_TRAIL_WOOL: {
+            float prog = p->left / p->lifespan;
+            p->size = p->size0 * prog;
+            break;
+        }
+
         }
 
         i++;
     }
 }
 
+/* BLOBS particles */
 typedef struct {
     int active;
     ParticleKind kind;
@@ -794,30 +972,6 @@ static void seed_blob_emit_timers(void) {
         blob_emit_timer[t] = rng_float() * BLOB_FX[t].rate;
 }
 
-static Particle *spawn_for_kind(Level *lvl, ParticleKind kind, int speck_type, float x, float y) {
-    switch (kind) {
-        case PK_SPECK:       return spawn_speck(lvl, 0, x, y, speck_type);
-        case PK_FLAME:       return spawn_flame(lvl, x, y);
-        case PK_WEB:         return spawn_web_one(lvl, x, y);
-        case PK_SHAFT:       return spawn_shaft(lvl, x, y);
-        case PK_LEAF:        return spawn_leaf(lvl, x, y);
-        case PK_SACRIFICIAL: return spawn_sacrificial(lvl, x, y);
-        case PK_SNOW:        break;
-        case PK_WIND:        break;
-        case PK_FLOW:        break;
-        case PK_WATER:       break;
-        case PK_SPLASH:      break;
-        case PK_EARTH:       break;
-        case PK_ELMO:        break;
-        case PK_SPARK:       break;
-        case PK_SMOKE:       break;
-        case PK_BLAST:       break;
-        case PK_POISON:      break;
-        case PK_PURPLE:      break;
-    }
-    return NULL;
-}
-
 static void emit_blob_tick(Level *lvl, const Blob *b, const BlobFx *fx, CellVisibleFn is_visible_fn, void *user) {
     for (int i = 0; i < LEVEL_SIZE; i++) {
         if (b->cur[i] <= 0) continue;
@@ -828,7 +982,17 @@ static void emit_blob_tick(Level *lvl, const Blob *b, const BlobFx *fx, CellVisi
         float y = (cell.y + rng_float()) * (float)TILE_SIZE_MIN;
 
         for (int n = 0; n < fx->spawn_count; n++) {
-            Particle *p = spawn_for_kind(lvl, fx->kind, fx->speck_type, x, y);
+            Particle *p = NULL;
+
+            switch (fx->kind) {
+                case PK_SPECK:       p = spawn_speck(lvl, 0, x, y, fx->speck_type); break;
+                case PK_FLAME:       p = spawn_flame(lvl, x, y); break;
+                case PK_WEB:         p = spawn_web_one(lvl, x, y); break;
+                case PK_SHAFT:       p = spawn_shaft(lvl, x, y); break;
+                case PK_LEAF:        p = spawn_leaf(lvl, x, y); break;
+                case PK_SACRIFICIAL: p = spawn_sacrificial(lvl, x, y); break;
+                default: break;
+            }
             if (p) p->light_mode = fx->light_mode;
         }
     }
@@ -853,6 +1017,7 @@ void particle_update_blobs(Level *lvl, const BlobPool *pool, float dt, CellVisib
     }
 }
 
+/* EMITTERS */
 void particle_emit_speck(Level *lvl, int cell, SpeckType type) {
     Point c = idx_to_xy(cell);
     float x = (c.x + rng_float()) * (float)TILE_SIZE_MIN;
@@ -944,6 +1109,23 @@ void particle_emit_purple(Level *lvl, int cell) {
     float x = (c.x + 0.5f) * (float)TILE_SIZE_MIN;
     float y = (c.y + 0.5f) * (float)TILE_SIZE_MIN;
     spawn_purple(lvl, x, y);
+}
+
+void particle_emit_wand_trail(Level *lvl, WandTrailKind trail, float x, float y, int index) {
+    switch (trail) {
+        case TRAIL_NONE:                                   break;
+        case TRAIL_MAGIC:   spawn_trail_magic(lvl, x, y);          break;
+        case TRAIL_FIRE:    spawn_flame(lvl, x, y);                break; /* FlameParticle.FACTORY, same as the fire blob */
+        case TRAIL_EARTH:   spawn_trail_earth(lvl, x, y);          break;
+        case TRAIL_WHITE:   spawn_trail_white(lvl, x, y);          break;
+        case TRAIL_PURPLE:  spawn_trail_purple(lvl, x, y);         break;
+        case TRAIL_WOOL:    spawn_trail_wool(lvl, x, y);           break;
+        case TRAIL_POISON:  spawn_trail_poison(lvl, x, y);         break;
+        case TRAIL_FOLIAGE: spawn_leaf(lvl, x, y);                 break; /* LeafParticle.GENERAL, same as Plant's leaf burst */
+        case TRAIL_SLOW:    spawn_trail_slow(lvl, x, y);           break;
+        case TRAIL_FORCE:   spawn_trail_force(lvl, index, x, y);   break;
+        case TRAIL_COLD:    spawn_trail_cold(lvl, x, y);           break;
+    }
 }
 
 void particle_clear(Level *lvl) {

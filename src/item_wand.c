@@ -2,6 +2,158 @@
 #include "buff.h"
 #include "blob.h"
 #include "level_geometry.h"
+#include "particle.h"
+
+/* ══════════════════════════════════════════════════════════
+   Zap effects  (Lightning / Disintegration)
+   ══════════════════════════════════════════════════════════ */
+#define LIGHTNING_FX_DURATION 0.3f
+#define RAY_FX_DURATION       0.5f
+
+static LightningFxView gLightning;
+static float gLightningLife = 0.0f;
+
+static RayFxView gRay;
+static float gRayLife = 0.0f;
+
+static void lightning_fx_start(const int *cells, int n) {
+    if (n < 1) return;
+    if (n > LIGHTNING_FX_MAX_POINTS) n = LIGHTNING_FX_MAX_POINTS;
+
+    gLightning.active = 1;
+    gLightning.count = n;
+    gLightningLife = LIGHTNING_FX_DURATION;
+
+    for (int i = 0; i < n; i++) {
+        Point c = idx_to_xy(cells[i]);
+        gLightning.pts_x[i] = (c.x + 0.5f) * (float)TILE_SIZE_MIN;
+        gLightning.pts_y[i] = (c.y + 0.5f) * (float)TILE_SIZE_MIN;
+    }
+
+    for (int i = 0; i < n - 1; i++) {
+        float sx = gLightning.pts_x[i],   sy = gLightning.pts_y[i];
+        float ex = gLightning.pts_x[i + 1], ey = gLightning.pts_y[i + 1];
+        gLightning.mid_x[i] = (sx + ex) * 0.5f + (-4.0f + rng_float() * 8.0f);
+        gLightning.mid_y[i] = (sy + ey) * 0.5f + (-4.0f + rng_float() * 8.0f);
+    }
+}
+
+static void ray_fx_start(int from_cell, int to_cell) {
+    Point f = idx_to_xy(from_cell);
+    Point t = idx_to_xy(to_cell);
+
+    gRay.active = 1;
+    gRayLife = RAY_FX_DURATION;
+    gRay.sx = (f.x + 0.5f) * (float)TILE_SIZE_MIN;
+    gRay.sy = (f.y + 0.5f) * (float)TILE_SIZE_MIN;
+    gRay.ex = (t.x + 0.5f) * (float)TILE_SIZE_MIN;
+    gRay.ey = (t.y + 0.5f) * (float)TILE_SIZE_MIN;
+}
+
+void wand_fx_update(float dt) {
+    if (gLightning.active) {
+        gLightningLife -= dt;
+        if (gLightningLife <= 0.0f) {
+            gLightning.active = 0;
+        } else {
+            for (int i = 0; i < gLightning.count - 1; i++) {
+                float sx = gLightning.pts_x[i],   sy = gLightning.pts_y[i];
+                float ex = gLightning.pts_x[i + 1], ey = gLightning.pts_y[i + 1];
+                gLightning.mid_x[i] = (sx + ex) * 0.5f + (-4.0f + rng_float() * 8.0f);
+                gLightning.mid_y[i] = (sy + ey) * 0.5f + (-4.0f + rng_float() * 8.0f);
+            }
+        }
+    }
+
+    if (gRay.active) {
+        gRayLife -= dt;
+        if (gRayLife <= 0.0f) {
+            gRay.active = 0;
+        }
+    }
+}
+
+int lightning_fx_snapshot(LightningFxView *out) {
+    if (!gLightning.active) return 0;
+    gLightning.alpha = gLightningLife / LIGHTNING_FX_DURATION;
+    *out = gLightning;
+    return 1;
+}
+
+int ray_fx_snapshot(RayFxView *out) {
+    if (!gRay.active) return 0;
+    gRay.alpha = gRayLife / RAY_FX_DURATION;
+    *out = gRay;
+    return 1;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Bolt visuals
+   ══════════════════════════════════════════════════════════ */
+static int     gBoltFlying = 0;
+static WandTrailKind gBoltTrail = TRAIL_NONE;
+static float gTrailTimer = 0.0f;
+static int   gTrailIndex = 0;
+
+static WandTrailKind wand_trail_for_type(ItemType type) {
+    switch (type) {
+        case ITEM_WAND_MAGIC_MISSILE:  return TRAIL_MAGIC;    /* MagicMissile.blueLight */
+        case ITEM_WAND_FIREBOLT:       return TRAIL_FIRE;     /* MagicMissile.fire */
+        case ITEM_WAND_LIGHTNING:      return TRAIL_NONE;     /* WandOfLightning.fx(): Lightning(points[]), not MagicMissile */
+        case ITEM_WAND_POISON:         return TRAIL_POISON;   /* MagicMissile.poison */
+        case ITEM_WAND_TELEPORTATION:  return TRAIL_COLD;     /* MagicMissile.coldLight */
+        case ITEM_WAND_SLOWNESS:       return TRAIL_SLOW;     /* MagicMissile.slowness */
+        case ITEM_WAND_REGROWTH:       return TRAIL_FOLIAGE;  /* MagicMissile.foliage */
+        case ITEM_WAND_BLINK:          return TRAIL_WHITE;    /* MagicMissile.whiteLight */
+        case ITEM_WAND_AMOK:           return TRAIL_PURPLE;   /* MagicMissile.purpleLight */
+        case ITEM_WAND_REACH:          return TRAIL_FORCE;    /* MagicMissile.force */
+        case ITEM_WAND_FLOCK:          return TRAIL_WOOL;     /* MagicMissile.wool */
+        case ITEM_WAND_DISINTEGRATION: return TRAIL_NONE;     /* WandOfDisintegration.fx(): DeathRay, not MagicMissile */
+        case ITEM_WAND_AVALANCHE:      return TRAIL_EARTH;    /* MagicMissile.earth */
+        default:                       return TRAIL_NONE;
+    }
+}
+
+void wand_bolt_set_flying(ItemType type) {
+    gBoltFlying = 1;
+    gBoltTrail  = wand_trail_for_type(type);
+    gTrailTimer = 0.0f;
+    gTrailIndex = 0;
+}
+
+void wand_bolt_clear(void) {
+    gBoltFlying = 0;
+    gBoltTrail  = TRAIL_NONE;
+}
+
+int wand_bolt(void) {
+    return gBoltFlying;
+}
+
+void wand_bolt_update_trail(Level *lvl, float dt) {
+    if (!lvl || !gBoltFlying || gBoltTrail == TRAIL_NONE) return;
+
+    MissileView mv;
+    if (missiles_snapshot(&mv) <= 0) return;
+
+    float px = (mv.x + 0.5f) * (float)TILE_SIZE_MIN;
+    float py = (mv.y + 0.5f) * (float)TILE_SIZE_MIN;
+
+    gTrailTimer -= dt;
+    while (gTrailTimer <= 0.0f) {
+        particle_emit_wand_trail(lvl, gBoltTrail, px, py, gTrailIndex++);
+        gTrailTimer += 0.01f;
+    }
+
+    if (gBoltTrail == TRAIL_SLOW) {
+        for (int i = 0; i < lvl->num_particles; i++) {
+            Particle *p = &lvl->particles[i];
+            if (p->kind != PK_TRAIL_SLOW) continue;
+            p->ax = (px - p->x) * 10.0f;
+            p->ay = (py - p->y) * 10.0f;
+        }
+    }
+}
 
 /* ══════════════════════════════════════════════════════════
    Charges / identify
@@ -61,11 +213,12 @@ static void wand_firebolt_zap(const ItemStack *stack, Char *caster, Level *lvl, 
 /* ---- Lightning ---- */
 #define WAND_LIGHTNING_MAX_CHAIN 20
 
-static void wand_lightning_hit(Char *ch, Level *lvl, int damage, Char *caster, Char **affected, int *n_affected) {
+static void wand_lightning_hit(Char *ch, Level *lvl, int damage, Char *caster, Char **affected, int *n_affected, int *points, int *n_points) {
     if (damage < 1) return;
     if (*n_affected >= WAND_LIGHTNING_MAX_CHAIN) return;
 
     affected[(*n_affected)++] = ch;
+    if (*n_points < LIGHTNING_FX_MAX_POINTS) points[(*n_points)++] = ch->pos; /* points[nPoints++] = ch.pos */
 
     if (cell_liquid(lvl, ch->pos))
         damage *= 2;
@@ -92,20 +245,29 @@ static void wand_lightning_hit(Char *ch, Level *lvl, int damage, Char *caster, C
     if (n_candidates > 0) {
         Char *next = candidates[rng_int(n_candidates)];
         int next_dmg = rng_range(damage / 2, damage - 1);
-        wand_lightning_hit(next, lvl, next_dmg, caster, affected, n_affected);
+        wand_lightning_hit(next, lvl, next_dmg, caster, affected, n_affected, points, n_points);
     }
 }
 
 static void wand_lightning_zap(const ItemStack *stack, Char *caster, Level *level, int cell) {
+    int points[LIGHTNING_FX_MAX_POINTS];
+    int n_points = 0;
+    points[n_points++] = caster->pos; /* points[nPoints++] = Dungeon.hero.pos */
+
     Char *ch = char_find_at(cell);
-    if (!ch) return;
+    if (ch) {
+        int lvl = wand_power(stack);
+        int dmg = rng_range(5 + lvl / 2, 9 + lvl);
 
-    int lvl = wand_power(stack);
-    int dmg = rng_range(5 + lvl / 2, 9 + lvl);
+        Char *affected[WAND_LIGHTNING_MAX_CHAIN];
+        int n_affected = 0;
+        wand_lightning_hit(ch, level, dmg, caster, affected, &n_affected, points, &n_points);
+    } else {
+        if (n_points < LIGHTNING_FX_MAX_POINTS) points[n_points++] = cell;
+        for (int i = 0; i < 3; i++) particle_emit_spark(level, cell); /* CellEmitter.center(cell).burst(SparkParticle.FACTORY, 3) */
+    }
 
-    Char *affected[WAND_LIGHTNING_MAX_CHAIN];
-    int n_affected = 0;
-    wand_lightning_hit(ch, level, dmg, caster, affected, &n_affected);
+    lightning_fx_start(points, n_points);
 }
 
 /* ---- Poison ---- */
@@ -133,7 +295,7 @@ static void wand_teleport_zap(Level *lvl, int cell) {
     }
     if (pos == -1) return; /* TODO: "no safe cell found" message */
 
-    ch->pos = pos; /* direct field assignment, matching the original -- Teleportation doesn't use move() */
+    char_move(ch, lvl, pos);
 }
 
 /* ---- Slowness ---- */
@@ -170,6 +332,9 @@ static void wand_blink_zap(const ItemStack *stack, Char *caster, Level *lvl, con
     } else if (char_find_at(cell) != NULL && path->distance > 1) {
         cell = path->trace[path->distance - 2];
     }
+
+    if (cell_pit(lvl, cell))
+        return;
 
     char_move(caster, lvl, cell);
 }
@@ -257,6 +422,9 @@ static void wand_disintegration_zap(const ItemStack *stack, Char *caster, Level 
     for (int i = 0; i < n_chars; i++) {
         char_damage(chars[i], rng_normal_range(dmg_min, dmg_max), caster, DMGSRC_DISINTEGRATION);
     }
+
+    int end_cell = (limit >= 1) ? path->trace[limit - 1] : caster->pos;
+    ray_fx_start(caster->pos, end_cell);
 }
 
 /* ---- Avalanche ---- */
@@ -329,44 +497,4 @@ void wand_zap(const ItemStack *stack, Char *caster, Level *lvl, const Ballistica
         case ITEM_WAND_AVALANCHE:      wand_avalanche_zap(stack, caster, lvl, cell); break;
         default: break;
     }
-}
-
-/* ══════════════════════════════════════════════════════════
-   Bolt visuals
-   ══════════════════════════════════════════════════════════ */
-static int     gBoltFlying = 0;
-static uint8_t gBoltR = 255, gBoltG = 255, gBoltB = 255;
-
-static void wand_bolt_rgb(ItemType type, uint8_t *r, uint8_t *g, uint8_t *b) {
-    switch (type) {
-        case ITEM_WAND_MAGIC_MISSILE:  *r = 0x66; *g = 0x99; *b = 0xFF; break; /* MagicMissile.blueLight   */
-        case ITEM_WAND_FIREBOLT:       *r = 0xFF; *g = 0x66; *b = 0x11; break; /* MagicMissile.fire        */
-        case ITEM_WAND_LIGHTNING:      *r = 0xFF; *g = 0xEE; *b = 0x66; break; /* spark (no MagicMissile call in the original) */
-        case ITEM_WAND_POISON:         *r = 0x66; *g = 0xCC; *b = 0x33; break; /* MagicMissile.poison      */
-        case ITEM_WAND_TELEPORTATION:  *r = 0x66; *g = 0xDD; *b = 0xFF; break; /* MagicMissile.coldLight   */
-        case ITEM_WAND_SLOWNESS:       *r = 0x66; *g = 0x88; *b = 0xCC; break; /* MagicMissile.slowness    */
-        case ITEM_WAND_REGROWTH:       *r = 0x44; *g = 0xAA; *b = 0x33; break; /* MagicMissile.foliage     */
-        case ITEM_WAND_BLINK:          *r = 0xFF; *g = 0xFF; *b = 0xFF; break; /* MagicMissile.whiteLight  */
-        case ITEM_WAND_AMOK:           *r = 0xAA; *g = 0x33; *b = 0xCC; break; /* MagicMissile.purpleLight */
-        case ITEM_WAND_REACH:          *r = 0xCC; *g = 0xCC; *b = 0xCC; break; /* MagicMissile.force       */
-        case ITEM_WAND_FLOCK:          *r = 0xEE; *g = 0xEE; *b = 0xDD; break; /* MagicMissile.wool        */
-        case ITEM_WAND_DISINTEGRATION: *r = 0x99; *g = 0x33; *b = 0xCC; break; /* PurpleParticle/DeathRay  */
-        case ITEM_WAND_AVALANCHE:      *r = 0xAA; *g = 0x77; *b = 0x44; break; /* rock/earth tone          */
-        default:                       *r = 0xFF; *g = 0xFF; *b = 0xFF; break;
-    }
-}
-
-void wand_bolt_set_flying(ItemType type) {
-    gBoltFlying = 1;
-    wand_bolt_rgb(type, &gBoltR, &gBoltG, &gBoltB);
-}
-
-void wand_bolt_clear(void) {
-    gBoltFlying = 0;
-}
-
-int wand_bolt_color(uint8_t *r, uint8_t *g, uint8_t *b) {
-    if (!gBoltFlying) return 0;
-    *r = gBoltR; *g = gBoltG; *b = gBoltB;
-    return 1;
 }

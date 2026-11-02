@@ -1,10 +1,6 @@
 #include "visuals.h"
 
-typedef struct {
-    uint8_t x, y, w, h;
-} SpriteRect;
-
-static void sprite_get(const SpriteRect *sprites, int count, int index, SDL_Rect *rect) {
+static void sprite_get(const SDL_Rect *sprites, int count, int index, SDL_Rect *rect) {
     if (!rect)
         return;
 
@@ -13,18 +9,10 @@ static void sprite_get(const SpriteRect *sprites, int count, int index, SDL_Rect
         return;
     }
 
-    SpriteRect s = sprites[index];
-
-    *rect = (SDL_Rect) {
-        .x = s.x,
-        .y = s.y,
-        .w = s.w,
-        .h = s.h
-    };
+    *rect = sprites[index];
 }
 
-
-static const SpriteRect BANNERS[BANNER_COUNT] = {
+static const SDL_Rect BANNERS[BANNER_COUNT] = {
     [BANNER_PIXEL_DUNGEON]       = { 0,   0, 128, 70 },
     [BANNER_BOSS_SLAIN]          = { 0,  70, 128, 35 },
     [BANNER_GAME_OVER]           = { 0, 105, 128, 35 },
@@ -36,7 +24,7 @@ void banner_sprite(BannerId banner, SDL_Rect *rect) {
     sprite_get(BANNERS, BANNER_COUNT, banner, rect);
 }
 
-static const SpriteRect ICONS[ICON_COUNT] = {
+static const SDL_Rect ICONS[ICON_COUNT] = {
     [ICON_SKULL]          = {  0,  0,  8,  8 },
     [ICON_BUSY]           = {  8,  0,  8,  8 },
     [ICON_COMPASS]        = {  0,  8,  7,  5 },
@@ -137,4 +125,16 @@ void speck_sprite(int type, SDL_Rect *rect) {
     };
 }
 
-//TODO ADD EFFECTS + BUFF ICONS
+static const SDL_Rect EFFECTS[EFFECT_COUNT] = {
+    [EFFECT_RIPPLE]     = {   0,  0, 16, 16 },
+    [EFFECT_LIGHTNING]  = {  16,  0, 16,  8 },
+    [EFFECT_WOUND]      = {  16,  8, 16,  8 },
+    [EFFECT_RAY]        = {  16, 16, 16,  8 }
+};
+
+void effect_sprite(EffectId effect, SDL_Rect *rect) {
+    sprite_get(EFFECTS, EFFECT_COUNT, effect, rect);
+}
+
+
+//TODO ADD  BUFF ICONS

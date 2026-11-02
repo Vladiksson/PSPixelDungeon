@@ -27,7 +27,36 @@ typedef enum {
    PK_BLAST,         /* Explosion flash: bomb — BlastParticle */
    PK_POISON,        /* Toxic splash: poison trap/plant/gas damage — PoisonParticle (SPLASH factory) */
    PK_PURPLE,        /* Dark energy burst: disintegration, eye death gaze — PurpleParticle (BURST factory) */
+
+   /* ── wand bolt trail particles: MagicMissile's per-wand factories ──
+      MagicMissile itself has no sprite in the original — the whole flying
+      bolt IS this particle stream (poured ~100/sec along the flight path).
+      TRAIL_POISON/TRAIL_PURPLE reuse PK_POISON/PK_PURPLE above (same
+      update(), only the launch velocity differs) and TRAIL_FIRE/TRAIL_FOLIAGE
+      reuse PK_FLAME/PK_LEAF outright, so they need no kind of their own. */
+   PK_TRAIL_MAGIC,   /* Magic Missile wand (and Wand's own default fx) — MagicMissile.MagicParticle */
+   PK_TRAIL_EARTH,   /* Avalanche wand — MagicMissile.EarthParticle (NOT the same class as PK_EARTH above) */
+   PK_TRAIL_WHITE,   /* Blink wand — MagicMissile.WhiteParticle */
+   PK_TRAIL_SLOW,    /* Slowness wand — MagicMissile.SlowParticle (homes toward the live bolt tip) */
+   PK_TRAIL_FORCE,   /* Reach wand — MagicMissile.ForceParticle (8-way star, cycles by emit index) */
+   PK_TRAIL_COLD,    /* Teleportation wand — MagicMissile.ColdParticle */
+   PK_TRAIL_WOOL,    /* Flock wand — WoolParticle */
 } ParticleKind;
+
+typedef enum {
+   TRAIL_NONE = 0,
+   TRAIL_MAGIC,      /* -> PK_TRAIL_MAGIC */
+   TRAIL_FIRE,       /* -> PK_FLAME (FlameParticle.FACTORY, same as the fire blob) */
+   TRAIL_EARTH,      /* -> PK_TRAIL_EARTH */
+   TRAIL_WHITE,      /* -> PK_TRAIL_WHITE */
+   TRAIL_PURPLE,     /* -> PK_PURPLE (PurpleParticle.MISSILE seeding) */
+   TRAIL_WOOL,       /* -> PK_TRAIL_WOOL */
+   TRAIL_POISON,     /* -> PK_POISON (PoisonParticle.MISSILE seeding) */
+   TRAIL_FOLIAGE,    /* -> PK_LEAF (LeafParticle.GENERAL, same as Plant's leaf burst) */
+   TRAIL_SLOW,       /* -> PK_TRAIL_SLOW */
+   TRAIL_FORCE,      /* -> PK_TRAIL_FORCE */
+   TRAIL_COLD,       /* -> PK_TRAIL_COLD */
+} WandTrailKind;
 
 typedef enum {
    SPECK_HEALING   = 0,
@@ -99,6 +128,13 @@ void particle_emit_smoke(Level *lvl, int cell);  /* bomb smoke */
 void particle_emit_blast(Level *lvl, int cell);  /* bomb explosion flash */
 void particle_emit_poison(Level *lvl, int cell); /* poison trap / plant / gas splash */
 void particle_emit_purple(Level *lvl, int cell); /* disintegration / eye death-gaze burst */
+
+/* Wand bolt trail: x,y are the missile's own live, continuous position (NOT
+ * a cell — the bolt is mid-flight), already converted to TILE_SIZE_MIN-scaled
+ * pixel units. index is the running 0.01s-pour tick count since the bolt
+ * started flying; every kind but TRAIL_FORCE ignores it. See item_wand.c's
+ * wand_bolt_update_trail(), which is the only intended caller. */
+void particle_emit_wand_trail(Level *lvl, WandTrailKind trail, float x, float y, int index);
 
 void particle_clear(Level *lvl);
 

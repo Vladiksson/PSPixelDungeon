@@ -198,6 +198,29 @@ static void targeting_input(Game *game, InputState *inp, uint32_t now) {
         return;
     }
 
+    if (btn_pressed(inp, BTN_SQUARE)) {
+        player->target_pos = player->cursor_pos;
+
+        switch (game->target_action) {
+        case TARGET_ACTION_INVENTORY: {
+            Bag *bag = &player->bags[game->throw_bag];
+
+            player_zap(player, game->lvl, bag, game->throw_slot, player->target_pos);
+            break;
+        }
+        case TARGET_ACTION_QUICK_SLOT:
+            player_zap_quick_slot(player, game->lvl);
+            break;
+
+        default:
+            return;
+        }
+
+        player->cursor_pos = player->base.pos;
+        game->state = GAME_STATE_PLAYING;
+        return;
+    }
+
     if (btn_pressed(inp, BTN_CIRCLE)) {
         if (game->target_action == TARGET_ACTION_INVENTORY) {
             player->cursor_pos = player->base.pos;
@@ -515,7 +538,10 @@ void game_render(Game *game, RenderCtx *rctx) {
 
     render_mobs(rctx, game->fog, &game->cam);
     render_npcs(rctx, &game->player, game->fog, &game->cam);
+
     render_missiles(rctx, &game->cam);
+    render_wand_fx(rctx, &game->cam);
+
     render_fog(rctx, game->fog, &game->cam);
     render_player(rctx, &game->player, &game->cam);
     render_hud(rctx, &game->player, &game->dungeon);

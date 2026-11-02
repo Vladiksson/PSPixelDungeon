@@ -1172,6 +1172,34 @@ int player_use_quick_slot(Player *p, Level *lvl) {
     }
 }
 
+int player_zap_quick_slot(Player *p, Level *lvl) {
+    if (player_is_busy(p))
+        return 0;
+
+    ItemType type = p->quick_slot.type;
+
+    if (type == ITEM_NONE)
+        return 0;
+
+    if (type < 0 || type >= ITEM_TYPE_COUNT)
+        return 0;
+
+    ItemCategory cat = ITEM_DB[type].cat;
+
+    if(cat != ITEMCAT_WAND)
+        return 0;
+
+    Bag *bag = NULL;
+    int slot = -1;
+
+    if (!player_locate_item(p, type, &bag, &slot))
+        return 0;
+
+    player_zap(p, lvl, bag, slot, p->target_pos);
+
+    return 0;
+}
+
 int player_throw_quick_slot(Player *p, Level *lvl) {
     if (player_is_busy(p))
         return 0;
@@ -1504,6 +1532,9 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     player_init_item(p, ITEM_POTION_INVISIBILITY, 10);//TEST
     player_init_item(p, ITEM_POTION_TOXIC_GAS, 10);//TEST
     player_init_item(p, ITEM_POTION_STRENGTH, 10);//TEST
+
+    player_init_item(p, ITEM_WAND_DISINTEGRATION, 1);//TEST
+    player_init_item(p, ITEM_WAND_LIGHTNING, 1);//TEST
 
     switch (p->cls) {
     case HERO_WARRIOR:

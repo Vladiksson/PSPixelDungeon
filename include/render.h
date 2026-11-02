@@ -50,7 +50,8 @@ typedef struct {
 
    SDL_Texture  *specks;
    SDL_Texture  *particle_pixel;
-
+   SDL_Texture  *effects;
+   
    DungeonTheme  active_theme;
 
    MenuTextures  menu;
@@ -75,6 +76,7 @@ void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *
 void render_particles(RenderCtx *ctx, const Level *lvl, const Camera *cam);
 
 void render_missiles(RenderCtx *ctx, const Camera *cam);
+void render_wand_fx(RenderCtx *ctx, const Camera *cam); /* Lightning zigzag + Disintegration beam */
 
 void render_present (RenderCtx *ctx);
 

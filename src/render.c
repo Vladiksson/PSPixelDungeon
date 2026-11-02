@@ -1,5 +1,6 @@
 #include "render.h"
 #include "assets.h"
+#include "ballistica.h"
 #include "item_wand.h"
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
@@ -226,6 +227,9 @@ static bool load_particles(RenderCtx *ctx) {
     if (!ctx->particle_pixel)
         return false;
 
+    ctx->effects = load_tex(ctx->renderer, ASSET_EFFECTS);
+    if (!ctx->effects)
+        return false;
     return true;
 }
 
@@ -292,6 +296,7 @@ void render_free(RenderCtx *ctx) {
 
     destroy_tex(&ctx->specks);
     destroy_tex(&ctx->particle_pixel);
+    destroy_tex(&ctx->effects);
 
     ui_free(&ctx->ui);
     menu_free(&ctx->menu);
@@ -466,6 +471,8 @@ void render_update_particles(Level *lvl, const Fog *fog, float elapsed) {
     particle_update_blobs(lvl, &lvl->blob_pool, elapsed, fog_cell_visible, (void *)fog);
     particle_update_emitters(lvl, elapsed, fog_cell_visible, (void *)fog);
     particle_update_ambient(lvl, elapsed, fog_cell_visible, (void *)fog);
+    wand_bolt_update_trail(lvl, elapsed);
+    wand_fx_update(elapsed);
 }
 
 /* ── render_items ──────────────────────────────────── */
@@ -868,35 +875,6 @@ void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *
 
 
 /* ── render_missiles ───────────────────────────────────── */
-static void render_wand_bolt_at(RenderCtx *ctx, float scr_x, float scr_y, uint8_t r, uint8_t g, uint8_t b) { //REDO temporary bullshit
-    if (!ctx->particle_pixel) return;
-
-    float glow_size = gTileSize * 0.5f;
-    SDL_Rect glow_dst = {
-        (int)(scr_x - glow_size / 2.0f + 0.5f),
-        (int)(scr_y - glow_size / 2.0f + 0.5f),
-        (int)(glow_size + 0.5f),
-        (int)(glow_size + 0.5f)
-    };
-    SDL_SetTextureColorMod(ctx->particle_pixel, r, g, b);
-    SDL_SetTextureAlphaMod(ctx->particle_pixel, 110);
-    SDL_SetTextureBlendMode(ctx->particle_pixel, SDL_BLENDMODE_ADD);
-    SDL_RenderCopy(ctx->renderer, ctx->particle_pixel, NULL, &glow_dst);
-
-    float core_size = gTileSize * 0.4f;
-    SDL_Rect core_dst = {
-        (int)(scr_x - core_size / 2.0f + 0.5f),
-        (int)(scr_y - core_size / 2.0f + 0.5f),
-        (int)(core_size + 0.5f),
-        (int)(core_size + 0.5f)
-    };
-    SDL_SetTextureAlphaMod(ctx->particle_pixel, 255);
-    SDL_RenderCopy(ctx->renderer, ctx->particle_pixel, NULL, &core_dst);
-
-    SDL_SetTextureColorMod(ctx->particle_pixel, 255, 255, 255);
-    SDL_SetTextureBlendMode(ctx->particle_pixel, SDL_BLENDMODE_BLEND);
-}
-
 void render_missiles(RenderCtx *ctx, const Camera *cam) {
     MissileView mv;
     if (missiles_snapshot(&mv) <= 0) return;
@@ -905,17 +883,15 @@ void render_missiles(RenderCtx *ctx, const Camera *cam) {
         mv.y < cam->tile_y - 1 || mv.y > cam->tile_y + gViewRows)
         return;
 
-    Point origin = camera_tile_to_screen(cam, 0, 0);
-    float scr_x = origin.x + mv.x * gTileSize;
-    float scr_y = origin.y + mv.y * gTileSize;
-
-    uint8_t r, g, b;
-    if (wand_bolt_color(&r, &g, &b)) {
-        render_wand_bolt_at(ctx, scr_x + gTileSize * 0.5f, scr_y + gTileSize * 0.5f, r, g, b);
+    if (wand_bolt()) {
         return;
     }
 
     if (!ctx->items) return;
+
+    Point origin = camera_tile_to_screen(cam, 0, 0);
+    float scr_x = origin.x + mv.x * gTileSize;
+    float scr_y = origin.y + mv.y * gTileSize;
 
     SDL_Rect src = { mv.col * ICON_SIZE, mv.row * ICON_SIZE, ICON_SIZE, ICON_SIZE };
     SDL_Rect dst = {
@@ -926,6 +902,69 @@ void render_missiles(RenderCtx *ctx, const Camera *cam) {
     };
 
     SDL_RenderCopyEx(ctx->renderer, ctx->items, &src, &dst, (double)mv.angle, NULL, SDL_FLIP_NONE);
+}
+
+/* ── render_wand_fx ───────────────────────────────────── */
+static void draw_stretched_effect(RenderCtx *ctx, const Camera *cam, EffectId effect, float wx0, float wy0, float wx1, float wy1, float alpha, float height_scale) {
+    if (!ctx->effects || alpha <= 0.0f) return;
+
+    SDL_Rect src;
+    effect_sprite(effect, &src);
+    if (src.w <= 0 || src.h <= 0) return;
+
+    float px_scale = (float)gTileSize / (float)TILE_SIZE_MIN;
+    Point origin = camera_tile_to_screen(cam, 0, 0);
+
+    float sx = origin.x + (wx0 / (float)TILE_SIZE_MIN) * gTileSize;
+    float sy = origin.y + (wy0 / (float)TILE_SIZE_MIN) * gTileSize;
+    float ex = origin.x + (wx1 / (float)TILE_SIZE_MIN) * gTileSize;
+    float ey = origin.y + (wy1 / (float)TILE_SIZE_MIN) * gTileSize;
+
+    float dx = ex - sx;
+    float dy = ey - sy;
+    float length = sqrtf(dx * dx + dy * dy);
+    float angle_deg = atan2f(dy, dx) * 180.0f / (float)M_PI;
+
+    int draw_h = (int)(src.h * px_scale * height_scale + 0.5f);
+    if (draw_h < 0) draw_h = 0;
+
+    SDL_Rect dst = {
+        (int)(sx + 0.5f),
+        (int)(sy - draw_h / 2.0f + 0.5f),
+        (int)(length + 0.5f),
+        draw_h
+    };
+    SDL_Point center = { 0, draw_h / 2 };
+
+    SDL_SetTextureAlphaMod(ctx->effects, to_byte(alpha));
+    SDL_SetTextureBlendMode(ctx->effects, SDL_BLENDMODE_ADD);
+
+    SDL_RenderCopyEx(ctx->renderer, ctx->effects, &src, &dst, (double)angle_deg, &center, SDL_FLIP_NONE);
+
+    SDL_SetTextureAlphaMod(ctx->effects, 255);
+    SDL_SetTextureBlendMode(ctx->effects, SDL_BLENDMODE_BLEND);
+}
+
+static void render_lightning_fx(RenderCtx *ctx, const Camera *cam) {
+    LightningFxView lv;
+    if (!lightning_fx_snapshot(&lv)) return;
+
+    for (int i = 0; i < lv.count - 1; i++) {
+        draw_stretched_effect(ctx, cam, EFFECT_LIGHTNING, lv.pts_x[i], lv.pts_y[i], lv.mid_x[i], lv.mid_y[i], lv.alpha, 1.0f);
+        draw_stretched_effect(ctx, cam, EFFECT_LIGHTNING, lv.mid_x[i], lv.mid_y[i], lv.pts_x[i + 1], lv.pts_y[i + 1], lv.alpha, 1.0f);
+    }
+}
+
+static void render_ray_fx(RenderCtx *ctx, const Camera *cam) {
+    RayFxView rv;
+    if (!ray_fx_snapshot(&rv)) return;
+
+    draw_stretched_effect(ctx, cam, EFFECT_RAY, rv.sx, rv.sy, rv.ex, rv.ey, rv.alpha, rv.alpha);
+}
+
+void render_wand_fx(RenderCtx *ctx, const Camera *cam) {
+    render_lightning_fx(ctx, cam);
+    render_ray_fx(ctx, cam);
 }
 
 /* ── render_present ───────────────────────────────── */

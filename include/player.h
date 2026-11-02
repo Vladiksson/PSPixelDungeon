@@ -156,6 +156,7 @@ int player_unequip(Player *p, EquipSlot slot, Level *lvl);
 
 int player_set_quick_slot(Player *p, Bag *bag, int slot);
 int player_use_quick_slot(Player *p, Level *lvl);
+int player_zap_quick_slot(Player *p, Level *lvl);
 int player_throw_quick_slot(Player *p, Level *lvl);
 
 int player_throw(Player *p, Level *lvl, Bag *bag, int slot, int dst);
