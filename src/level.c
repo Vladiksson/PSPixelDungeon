@@ -12,11 +12,10 @@
 #define REGULAR_LEVEL_MAX_ATTEMPTS 50
 #define ROOM_PICK_MAX_TRIES 300
 
-static int try_regular_level(Level *lvl, DungeonTheme theme, int depth, int blacksmith_depth) {
+static int try_regular_level(Level *lvl, DungeonTheme theme, int depth, LevelGenState *gen) {
     memset(lvl, 0, sizeof(*lvl));
     
-    LevelGenState gen;
-    init_special_rooms(&gen, depth);
+    init_special_rooms(gen, depth);
 
     lvl->theme = theme;
     memset(lvl->map, TILE_WALL, sizeof(lvl->map));
@@ -117,9 +116,9 @@ static int try_regular_level(Level *lvl, DungeonTheme theme, int depth, int blac
     #undef add_set
 
     /* 3.5*/
-    place_special_near_entrance(lvl, entrance_r, depth, blacksmith_depth); //shop + blacksmith
+    place_special_near_entrance(lvl, entrance_r, depth, gen->blacksmith_depth); //shop + blacksmith
     /* 4 Assign room types */
-    assign_types(lvl, &gen, entrance_r, exit_r, theme, depth);
+    assign_types(lvl, gen, entrance_r, exit_r, theme, depth);
 
     /* 5 Compute door positions */
     compute_doors(lvl);
@@ -204,7 +203,7 @@ static int try_regular_level(Level *lvl, DungeonTheme theme, int depth, int blac
     return 1;
 }
 
-int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int blacksmith_depth) {
+int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, LevelGenState *gen) {
     if (level_is_boss_depth(depth))
         return level_generate_boss(lvl, seed, theme, depth);
     if (depth == LAST_SHOP_DEPTH)
@@ -214,6 +213,6 @@ int level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int
 
     rng_state = seed ? seed : (uint32_t)time(NULL);
     for (int i = 0; i < REGULAR_LEVEL_MAX_ATTEMPTS; i++)
-        if (try_regular_level(lvl, theme, depth, blacksmith_depth)) return 0;
+        if (try_regular_level(lvl, theme, depth, gen)) return 0;
     return -1;
 }

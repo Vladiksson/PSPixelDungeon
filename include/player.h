@@ -127,6 +127,7 @@ typedef struct {
    int wand_charge_turns;  /* counts real player turns 0..WAND_CHARGE_TURN_INTERVAL; see player_charge_wands() in player.c */
 
    int resting;
+   int falling;
 
    int cursor_pos;
    int target_pos;
@@ -169,6 +170,7 @@ int player_operate(Player *p, Level *lvl, int idx);
 
 void player_rest(Player *p);
 void player_search(Player *p, Level *lvl);
+void player_fell(Player *player);
 
 int player_move(Player *p, Level *lvl, int dx, int dy);
 int player_bump(Player *p, Level *lvl, int dx, int dy);

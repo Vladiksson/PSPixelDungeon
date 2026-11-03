@@ -45,7 +45,6 @@ typedef enum {
     DOOR_TUNNEL,
     DOOR_REGULAR,
     DOOR_LOCKED,
-    //DOOR_SECRET,
     DOOR_HIDDEN,
     DOOR_BARRICADE,
     DOOR_UNLOCKED
@@ -130,11 +129,13 @@ typedef struct {
     RoomType specials[16];
     int num_specials;
 
-    int pit_room_needed;//TODO genstate doesnt saves after changing levels, so needs rework
+    int pit_room_needed;
     int weak_floor_created;
+
+    int blacksmith_depth;
 } LevelGenState;
 
-int  level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, int blacksmith_depth);
+int  level_generate(Level *lvl, uint32_t seed, DungeonTheme theme, int depth, LevelGenState *gen_state);
 
 static inline uint8_t get_tile_safe(const Level *lvl, int idx) {
     if (!in_bounds(idx)) return TILE_WALL;

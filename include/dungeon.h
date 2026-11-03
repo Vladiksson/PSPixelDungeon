@@ -11,10 +11,10 @@ typedef struct {
     Fog fog[MAX_FLOORS];
     uint8_t generated[MAX_FLOORS];
 
+    LevelGenState gen_state;
+
     int current_depth;
     uint32_t world_seed;
-
-    int blacksmith_depth;
 } Dungeon;
 
 void dungeon_init(Dungeon *d);
@@ -23,7 +23,7 @@ Level *dungeon_current_level(Dungeon *d);
 
 Fog *dungeon_current_fog(Dungeon *d);
 
-int dungeon_go_down(Dungeon *d, Player *player, Camera *cam);
+int dungeon_go_down(Dungeon *d, Player *player, Camera *cam, int pos);
 int dungeon_go_up(Dungeon *d, Player *player, Camera *cam);
 
 void dungeon_event(Dungeon *dungeon, Player *player);

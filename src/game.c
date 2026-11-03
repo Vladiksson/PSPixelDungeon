@@ -251,8 +251,8 @@ static void game_handle_move(Game *game) {
         player_pickup(player, lvl);
     }
 
-    if (player->base.pos == lvl->exit) {
-        dungeon_go_down(&game->dungeon, player, &game->cam);
+    if (player->base.pos == lvl->exit || player->falling) {
+        dungeon_go_down(&game->dungeon, player, &game->cam, player->base.pos);
         game_floor(game);
         return;
     }

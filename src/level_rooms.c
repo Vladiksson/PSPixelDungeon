@@ -116,16 +116,19 @@ static void special_remove(RoomType *specials, int *count, RoomType t){
     (*count)--;
 }
 
-void init_special_rooms(LevelGenState *gen, int depth){
-    memset(gen, 0, sizeof(*gen));
-
+void init_special_rooms(LevelGenState *gen, int depth) {
     gen->num_specials = sizeof(default_specials) / sizeof(default_specials[0]);
 
     memcpy(gen->specials, default_specials, sizeof(default_specials));
     RNG_SHUFFLE(gen->specials, gen->num_specials);
 
-    if (level_is_boss_depth(depth+1))
-               special_remove(gen->specials, &gen->num_specials, ROOM_WEAK_FLOOR);
+    if (level_is_boss_depth(depth + 1))
+        special_remove(gen->specials, &gen->num_specials, ROOM_WEAK_FLOOR);
+
+    if (gen->weak_floor_created) {
+        gen->pit_room_needed = 1;
+        gen->weak_floor_created = 0;
+    }
 }
 
 void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int exit_idx, DungeonTheme theme, int depth) {
@@ -138,24 +141,22 @@ void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int exit_idx
             continue;
         if (r->n_connections != 1)
             continue;
-        if (gen->num_specials > 0 &&
-            room_w(r) > 3 &&
-            room_h(r) > 3 &&
-            rng_int(special_rooms * special_rooms + 2) == 0) {
-            if (gen->pit_room_needed) {
-                r->type = ROOM_PIT;
-                gen->pit_room_needed = 0;
+        if (gen->pit_room_needed && room_w(r) > 3 && room_h(r) > 3) {
 
-                special_remove(gen->specials, &gen->num_specials, ROOM_ARMORY);
-                special_remove(gen->specials, &gen->num_specials, ROOM_CRYPT);
-                special_remove(gen->specials, &gen->num_specials, ROOM_LABORATORY);
-                special_remove(gen->specials, &gen->num_specials, ROOM_LIBRARY);
-                special_remove(gen->specials, &gen->num_specials, ROOM_STATUE);
-                special_remove(gen->specials, &gen->num_specials, ROOM_TREASURY);
-                special_remove(gen->specials, &gen->num_specials, ROOM_VAULT);
-                special_remove(gen->specials, &gen->num_specials, ROOM_WEAK_FLOOR);
+            r->type = ROOM_PIT;
+            gen->pit_room_needed = 0;
 
-            } else if ((depth + 1)% 5 == 2 && special_index(gen->specials, gen->num_specials, ROOM_LABORATORY) >= 0) {
+            special_remove(gen->specials, &gen->num_specials, ROOM_ARMORY);
+            special_remove(gen->specials, &gen->num_specials, ROOM_CRYPT);
+            special_remove(gen->specials, &gen->num_specials, ROOM_LABORATORY);
+            special_remove(gen->specials, &gen->num_specials, ROOM_LIBRARY);
+            special_remove(gen->specials, &gen->num_specials, ROOM_STATUE);
+            special_remove(gen->specials, &gen->num_specials, ROOM_TREASURY);
+            special_remove(gen->specials, &gen->num_specials, ROOM_VAULT);
+            special_remove(gen->specials, &gen->num_specials, ROOM_WEAK_FLOOR);
+        
+        } else if (gen->num_specials > 0 && room_w(r) > 3 && room_h(r) > 3 && rng_int(special_rooms * special_rooms + 2) == 0) {
+            if ((depth + 1)% 5 == 2 && special_index(gen->specials, gen->num_specials, ROOM_LABORATORY) >= 0) {
                 r->type = ROOM_LABORATORY;
             } else {
 
@@ -164,8 +165,6 @@ void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int exit_idx
                 int b = rng_int(n);
 
                 r->type = gen->specials[(a < b) ? a : b];
-                if (r->type == ROOM_WEAK_FLOOR)
-                    gen->weak_floor_created = 1;
 
                 for (int tries = 0; tries < 20; tries++) { /*TEMPORARY FIX FOR ROOM_ALTAR*/
                     int a = rng_int(gen->num_specials);
@@ -176,6 +175,9 @@ void assign_types(Level *lvl, LevelGenState *gen, int entrance_idx, int exit_idx
                     r->type = t;
                     break;
                 }
+                
+                if (r->type == ROOM_WEAK_FLOOR)
+                    gen->weak_floor_created = 1;
             }
             special_remove(gen->specials, &gen->num_specials, r->type);
             special_rooms++;

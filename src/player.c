@@ -1233,7 +1233,7 @@ int fov_radius(Player *player, int depth) {
         radius = 6;
     } else if (depth > 20 && depth < 24) {
         radius = 24 - depth;
-        if (radius < 1) radius = 1;
+        if (radius < 2) radius = 2;
     } else if (depth == 24) {
         radius = 3;
     } else {
@@ -1354,6 +1354,15 @@ void player_search(Player *p, Level *lvl) { //test for search
     player_end_turn(p, 1.0f);
 }
 
+void player_fell(Player *player) {
+    player->falling = 0;
+    player->base.HP -= rng_range(player->base.HT / 3, player->base.HT / 2);
+    if (player->base.HP <= 0)
+        player->base.HP = 1;
+
+    char_apply_buff(&player->base, BUFF_CRIPPLE, CRIPPLE_DURATION);
+}
+
 int player_move(Player *p, Level *lvl, int dx, int dy) {
     if (p->base.rooted) 
         return 0;
@@ -1444,6 +1453,10 @@ int player_bump(Player *p, Level *lvl, int dx, int dy) {
     if (h && player_operate(p, lvl, idx))
         return PLAYER_BUMP_INTERACTED; //todo change to other type. mb it should live after occupant check???
 
+    /* CHASM */
+    if (cell_pit(lvl, idx) && p->base.flying == 0)
+        return p->falling = 1;
+
     /* Movement */
     return player_move(p, lvl, dx, dy) ? PLAYER_BUMP_MOVED : PLAYER_BUMP_BLOCKED;
 }
@@ -1513,6 +1526,7 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->wand_charge_turns   = 0;
 
     p->resting             = 0;
+    p->falling             = 0;
 
     p->cursor_pos = p->base.pos;
     p->target_pos = p->base.pos;
