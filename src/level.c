@@ -197,8 +197,8 @@ static int try_regular_level(Level *lvl, DungeonTheme theme, int depth, LevelGen
     //npc_spawn_kind(NPC_MIRROR_IMAGE, lvl->entrance - 1); //test
     //npc_spawn_kind(NPC_GHOST, lvl->entrance + 1); //test
 
-    set_tile(lvl, lvl->entrance - 1, TILE_WATER); //test
-    set_tile(lvl, lvl->entrance - 1 + LEVEL_W, TILE_CHASM_WATER); //test
+    //set_tile(lvl, lvl->entrance - 1, TILE_WATER); //test
+    //set_tile(lvl, lvl->entrance - 1 + LEVEL_W, TILE_CHASM_WATER); //test
 
     return 1;
 }

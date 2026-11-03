@@ -5,8 +5,8 @@
 #include "sprite_db.h"
 #include "ballistica.h"
 
-#define HERO_STARTING_HP         2000 //test, original was 20
-#define HERO_STARTING_STR        100 //test, original was 10
+#define HERO_STARTING_HP         20 //test, original was 20
+#define HERO_STARTING_STR        10 //test, original was 10
 #define HERO_STARTING_ATTACK     10
 #define HERO_STARTING_DEFENSE     5
 #define HERO_STARTING_AWARENESS  0.1f

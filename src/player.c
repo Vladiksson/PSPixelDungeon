@@ -1538,17 +1538,17 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     player_init_item(p, ITEM_RATION, 1);
     player_init_item(p, ITEM_BAG_KEYRING, 1);
 
-    player_init_item(p, ITEM_WARRIOR_ARMOR, 1);//TEST
-    player_init_item(p, ITEM_WAR_HAMMER, 1);//TEST
-    player_init_item(p, ITEM_SCROLL_UPGRADE, 100);//TEST
-    player_init_item(p, ITEM_CURARE_DART, 100);//TEST
+    //player_init_item(p, ITEM_WARRIOR_ARMOR, 1);//TEST
+    //player_init_item(p, ITEM_WAR_HAMMER, 1);//TEST
+    //player_init_item(p, ITEM_SCROLL_UPGRADE, 100);//TEST
+    //player_init_item(p, ITEM_CURARE_DART, 100);//TEST
 
-    player_init_item(p, ITEM_POTION_INVISIBILITY, 10);//TEST
-    player_init_item(p, ITEM_POTION_TOXIC_GAS, 10);//TEST
-    player_init_item(p, ITEM_POTION_STRENGTH, 10);//TEST
+    //player_init_item(p, ITEM_POTION_INVISIBILITY, 10);//TEST
+    //player_init_item(p, ITEM_POTION_TOXIC_GAS, 10);//TEST
+    //player_init_item(p, ITEM_POTION_STRENGTH, 10);//TEST
 
-    player_init_item(p, ITEM_WAND_DISINTEGRATION, 1);//TEST
-    player_init_item(p, ITEM_WAND_LIGHTNING, 1);//TEST
+    //player_init_item(p, ITEM_WAND_DISINTEGRATION, 1);//TEST
+    //player_init_item(p, ITEM_WAND_LIGHTNING, 1);//TEST
 
     switch (p->cls) {
     case HERO_WARRIOR:
