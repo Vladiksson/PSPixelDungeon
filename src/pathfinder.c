@@ -1,8 +1,13 @@
 #include "pathfinder.h"
 
-static int path_cell_passable(const Level *lvl, int n, int from, int goal) {
-    if (!cell_passable(lvl, n))
-        return 0;
+static int path_cell_passable(const Level *lvl, int n, int from, int goal, int flying) {
+    if (!flying) {
+        if (!cell_passable(lvl, n) || cell_avoid(lvl, n))
+            return 0;
+    } else {
+        if (cell_solid(lvl, n) && lvl->map[n] != TILE_DOOR)
+            return 0;
+    }
     if (n == from || n == goal)
         return 1;
     return char_find_at(n) == NULL;
@@ -17,7 +22,7 @@ static int     distance[LEVEL_SIZE];
 static int     bfs_queue[LEVEL_SIZE];
 static uint8_t is_goal[LEVEL_SIZE];
 
-static int build_distance_map_single(const Level *lvl, int from, int to) {
+static int build_distance_map_single(const Level *lvl, int from, int to, int flying) {
     if (from == to) return 0;
 
     for (int i = 0; i < LEVEL_SIZE; i++) distance[i] = INT_MAX;
@@ -39,7 +44,7 @@ static int build_distance_map_single(const Level *lvl, int from, int to) {
                 continue;
             int n = xy_to_idx(nx, ny);
 
-            if (path_cell_passable(lvl, n, from, to) && distance[n] > next_dist) {
+            if (path_cell_passable(lvl, n, from, to, flying) && distance[n] > next_dist) {
                 bfs_queue[tail++] = n;
                 distance[n] = next_dist;
             }
@@ -48,7 +53,7 @@ static int build_distance_map_single(const Level *lvl, int from, int to) {
     return 0;
 }
 
-static int build_distance_map_multi(const Level *lvl, int from, const uint8_t *goals) {
+static int build_distance_map_multi(const Level *lvl, int from, const uint8_t *goals, int flying) {
     if (goals[from]) return 0;
 
     for (int i = 0; i < LEVEL_SIZE; i++) distance[i] = INT_MAX;
@@ -74,7 +79,7 @@ static int build_distance_map_multi(const Level *lvl, int from, const uint8_t *g
                 continue;
             int n = xy_to_idx(nx, ny);
 
-            if (path_cell_passable(lvl, n, from, -1) && distance[n] > next_dist) {
+            if (path_cell_passable(lvl, n, from, -1, flying) && distance[n] > next_dist) {
                 bfs_queue[tail++] = n;
                 distance[n] = next_dist;
             }
@@ -101,13 +106,13 @@ static int best_neighbour(int from) {
     return best;
 }
 
-int pathfinder_get_step(const Level *lvl, int from, int to) {
-    if (!build_distance_map_single(lvl, from, to)) return -1;
+int pathfinder_get_step(const Level *lvl, int from, int to, int flying) {
+    if (!build_distance_map_single(lvl, from, to, flying)) return -1;
     int best = best_neighbour(from);
     return (best == from) ? -1 : best;
 }
 
-static int build_escape_distance_map(const Level *lvl, int cur, int from) {
+static int build_escape_distance_map(const Level *lvl, int cur, int from, int flying) {
     for (int i = 0; i < LEVEL_SIZE; i++) distance[i] = INT_MAX;
 
     int dest_dist = INT_MAX;
@@ -131,7 +136,7 @@ static int build_escape_distance_map(const Level *lvl, int cur, int from) {
                 continue;
             int n = xy_to_idx(nx, ny);
 
-            if (path_cell_passable(lvl, n, cur, from) && distance[n] > next_dist) {
+            if (path_cell_passable(lvl, n, cur, from, flying) && distance[n] > next_dist) {
                 bfs_queue[tail++] = n;
                 distance[n] = next_dist;
             }
@@ -140,12 +145,12 @@ static int build_escape_distance_map(const Level *lvl, int cur, int from) {
     return dist;
 }
 
-int pathfinder_get_step_back(const Level *lvl, int cur, int from) {
-    int d = build_escape_distance_map(lvl, cur, from);
+int pathfinder_get_step_back(const Level *lvl, int cur, int from, int flying) {
+    int d = build_escape_distance_map(lvl, cur, from, flying);
 
     for (int i = 0; i < LEVEL_SIZE; i++) is_goal[i] = (distance[i] == d);
 
-    if (!build_distance_map_multi(lvl, cur, is_goal)) return -1;
+    if (!build_distance_map_multi(lvl, cur, is_goal, flying)) return -1;
 
     int best = best_neighbour(cur);
     return (best == cur) ? -1 : best;

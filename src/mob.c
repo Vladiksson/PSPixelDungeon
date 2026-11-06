@@ -315,17 +315,23 @@ static int mob_can_see(Mob *m, Char *target, Level *lvl){
 static int mob_try_step(Mob *m, Level *lvl, int npos) {
     if (m->base.rooted) return 0;
     if (!in_bounds(npos)) return 0;
-    if (npos == m->base.pos) return 0;
+    if (!cells_adjacent(m->base.pos, npos)) return 0;
 
     Point mp = idx_to_xy(m->base.pos);
     Point np = idx_to_xy(npos);
 
     int dx = np.x - mp.x;
-    int dy = np.y - mp.y;
 
-    /* Must be an adjacent tile. */
-    if (dx < -1 || dx > 1 || dy < -1 || dy > 1) return 0;
-    if (!(cell_passable(lvl, npos))) return 0;
+    if (m->base.flying) {
+        if (cell_solid(lvl, npos) && lvl->map[npos] != TILE_DOOR)
+            return 0;
+    } else {
+        if (!cell_passable(lvl, npos) || cell_avoid(lvl, npos))
+            return 0;
+    }
+    if (m->kind == MOB_PIRANHA && !cell_liquid(lvl, npos))
+        return 0;
+
     if (char_find_at(npos) != NULL) return 0;
 
     char_move(&m->base, lvl, npos);
@@ -337,14 +343,14 @@ static int mob_try_step(Mob *m, Level *lvl, int npos) {
 }
 
 static int mob_step_toward_pos(Mob *m, Level *lvl, int dest_pos) {
-    int next = pathfinder_get_step(lvl, m->base.pos, dest_pos);
+    int next = pathfinder_get_step(lvl, m->base.pos, dest_pos, m->base.flying);
     if (next == -1)
         return 0;
     return mob_try_step(m, lvl, next);
 }
 
 static int mob_step_away_pos(Mob *m, Level *lvl, int from_pos) {
-    int next = pathfinder_get_step_back(lvl, m->base.pos, from_pos);
+    int next = pathfinder_get_step_back(lvl, m->base.pos, from_pos, m->base.flying);
     if (next == -1)
         return 0;
     return mob_try_step(m, lvl, next);

@@ -40,11 +40,12 @@ typedef enum {
 } BuffType;
 
 typedef struct Buff {
-    Actor    base;     
+    Actor    base;
     BuffType type;
     Char    *target;
     float    duration;  /* countdown in Actor-clock units*/
     int      data;      /* generic payload slot — e.g. Charm's caster id would live here */
+    float    fx_timer;  /* ambient-particle phase/countdown */
 } Buff;
 
 #define BUFF_HP_CAP_SAFE(ht) ((ht) > 0 ? (ht) : 1)

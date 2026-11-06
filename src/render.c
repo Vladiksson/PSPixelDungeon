@@ -469,6 +469,7 @@ void render_update_water(RenderCtx *ctx, float elapsed) { //MB TRANSFER SOMEWHER
 void render_update_particles(Level *lvl, const Fog *fog, float elapsed) {
     particle_update_all(lvl, elapsed);
     particle_update_blobs(lvl, &lvl->blob_pool, elapsed, fog_cell_visible, (void *)fog);
+    particle_update_buffs(lvl, elapsed, fog_cell_visible, (void *)fog);
     particle_update_emitters(lvl, elapsed, fog_cell_visible, (void *)fog);
     particle_update_ambient(lvl, elapsed, fog_cell_visible, (void *)fog);
     wand_bolt_update_trail(lvl, elapsed);

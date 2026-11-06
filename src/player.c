@@ -601,6 +601,7 @@ void player_consume_item(Player *p, Bag *bag, int slot) {
             BUFF_FURY,
             BUFF_HASTE,
             BUFF_RAGE,
+            BUFF_LEVITATION,
         };
 
         int buff_count = sizeof(test_buffs) / sizeof(test_buffs[0]);
@@ -1374,8 +1375,14 @@ int player_move(Player *p, Level *lvl, int dx, int dy) {
     int idx = neighbour_idx(p->base.pos, dx, dy);
     if (idx == -1)
         return 0;
-    if (!(cell_passable(lvl, idx)))
-        return 0;
+
+    if (p->base.flying) {
+        if (cell_solid(lvl, idx) && lvl->map[idx] != TILE_DOOR)
+            return 0;
+    } else {
+        if (!(cell_passable(lvl, idx)))
+            return 0;
+    }
 
     if (dx != 0) p->facing = (dx < 0) ? FACE_LEFT : FACE_RIGHT;
 
@@ -1543,9 +1550,9 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     //player_init_item(p, ITEM_SCROLL_UPGRADE, 100);//TEST
     //player_init_item(p, ITEM_CURARE_DART, 100);//TEST
 
-    //player_init_item(p, ITEM_POTION_INVISIBILITY, 10);//TEST
-    //player_init_item(p, ITEM_POTION_TOXIC_GAS, 10);//TEST
-    //player_init_item(p, ITEM_POTION_STRENGTH, 10);//TEST
+    //player_init_item(p, ITEM_POTION_LIQUID_FLAME, 10);//TEST
+    //player_init_item(p, ITEM_POTION_FROST, 10);//TEST
+    //player_init_item(p, ITEM_POTION_LEVITATION, 10);//TEST
 
     //player_init_item(p, ITEM_WAND_DISINTEGRATION, 1);//TEST
     //player_init_item(p, ITEM_WAND_LIGHTNING, 1);//TEST

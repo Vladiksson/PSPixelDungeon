@@ -1,6 +1,7 @@
 #include "buff.h"
 #include "char.h"
 #include "rng.h"
+#include "particle.h" /* char_apply_buff()'s one-shot Poison-attach splash — see below */
 
 Buff *char_buff(Char *self, BuffType type) {
     for (int i = 0; i < MAX_CHAR_BUFFS; i++) {
@@ -364,6 +365,7 @@ Buff *char_apply_buff(Char *self, BuffType type, float duration) {
             b->target   = self;
             b->duration = duration;
             b->data     = 0;
+            b->fx_timer = rng_float() * 0.1f;
 
             const BuffVTable *vt = buff_vt(type);
             if (vt->on_attach && !vt->on_attach(self, b)) {
@@ -376,6 +378,14 @@ Buff *char_apply_buff(Char *self, BuffType type, float duration) {
             if (buff_is_timed(type, duration)) actor_postpone(&b->base, buff_first_step(duration));
 
             self->vt->on_buff_added(self, b);
+
+            if (type == BUFF_POISON) { //TODO do it really should by on attaching buff???
+                Level *lvl = char_active_level();
+                if (lvl) {
+                    for (int n = 0; n < 5; n++) particle_emit_poison(lvl, self->pos);
+                }
+            }
+
             return b;
         }
     }

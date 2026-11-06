@@ -113,6 +113,7 @@ typedef struct {
 void particle_update_all(Level *lvl, float dt);
 typedef int (*CellVisibleFn)(int cell, void *user);
 void particle_update_blobs(Level *lvl, const BlobPool *pool, float dt, CellVisibleFn is_visible_fn, void *user);
+void particle_update_buffs(Level *lvl, float dt, CellVisibleFn is_visible_fn, void *user);
 
 void particle_emit_speck(Level *lvl, int cell, SpeckType type);
 void particle_emit_snow(Level *lvl, int cell);

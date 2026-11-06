@@ -1,6 +1,7 @@
 #include "particle.h"
 #include "level.h"
 #include "level_geometry.h"
+#include "char.h"
 
 /* ── color helpers ─────────────────────────────────────────── */
 static void color_set(Particle *p, uint32_t hex) {
@@ -1013,6 +1014,58 @@ void particle_update_blobs(Level *lvl, const BlobPool *pool, float dt, CellVisib
         while (blob_emit_timer[t] < 0.0f) {
             blob_emit_timer[t] += fx->rate;
             emit_blob_tick(lvl, b, fx, is_visible_fn, user);
+        }
+    }
+}
+
+/* BUFFS particles */
+typedef struct {
+    int active;
+    ParticleKind kind;
+    int speck_type;
+    float rate;
+    int light_mode;
+} BuffFx;
+
+static const BuffFx BUFF_FX[BUFF_TYPE_COUNT] = {
+    [BUFF_BURNING]    = { 1, PK_FLAME, 0,         0.06f, 1 },
+    [BUFF_LEVITATION] = { 1, PK_SPECK, SPECK_JET, 0.02f, 0 },
+};
+
+static void emit_buff_tick(Level *lvl, const Char *ch, const BuffFx *fx) {
+    Point cell = idx_to_xy(ch->pos);
+    float x = (cell.x + rng_float()) * (float)TILE_SIZE_MIN;
+    float y = (cell.y + rng_float()) * (float)TILE_SIZE_MIN;
+
+    Particle *p = NULL;
+    switch (fx->kind) {
+        case PK_FLAME: p = spawn_flame(lvl, x, y); break;
+        case PK_SPECK: p = spawn_speck(lvl, 0, x, y, fx->speck_type); break;
+        default: break;
+    }
+    if (p) p->light_mode = fx->light_mode;
+}
+
+void particle_update_buffs(Level *lvl, float dt, CellVisibleFn is_visible_fn, void *user) {
+    if (!lvl) return;
+
+    for (int i = 0; i < LEVEL_SIZE; i++) {
+        Char *ch = char_find_at(i);
+        if (!ch) continue;
+        if (is_visible_fn && !is_visible_fn(i, user)) continue;
+
+        for (int s = 0; s < MAX_CHAR_BUFFS; s++) {
+            Buff *b = &ch->buffs[s];
+            if (b->type == BUFF_NONE) continue;
+
+            const BuffFx *fx = &BUFF_FX[b->type];
+            if (!fx->active) continue;
+
+            b->fx_timer -= dt;
+            while (b->fx_timer < 0.0f) {
+                b->fx_timer += fx->rate;
+                emit_buff_tick(lvl, ch, fx);
+            }
         }
     }
 }
