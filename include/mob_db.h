@@ -87,6 +87,8 @@ typedef int  (*MobDefenseProcFn)(struct Mob *self, Char *attacker, int dmg);
 typedef void (*MobDeathFn)(struct Mob *self, void *src, DamageSource src_type);
 typedef void (*MobBuffAddedFn)(struct Mob *self, Buff *buff);
 typedef void (*MobScaleFn)(struct MobStats *s, int depth);
+typedef int  (*MobRangedCheckFn)(struct Mob *self, Char *enemy, Level *lvl);
+typedef int  (*MobRangedAttackFn)(struct Mob *self, Char *enemy, Level *lvl);
 
 typedef enum {
     /* Fleeing.nowhereToRun(): cornered -> turn and fight, unless the Terror buff is what's driving it. Thief, Bandit, Spinner. */
@@ -127,6 +129,11 @@ typedef struct MobStats {
        tick) and rolls enrage_dmg_min..enrage_dmg_max instead. 0 = never enrages. */
     int      enrage_hp_div;
     int      enrage_dmg_min, enrage_dmg_max;
+
+    float             ranged_attack_delay;
+    MobRangedCheckFn  ranged_check;   /* NULL = no ranged attack; default adjacency canAttack() applies */
+    MobRangedAttackFn ranged_attack;  /* the zap/beam itself; always called once ranged_check() passed */
+    int               ranged_always; /* Eye: canAttack() has no distance term, so never falls back to melee */
 
     uint32_t flags;         /* MobFlags */
 } MobStats;

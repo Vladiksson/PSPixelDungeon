@@ -665,6 +665,21 @@ static Particle *spawn_trail_poison(Level *lvl, float x, float y) {
     return p;
 }
 
+static Particle *spawn_trail_shadow(Level *lvl, float x, float y) {
+    Particle *p = spawn_slot(lvl);
+    if (!p) return NULL;
+    p->kind = PK_TRAIL_SHADOW;
+    color_set(p, 0x440044);
+    p->x = x; p->y = y;
+    p->vx = rng_float_range(-5.0f, 5.0f);
+    p->vy = rng_float_range(-5.0f, 5.0f);
+    p->lifespan = 0.5f;
+    p->size = p->size0 = 6.0f;
+    p->am = 0.0f;
+    p->left = p->lifespan;
+    return p;
+}
+
 static Particle *spawn_trail_purple(Level *lvl, float x, float y) {
     Particle *p = spawn_slot(lvl);
     if (!p) return NULL;
@@ -935,6 +950,14 @@ void particle_update_all(Level *lvl, float dt) {
             break;
         }
 
+        case PK_TRAIL_SHADOW: {
+            float prog = p->left / p->lifespan;
+            p->size = p->size0 * prog;
+            p->am = (prog < 0.5f) ? prog * prog * 4.0f : (1.0f - prog) * 2.0f;
+            color_lerp(p, 0x000000, 0x440044, prog);
+            break;
+        }
+
         }
 
         i++;
@@ -1178,6 +1201,7 @@ void particle_emit_wand_trail(Level *lvl, WandTrailKind trail, float x, float y,
         case TRAIL_SLOW:    spawn_trail_slow(lvl, x, y);           break;
         case TRAIL_FORCE:   spawn_trail_force(lvl, index, x, y);   break;
         case TRAIL_COLD:    spawn_trail_cold(lvl, x, y);           break;
+        case TRAIL_SHADOW:  spawn_trail_shadow(lvl, x, y);         break;
     }
 }
 

@@ -16,7 +16,7 @@ static float gLightningLife = 0.0f;
 static RayFxView gRay;
 static float gRayLife = 0.0f;
 
-static void lightning_fx_start(const int *cells, int n) {
+void lightning_fx_start(const int *cells, int n) {
     if (n < 1) return;
     if (n > LIGHTNING_FX_MAX_POINTS) n = LIGHTNING_FX_MAX_POINTS;
 
@@ -38,7 +38,7 @@ static void lightning_fx_start(const int *cells, int n) {
     }
 }
 
-static void ray_fx_start(int from_cell, int to_cell) {
+void ray_fx_start(int from_cell, int to_cell) {
     Point f = idx_to_xy(from_cell);
     Point t = idx_to_xy(to_cell);
 
@@ -96,6 +96,8 @@ static float gTrailTimer = 0.0f;
 static int   gTrailIndex = 0;
 
 static WandTrailKind wand_trail_for_type(ItemType type) {
+    if (type == ITEM_NONE)
+        return TRAIL_SHADOW; /* MagicMissile.shadow */
     switch (type) {
         case ITEM_WAND_MAGIC_MISSILE:  return TRAIL_MAGIC;    /* MagicMissile.blueLight */
         case ITEM_WAND_FIREBOLT:       return TRAIL_FIRE;     /* MagicMissile.fire */

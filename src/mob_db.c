@@ -106,13 +106,12 @@ static const MobStats MOB_DB[MOB_KIND_COUNT] = {
     [MOB_SHAMAN] = {
         .name = "gnoll shaman", .ht = 18,
         .attack_skill = 11, .defense_skill = 8, .dr = 4,
-        .dmg_min = 2, .dmg_max = 6, /* melee fallback only, see below */
+        .dmg_min = 2, .dmg_max = 6, /* melee fallback, used only when already adjacent */
         .view_distance = 8, .xp_reward = 6, .base_speed = 1.0f, .attack_delay = 1.0f,
         .dmg_resist = DMGBIT(DMGSRC_LIGHTNING),
-        /* TODO(ai): the real threat is a line-of-sight lightning bolt (Random.Int(2, 12),
-           x1.5 if the target's in water) that only fires when NOT adjacent — needs ranged
-           attack support (Ballistica-equivalent LOS cast), not just melee. Emit it with
-           DMGSRC_LIGHTNING so the hero's own resistances/armor glyphs can see it. */
+        .ranged_attack_delay = 2.0f,
+        .ranged_check  = mobproc_ranged_check_los,
+        .ranged_attack = mobproc_shaman_bolt,
     },
     [MOB_BAT] = {
         .name = "vampire bat", .ht = 30,
@@ -156,9 +155,6 @@ static const MobStats MOB_DB[MOB_KIND_COUNT] = {
         .buff_immune = BUFFBIT(BUFF_BURNING),
         .dmg_immune  = DMGBIT(DMGSRC_FIRE) | DMGBIT(DMGSRC_PSIONIC),
         .on_hit = {{ .one_in = 2, .buff = BUFF_BURNING, .dur_min = BURNING_DURATION }},
-        /* Frost hurts it (NormalIntRange(1, HT*2/3)) before it freezes. Source also has a
-           "Burning heals it by 1" branch, but that's dead code: Burning is in its IMMUNITIES,
-           so attachTo() bails before add() ever runs. Not ported. */
         .on_buff_added = mobproc_elemental_frost,
     },
     [MOB_MONK] = {
@@ -173,12 +169,12 @@ static const MobStats MOB_DB[MOB_KIND_COUNT] = {
     [MOB_WARLOCK] = {
         .name = "dwarf warlock", .ht = 70,
         .attack_skill = 25, .defense_skill = 18, .dr = 8,
-        .dmg_min = 12, .dmg_max = 20, /* melee fallback only, see below */
+        .dmg_min = 12, .dmg_max = 20, /* melee fallback, used only when already adjacent */
         .view_distance = 8, .xp_reward = 11, .base_speed = 1.0f, .attack_delay = 1.0f,
         .dmg_resist = DMGBIT(DMGSRC_DEATH),
-        /* TODO(ai): same shape as the shaman — a shadow bolt (Random.Int(12, 18)) at range once
-           it has LOS, melee only when already adjacent; the bolt gives the hero Weakness
-           50% of the time (hero only — Weakness hard-casts to Hero in source) */
+        .ranged_attack_delay = 1.0f,
+        .ranged_check  = mobproc_ranged_check_los,
+        .ranged_attack = mobproc_warlock_bolt,
     },
     [MOB_GOLEM] = {
         .name = "golem", .ht = 85,
@@ -194,27 +190,22 @@ static const MobStats MOB_DB[MOB_KIND_COUNT] = {
         .dmg_min = 15, .dmg_max = 25,
         .view_distance = 4, .xp_reward = 12, .base_speed = 1.0f, .attack_delay = 1.0f,
         .buff_immune = BUFFBIT(BUFF_SLEEP),
-        /* view_distance of 4 (not a typo, see Eye/Scorpio too) is correct per source — these
-           three see less far than a rat does. Charm.durationFactor() is 1 until rings exist. */
         .on_hit = {{ .one_in = 3, .buff = BUFF_CHARM, .mode = MOBHIT_TAG_ATTACKER,
                      .dur_min = 3, .dur_max = 7 }},
-        /* TODO(ai): teleports itself to spitting distance instead of walking when the path
-           is clear (getCloser override) */
+        /* TODO(ai): getCloser() */
     },
     [MOB_EYE] = {
         .name = "evil eye", .ht = 100,
         .attack_skill = 30, .defense_skill = 20, .dr = 10,
-        .dmg_min = 1, .dmg_max = 1, /* accurate to source, see note below */
+        .dmg_min = 1, .dmg_max = 1, /* never actually rolled - fully ranged mob */
         .view_distance = 4, .xp_reward = 13, .base_speed = 1.0f, .attack_delay = 1.6f,
         .flying = 1,
         .buff_immune = BUFFBIT(BUFF_TERROR),
         .dmg_resist  = DMGBIT(DMGSRC_DISINTEGRATION) | DMGBIT(DMGSRC_DEATH),
-        /* TODO(ai): never melees in source at all — its damageRoll() is never overridden, so
-           it's really the engine default of 1. Its actual 14-20 dmg (NormalIntRange(14, 20))
-           lives entirely inside a custom attack() that fires a beam down its whole line of
-           sight, hitting (and hurting) anything standing in it, hero or mob. Left at the honest
-           1/1 rather than smuggling the real number into a field the source doesn't use it for.
-           attack_delay = 1.6f is that beam's real cadence (its only attackDelay() override). */
+        .ranged_attack_delay = 1.6f,
+        .ranged_check  = mobproc_eye_ranged_check,
+        .ranged_attack = mobproc_eye_gaze,
+        .ranged_always = 1,
     },
     [MOB_SCORPIO] = {
         .name = "scorpio", .ht = 95,
@@ -224,13 +215,12 @@ static const MobStats MOB_DB[MOB_KIND_COUNT] = {
         .dmg_resist = DMGBIT(DMGSRC_POISON),
         /* 50% of hits cripple (Buff.prolong, Cripple.DURATION = 10) */
         .on_hit = {{ .one_in = 2, .buff = BUFF_CRIPPLE, .dur_min = CRIPPLE_DURATION }},
-        /* TODO(ai): refuses to be adjacent — it backs away every turn it can (getCloser is
-           inverted into a flee-from-target). Melee-only for now makes it walk up and swing
-           instead of kiting, but the numbers above are correct either way. */
+        .ranged_attack_delay = 1.0f,
+        .ranged_check  = mobproc_scorpio_ranged_check,
+        .ranged_attack = mobproc_scorpio_bolt,
     },
 
-    /* ─── Elite variants — Bestiary.mutable() rolls these 1-in-30 in place of the base mob
-       (source only does that for respawns, not the floor's initial population). ─── */
+    /* ─── Elite variants ─── */
     [MOB_ALBINO] = {
         .name = "albino rat", .ht = 15,   /* only HP differs from Rat */
         .attack_skill = 8, .defense_skill = 3, .dr = 1,
@@ -275,13 +265,12 @@ static const MobStats MOB_DB[MOB_KIND_COUNT] = {
         .on_hit = {{ .one_in = 2, .buff = BUFF_CRIPPLE, .dur_min = CRIPPLE_DURATION }},
         /* splashes 0..incoming-damage of acid back at whoever hit it */
         .defense_proc = mobproc_acid_reflect,
+        .ranged_attack_delay = 1.0f,
+        .ranged_check  = mobproc_scorpio_ranged_check,
+        .ranged_attack = mobproc_scorpio_bolt,
     },
 
-    /* ─── Bosses. Every row is baseline/non-enraged combat stats plus the buff/damage data
-       that's the same on every turn of the fight — each fight itself is scripted and
-       multi-phase (arena sealing, phase-shifted attacks, summons; one boss is stat-less by
-       design) in ways a table row can't capture. This is "what it hits like on a normal
-       turn," not "here's the boss fight." ─── */
+    /* ─── Bosses ─── */
     [MOB_GOO] = {
         .name = "Goo", .ht = 80,
         .attack_skill = 15, .defense_skill = 12, .dr = 2, /* 30 atk / 5-30 dmg once "pumped up" */
@@ -300,8 +289,12 @@ static const MobStats MOB_DB[MOB_KIND_COUNT] = {
         .dmg_min = 8, .dmg_max = 15,
         .view_distance = 8, .xp_reward = 20, .base_speed = 1.0f, .attack_delay = 1.0f,
         .dmg_resist = DMGBIT(DMGSRC_TOXIC_GAS) | DMGBIT(DMGSRC_POISON) | DMGBIT(DMGSRC_DEATH) | DMGBIT(DMGSRC_PSIONIC),
-        /* TODO(ai): teleports every 5 turns (or sooner if it can't close in), arming random
-           nearby traps as poison traps each time */
+        /* TODO(ai): still not ported -- every 5 turns (sooner if he can't close the distance) he
+           teleports to a random visible cell instead of attacking and arms up to 4 nearby traps
+           as poison traps. */
+        .ranged_attack_delay = 1.0f,
+        .ranged_check  = mobproc_ranged_check_los,
+        .ranged_attack = mobproc_tengu_bolt,
     },
     [MOB_DM300] = {
         .name = "DM-300", .ht = 200,
@@ -370,9 +363,9 @@ static const MobStats MOB_DB[MOB_KIND_COUNT] = {
         .initial_state = MOB_WANDERING,
         .buff_immune = BUFFBIT(BUFF_AMOK) | BUFFBIT(BUFF_SLEEP) | BUFFBIT(BUFF_TERROR) | BUFFBIT(BUFF_BURNING),
         .dmg_resist  = DMGBIT(DMGSRC_TOXIC_GAS) | DMGBIT(DMGSRC_DEATH) | DMGBIT(DMGSRC_PSIONIC),
-        /* TODO(ai): purely ranged (LOS, no adjacency needed at all — closer to Eye than to
-           Shaman/Warlock's melee-or-ranged split); seeds fire in all 9 neighbouring cells
-           every turn */
+        .ranged_attack_delay = 1.0f,
+        .ranged_check  = mobproc_ranged_check_los,
+        .ranged_attack = mobproc_burningfist_bolt,
     },
     [MOB_YOG_LARVA] = {
         .name = "god's larva", .ht = 25,
@@ -382,10 +375,7 @@ static const MobStats MOB_DB[MOB_KIND_COUNT] = {
         .initial_state = MOB_HUNTING,
     },
 
-    /* ─── Spawned outside Bestiary's per-depth roll by specific triggers, not the normal floor
-       population. The ones that scale with Dungeon.depth in source have a .scale function
-       (above) instead of numbers: ht/attack/defense/dr/damage/xp that a .scale sets are
-       deliberately left out of their rows. ─── */
+    /* ─── Spawned outside Bestiary + scale with Dungeon.depth ─── */
     [MOB_FETID_RAT] = {
         .name = "fetid rat", .ht = 15,    /* fixed, not depth-scaled */
         .attack_skill = 12, .defense_skill = 5, .dr = 2,

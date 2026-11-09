@@ -175,6 +175,7 @@ static uint32_t mob_immunities(Char *self) {
 static void mob_sync_anim_lock(Mob *m) {
     switch (m->anim) {
         case MOB_ANIM_ATTACK:
+        case MOB_ANIM_ZAP:
         case MOB_ANIM_DIE:
             m->base.anim_locked = !m->anim_done;
             break;
@@ -191,6 +192,16 @@ static void mob_resolve_attack(Mob *m) {
     Char *target = m->target;
     if (target && char_is_alive(target)) {
         char_attack(&m->base, target);
+    } else {
+        m->target = NULL;
+    }
+    actor_next(&m->base.base);
+}
+
+static void mob_resolve_ranged_attack(Mob *m, Level *lvl) {
+    Char *target = m->target;
+    if (target && char_is_alive(target)) {
+        m->stats.ranged_attack(m, target, lvl);
     } else {
         m->target = NULL;
     }
@@ -245,6 +256,7 @@ void mob_animate_all(float dt) {
                     char_end_attack_anim(&m->base);
                     mob_play_anim(m, MOB_ANIM_IDLE);
                     break;
+                case MOB_ANIM_ZAP:
                 case MOB_ANIM_RUN:
                     mob_play_anim(m, MOB_ANIM_IDLE);
                     break;
@@ -476,21 +488,35 @@ static int mob_on_turn(Char *self) {
         break;
     }
 
-    case MOB_HUNTING:
+    case MOB_HUNTING: {
         m->enemy_seen = enemy_in_view;
-        if (enemy_in_view && cell_distance(self->pos, m->target->pos) <= 1 && !char_is_charmed_by(self, m->target)) {
+
+        int adjacent  = enemy_in_view && cell_distance(self->pos, m->target->pos) <= 1;
+        int attack_ok = enemy_in_view && (m->stats.ranged_check ? m->stats.ranged_check(m, m->target, lvl) : adjacent);
+
+        if (attack_ok && !char_is_charmed_by(self, m->target)) {
             Point mp = idx_to_xy(self->pos);
             Point tp = idx_to_xy(m->target->pos);
 
             if (tp.x != mp.x)
                 m->facing = (tp.x < mp.x) ? FACE_LEFT : FACE_RIGHT;
 
-            mob_play_anim(m, MOB_ANIM_ATTACK);
-            char_begin_attack_anim(self, m->target);
-            char_spend(self, m->stats.attack_delay);
-            
-            attacking = 1;
-            mob_resolve_attack(m);
+            int use_ranged = m->stats.ranged_attack && (m->stats.ranged_always || !adjacent);
+
+            if (use_ranged) {
+                mob_play_anim(m, MOB_ANIM_ZAP);
+                char_spend(self, m->stats.ranged_attack_delay);
+
+                attacking = 1;
+                mob_resolve_ranged_attack(m, lvl);
+            } else {
+                mob_play_anim(m, MOB_ANIM_ATTACK);
+                char_begin_attack_anim(self, m->target);
+                char_spend(self, m->stats.attack_delay);
+
+                attacking = 1;
+                mob_resolve_attack(m);
+            }
         } else {
             if (enemy_in_view) m->dest = m->target->pos;
             if (m->dest != -1 && mob_step_toward_pos(m, lvl, m->dest)) {
@@ -502,6 +528,7 @@ static int mob_on_turn(Char *self) {
             }
         }
         break;
+    }
 
     case MOB_FLEEING: {
         m->enemy_seen = enemy_in_view;

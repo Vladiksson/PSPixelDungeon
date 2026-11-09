@@ -9,7 +9,7 @@ It will be easier to list the major stuff I haven't done yet:
 1. There is no save system at all.
 2. There is no sound at all.
 3. There is no interaction with NPCs yet (quests, shops, etc.).
-4. Right now, mobs and bosses are really primitive (they only use melee attacks).
+4. Right now, mobs and bosses are kinda primitive.
 5. Not all particles have been ported yet.
 6. Not all items are functional yet (scrolls, food, rings... for example).
 7. Items don't have enchantments and spawn in a stupidly random way.
@@ -42,7 +42,7 @@ SELECT - inventory.
 START - info.
 
 In inventory:
-Cross - equip/unequip, set quick slot.
+Cross - equip/unequip, set quick slot. (Cross + R/L to equip rings in different slots)
 Square - consume.
 Circle - enter targeting mode for throwing/zapping.
 Triangle - drop.

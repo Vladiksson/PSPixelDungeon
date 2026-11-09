@@ -38,3 +38,7 @@ typedef struct {
 void wand_fx_update(float dt);
 int lightning_fx_snapshot(LightningFxView *out);
 int ray_fx_snapshot(RayFxView *out);
+
+
+void lightning_fx_start(const int *cells, int n);
+void ray_fx_start(int from_cell, int to_cell);
