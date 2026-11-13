@@ -7,7 +7,7 @@ Level *dungeon_current_level(Dungeon *d){
 }
 
 Fog *dungeon_current_fog(Dungeon *d){
-    return &d->fog[d->current_depth];
+    return &dungeon_current_level(d)->fog;
 }
 
 static void dungeon_create_floor(Dungeon *d, int depth){
@@ -46,7 +46,6 @@ void dungeon_init(Dungeon *d){
     blob_set_depth(d->current_depth);
 
     dungeon_create_floor(d, d->current_depth);
-    fog_init(&d->fog[d->current_depth]);
 
     char_set_active_level(&d->floors[d->current_depth]);
 }

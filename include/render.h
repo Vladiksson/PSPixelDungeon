@@ -1,7 +1,6 @@
 #pragma once
 #include "camera.h"
 #include "player.h"
-#include "fov.h"
 #include "font.h"
 #include "visuals.h"
 
@@ -64,14 +63,14 @@ void render_menu_update(RenderCtx *ctx, float dt, bool reversed);
 void render_menu(RenderCtx *ctx);
 
 void render_update_water(RenderCtx *ctx, float elapsed);
-void render_update_particles(Level *lvl, const Fog *fog, float elapsed);
+void render_update_particles(Level *lvl, float elapsed);
 
 void render_frame  (RenderCtx *ctx, const Level *lvl, const Camera *cam);
-void render_items  (RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam);
-void render_fog    (RenderCtx *ctx, const Fog *fog, const Camera *cam);
+void render_items  (RenderCtx *ctx, const Level *lvl, const Camera *cam);
+void render_fog    (RenderCtx *ctx, const Level *lvl, const Camera *cam);
 void render_player (RenderCtx *ctx, const Player *p, const Camera *cam);
-void render_mobs   (RenderCtx *ctx, const Fog *fog, const Camera *cam);
-void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *cam);
+void render_mobs   (RenderCtx *ctx, const Level *lvl, const Camera *cam);
+void render_npcs(RenderCtx *ctx, const Player *p, const Level *lvl, const Camera *cam);
 
 void render_particles(RenderCtx *ctx, const Level *lvl, const Camera *cam);
 

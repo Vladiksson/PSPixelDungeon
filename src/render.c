@@ -2,6 +2,7 @@
 #include "assets.h"
 #include "ballistica.h"
 #include "item_wand.h"
+#include "level_geometry.h"
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
@@ -12,16 +13,12 @@ static bool is_visible_on_camera(const Camera *cam, Point pos) {
            pos.y >= cam->tile_y &&
            pos.y <= cam->tile_y + gViewRows;
 }
-static bool is_visible(const Fog *fog, const Camera *cam, Point pos) {
+static bool is_visible(const Level *lvl, const Camera *cam, Point pos) {
     if (!is_visible_on_camera(cam, pos))
         return false;
 
     int idx = xy_to_idx(pos.x, pos.y);
-    return fog->visible[idx];
-}
-static int fog_cell_visible(int cell, void *user) {
-    const Fog *fog = (const Fog *)user;
-    return fog->visible[cell];
+    return lvl->fog.visible[idx];
 }
 
 /* ── INIT ─────────────────────────────────────── */
@@ -466,18 +463,18 @@ void render_update_water(RenderCtx *ctx, float elapsed) { //MB TRANSFER SOMEWHER
         ctx->water_offset_y += 32.0f;
 }
 
-void render_update_particles(Level *lvl, const Fog *fog, float elapsed) {
+void render_update_particles(Level *lvl, float elapsed) {
     particle_update_all(lvl, elapsed);
-    particle_update_blobs(lvl, &lvl->blob_pool, elapsed, fog_cell_visible, (void *)fog);
-    particle_update_buffs(lvl, elapsed, fog_cell_visible, (void *)fog);
-    particle_update_emitters(lvl, elapsed, fog_cell_visible, (void *)fog);
-    particle_update_ambient(lvl, elapsed, fog_cell_visible, (void *)fog);
+    particle_update_blobs(lvl, elapsed);
+    particle_update_buffs(lvl, elapsed);
+    particle_update_emitters(lvl, elapsed);
+    particle_update_ambient(lvl, elapsed);
     wand_bolt_update_trail(lvl, elapsed);
     wand_fx_update(elapsed);
 }
 
 /* ── render_items ──────────────────────────────────── */
-void render_items(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera *cam) {
+void render_items(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     SDL_Texture *tex = ctx->items;
     if (!tex) return;
  
@@ -487,7 +484,7 @@ void render_items(RenderCtx *ctx, const Level *lvl, const Fog *fog, const Camera
 
         Point pos = idx_to_xy(h->pos);
 
-        if (!is_visible(fog, cam, pos))
+        if (!is_visible(lvl, cam, pos))
             continue;
  
         uint8_t col, row;
@@ -584,7 +581,7 @@ void render_particles(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
 }
 
 /* ── render_fog ────────────────────────────────── */
-void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
+void render_fog(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     if (!ctx->shadow)
         return;
     SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_BLEND);
@@ -610,6 +607,8 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
                 visited_rect.h + pad * 2
             };
 
+            SDL_Rect mapped_rect = visited_rect;
+
             if (!in_bounds_xy(tx, ty)) {
                 SDL_SetTextureColorMod(ctx->shadow, 0, 0, 0);
                 SDL_SetTextureAlphaMod(ctx->shadow, 255);
@@ -617,15 +616,18 @@ void render_fog(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
                 continue;
             }
             int idx = xy_to_idx(tx, ty);
-            if (fog->visible[idx])
+            if (lvl->fog.visible[idx])
                 continue;
-            if (fog->visited[idx]) {
+            if (lvl->fog.visited[idx]) {
                 /* VISITED = 0xCC111111 (ARGB), textures was moded as well as color here */
                 SDL_SetTextureColorMod(ctx->shadow, 0x11, 0x11, 0x11);
                 SDL_SetTextureAlphaMod(ctx->shadow, 0xAA);
                 SDL_RenderCopy(ctx->renderer, ctx->shadow, NULL, &visited_rect);
-            }
-            else {
+            } else if (lvl->fog.mapped[idx]) {
+                /* MAPPED = blue */
+                SDL_SetRenderDrawColor(ctx->renderer, 11, 22, 44, 50);
+                SDL_RenderFillRect(ctx->renderer, &mapped_rect);
+            } else {
                 /* INVISIBLE = 0xFF000000 */
                 SDL_SetTextureColorMod(ctx->shadow, 0, 0, 0);
                 SDL_SetTextureAlphaMod(ctx->shadow, 255);
@@ -722,7 +724,7 @@ static SDL_Rect mob_frame_rect(RenderCtx *ctx, const Mob *m, MobTexId tex_id) {
     return src;
 }
 
-void render_mobs(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
+void render_mobs(RenderCtx *ctx, const Level *lvl, const Camera *cam) {
     for (int i = 0; i < mob_count(); i++) {
         Mob *m = mob_at_index(i);
         if (!m)
@@ -733,7 +735,7 @@ void render_mobs(RenderCtx *ctx, const Fog *fog, const Camera *cam) {
 
         Point pos = idx_to_xy(m->base.pos);
 
-        if (!is_visible(fog, cam, pos))
+        if (!is_visible(lvl, cam, pos))
             continue;
 
         MobTexId tex_id = MOB_TEX_FOR_KIND[m->kind];
@@ -848,7 +850,7 @@ static void render_mirror_npc(RenderCtx *ctx, const Player *p, const Camera *cam
     render_char_sprite(ctx->renderer, tex, src, screen, size.x, size.y, n->facing);
 }
 
-void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *cam) {
+void render_npcs(RenderCtx *ctx, const Player *p, const Level *lvl, const Camera *cam) {
     for (int i = 0; i < npc_count(); ++i) {
         NPC *n = npc_at_index(i);
         if (!n)
@@ -862,7 +864,7 @@ void render_npcs(RenderCtx *ctx, const Player *p, const Fog *fog, const Camera *
 
         Point pos = idx_to_xy(n->base.pos);
 
-        if (!is_visible(fog, cam, pos))
+        if (!is_visible(lvl, cam, pos))
             continue;
 
         if (n->kind == NPC_MIRROR_IMAGE) {

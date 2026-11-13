@@ -151,6 +151,7 @@ void item_register_use(ItemStack *stack);
 typedef enum {
     ITEM_USE_FAIL,
     ITEM_CONSUME_POTION,
+    ITEM_CONSUME_FOOD,
     ITEM_USE_CONSUMED,
 } ItemConsumeResult;
 

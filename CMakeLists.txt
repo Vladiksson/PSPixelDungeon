@@ -13,6 +13,7 @@ add_executable(${PROJECT_NAME}
     src/level_boss.c
     src/level_last.c
     src/level_rooms.c
+    src/level_fov.c
     src/dungeon.c
     src/item.c
     src/item_db.c
@@ -38,7 +39,6 @@ add_executable(${PROJECT_NAME}
     src/visuals.c
     src/ui.c
     src/ui_ninepatch.c
-    src/fov.c
     src/input.c
     src/camera.c
     src/render.c

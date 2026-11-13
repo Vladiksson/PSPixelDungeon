@@ -433,6 +433,9 @@ ItemConsumeResult item_consume(ItemStack *stack) { //temporary bullshit variant 
     
     if (item.cat == ITEMCAT_POTION)
         return ITEM_CONSUME_POTION;
+
+    if (item.cat == ITEMCAT_FOOD)
+        return ITEM_CONSUME_FOOD;
     
     return ITEM_USE_CONSUMED;
 }

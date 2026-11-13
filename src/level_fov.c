@@ -1,4 +1,4 @@
-#include "fov.h"
+#include "level_fov.h"
 #include <string.h>
 
 /* ══════════════════════════════════════════════════════════════
@@ -69,13 +69,9 @@ static void cast_octant(uint8_t *vis, const Level *lvl, int idx, int row, float 
 /* ══════════════════════════════════════════════════════════════
    PUBLIC API
    ══════════════════════════════════════════════════════════════ */
+void fog_update(Level *lvl, int idx, int radius) {
+    Fog *fog = &lvl->fog;
 
-void fog_init(Fog *fog) {
-    memset(fog->visible, 0, LEVEL_SIZE);
-    memset(fog->visited, 0, LEVEL_SIZE);
-}
-
-void fog_update(Fog *fog, const Level *lvl, int idx, int radius) {
     memset(fog->visible, 0, LEVEL_SIZE);
 
     if (in_bounds(idx)) fog->visible[idx] = 1;
@@ -96,4 +92,27 @@ void fog_update(Fog *fog, const Level *lvl, int idx, int radius) {
     }
     for (int i = 0; i < LEVEL_SIZE; i++)
         if (fog->visible[i]) fog->visited[i] = 1;
+}
+
+void fog_map_all(Level *lvl) {
+    Fog *fog = &lvl->fog;
+
+    for (int n = 0; n < lvl->num_rooms; n++) {
+        Room *r = &lvl->rooms[n];
+
+        if (r->type == ROOM_NULL)
+            continue;
+
+        for (int y = r->top; y <= r->bottom; y++) {
+            for (int x = r->left; x <= r->right; x++) {
+                if (!in_bounds_xy(x, y))
+                    continue;
+
+                int idx = xy_to_idx(x, y);
+
+                if (!fog->visited[idx])
+                    fog->mapped[idx] = 1;
+            }
+        }
+    }
 }

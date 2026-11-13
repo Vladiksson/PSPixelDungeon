@@ -97,6 +97,12 @@ typedef enum {
     FEELING_GRASS
 } LevelFeeling;
 
+typedef struct {
+    uint8_t visible[LEVEL_SIZE];
+    uint8_t visited[LEVEL_SIZE];
+    uint8_t mapped[LEVEL_SIZE];
+} Fog;
+
 typedef struct Level {
     uint8_t      map[LEVEL_SIZE];
     int          entrance;
@@ -105,6 +111,8 @@ typedef struct Level {
     LevelFeeling feeling;
     Room         rooms[MAX_ROOMS];
     int          num_rooms;
+
+    Fog fog;
 
     ItemType     items_to_spawn[MAX_ITEMS_TO_SPAWN];
     int          num_items_to_spawn;

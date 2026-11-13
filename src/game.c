@@ -1,11 +1,14 @@
 #include "game.h"
 
 /* ══════════════════════════════════════════════════════════
-   Dungeon helper
+   Dungeon helpers
    ══════════════════════════════════════════════════════════*/
-static void game_floor(Game *game) {
-    game->lvl = dungeon_current_level(&game->dungeon);
-    game->fog = dungeon_current_fog(&game->dungeon);
+static Level *game_level(Game *game) {
+    return dungeon_current_level(&game->dungeon);
+}
+
+static Fog *game_fog(Game *game) {
+    return dungeon_current_fog(&game->dungeon);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -106,9 +109,9 @@ void game_init(Game *game, HeroClass hero) {
 
     dungeon_init(&game->dungeon);
 
-    game_floor(game);
+    Level *lvl = game_level(game);
 
-    player_init(&game->player, game->lvl, hero);
+    player_init(&game->player, lvl, hero);
 
     camera_center_on(&game->cam, game->player.base.pos);
 
@@ -161,6 +164,7 @@ static void game_begin_targeting(Game *game, TargetAction action) {
 }
 static void targeting_input(Game *game, InputState *inp, uint32_t now) {
     Player *player = &game->player;
+    Level *lvl = game_level(game);
 
     if (btn_pressed(inp, BTN_R)) {
         game->state = GAME_STATE_PLAYING;
@@ -182,11 +186,11 @@ static void targeting_input(Game *game, InputState *inp, uint32_t now) {
         case TARGET_ACTION_INVENTORY: {
             Bag *bag = &player->bags[game->throw_bag];
 
-            player_throw(player, game->lvl, bag, game->throw_slot, player->target_pos);
+            player_throw(player, lvl, bag, game->throw_slot, player->target_pos);
             break;
         }
         case TARGET_ACTION_QUICK_SLOT:
-            player_throw_quick_slot(player, game->lvl);
+            player_throw_quick_slot(player, lvl);
             break;
 
         default:
@@ -205,11 +209,11 @@ static void targeting_input(Game *game, InputState *inp, uint32_t now) {
         case TARGET_ACTION_INVENTORY: {
             Bag *bag = &player->bags[game->throw_bag];
 
-            player_zap(player, game->lvl, bag, game->throw_slot, player->target_pos);
+            player_zap(player, lvl, bag, game->throw_slot, player->target_pos);
             break;
         }
         case TARGET_ACTION_QUICK_SLOT:
-            player_zap_quick_slot(player, game->lvl);
+            player_zap_quick_slot(player, lvl);
             break;
 
         default:
@@ -233,7 +237,7 @@ static void targeting_input(Game *game, InputState *inp, uint32_t now) {
     input_get_move(inp, &dx, &dy);
 
     if (ui_move_repeat_update(&game->ui_move_repeat, now, dx, dy))
-        player_move_cursor(player, game->fog, dx, dy);
+        player_move_cursor(player, game_fog(game), dx, dy);
 
     if (btn_pressed(inp, BTN_START)) {
         //TODO POPUP WITH INFO OF TILES/HEAPS/MOBS (ANALOGUE FOR ? BUTTON)
@@ -245,7 +249,7 @@ static void targeting_input(Game *game, InputState *inp, uint32_t now) {
   ══════════════════════════════════════════════════════════*/
 static void game_handle_move(Game *game) {
     Player *player = &game->player;
-    Level *lvl = game->lvl;
+    Level *lvl = game_level(game);
 
     if (!player_operate(player, lvl, player->base.pos)) {
         player_pickup(player, lvl);
@@ -253,13 +257,11 @@ static void game_handle_move(Game *game) {
 
     if (player->base.pos == lvl->exit || player->falling) {
         dungeon_go_down(&game->dungeon, player, &game->cam, player->base.pos);
-        game_floor(game);
         return;
     }
 
     if (player->base.pos == lvl->entrance) {
         dungeon_go_up(&game->dungeon, player, &game->cam);
-        game_floor(game);
         return;
     }
 
@@ -271,7 +273,7 @@ static void game_handle_move(Game *game) {
 
 static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
     Player *player = &game->player;
-    Level *lvl = game->lvl;
+    Level *lvl = game_level(game);
 
     if (btn_pressed(inp, BTN_SELECT)) {
         game->state = GAME_STATE_INVENTORY;
@@ -349,7 +351,7 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
     input_get_move(inp, &dx, &dy);
     
     int moving = (dx != 0 || dy != 0);
-    int result = move_repeat_update(&game->move_repeat, now, player, game->lvl, &game->cam, dx, dy);
+    int result = move_repeat_update(&game->move_repeat, now, player, lvl, &game->cam, dx, dy);
 
     switch (result) {
     case PLAYER_BUMP_MOVED:
@@ -375,7 +377,7 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
 static void inventory_input(Game *game, InputState *inp, uint32_t now) {
     Player *player = &game->player;
     InventoryUI *inv = &game->inv;
-    Level *lvl = game->lvl;
+    Level *lvl = game_level(game);
 
     if (btn_pressed(inp, BTN_SELECT)) {
         game->state = GAME_STATE_PLAYING;
@@ -510,13 +512,15 @@ void game_input(Game *game, InputState *inp, uint32_t now) {
    Update
    ══════════════════════════════════════════════════════════*/
 void game_update(Game *game, RenderCtx *rctx, float dt) {
+    Level *lvl = game_level(game);
+
     actor_process();
 
-    fog_update(game->fog, game->lvl, game->player.base.pos, fov_radius(&game->player, game->dungeon.current_depth));
+    fog_update(lvl, game->player.base.pos, fov_radius(&game->player, game->dungeon.current_depth));
     hud_update(rctx, &game->player);
 
     render_update_water(rctx, dt);
-    render_update_particles(game->lvl, game->fog, dt);
+    render_update_particles(lvl, dt);
 
     player_animate(&game->player, dt);
     mob_animate_all(dt);
@@ -531,18 +535,20 @@ void game_update(Game *game, RenderCtx *rctx, float dt) {
    Rendering
    ══════════════════════════════════════════════════════════*/
 void game_render(Game *game, RenderCtx *rctx) {
-    render_frame(rctx, game->lvl, &game->cam);
-    render_items(rctx, game->lvl, game->fog, &game->cam);
+    Level *lvl = game_level(game);
 
-    render_particles(rctx, game->lvl, &game->cam);
+    render_frame(rctx, lvl, &game->cam);
+    render_items(rctx, lvl, &game->cam);
 
-    render_mobs(rctx, game->fog, &game->cam);
-    render_npcs(rctx, &game->player, game->fog, &game->cam);
+    render_particles(rctx, lvl, &game->cam);
+
+    render_mobs(rctx, lvl, &game->cam);
+    render_npcs(rctx, &game->player, lvl, &game->cam);
 
     render_missiles(rctx, &game->cam);
     render_wand_fx(rctx, &game->cam);
 
-    render_fog(rctx, game->fog, &game->cam);
+    render_fog(rctx, lvl, &game->cam);
     render_player(rctx, &game->player, &game->cam);
     render_hud(rctx, &game->player, &game->dungeon);
 

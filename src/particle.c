@@ -996,10 +996,10 @@ static void seed_blob_emit_timers(void) {
         blob_emit_timer[t] = rng_float() * BLOB_FX[t].rate;
 }
 
-static void emit_blob_tick(Level *lvl, const Blob *b, const BlobFx *fx, CellVisibleFn is_visible_fn, void *user) {
+static void emit_blob_tick(Level *lvl, const Blob *b, const BlobFx *fx) {
     for (int i = 0; i < LEVEL_SIZE; i++) {
         if (b->cur[i] <= 0) continue;
-        if (is_visible_fn && !is_visible_fn(i, user)) continue;
+        if (!lvl->fog.visible[i]) continue;
 
         Point cell = idx_to_xy(i);
         float x = (cell.x + rng_float()) * (float)TILE_SIZE_MIN;
@@ -1022,8 +1022,10 @@ static void emit_blob_tick(Level *lvl, const Blob *b, const BlobFx *fx, CellVisi
     }
 }
 
-void particle_update_blobs(Level *lvl, const BlobPool *pool, float dt, CellVisibleFn is_visible_fn, void *user) {
-    if (!lvl || !pool) return;
+void particle_update_blobs(Level *lvl, float dt) {
+    if (!lvl) return;
+
+    const BlobPool *pool = &lvl->blob_pool;
 
     for (int t = 0; t < BLOB_TYPE_COUNT; t++) {
         const BlobFx *fx = &BLOB_FX[t];
@@ -1036,7 +1038,7 @@ void particle_update_blobs(Level *lvl, const BlobPool *pool, float dt, CellVisib
 
         while (blob_emit_timer[t] < 0.0f) {
             blob_emit_timer[t] += fx->rate;
-            emit_blob_tick(lvl, b, fx, is_visible_fn, user);
+            emit_blob_tick(lvl, b, fx);
         }
     }
 }
@@ -1069,13 +1071,14 @@ static void emit_buff_tick(Level *lvl, const Char *ch, const BuffFx *fx) {
     if (p) p->light_mode = fx->light_mode;
 }
 
-void particle_update_buffs(Level *lvl, float dt, CellVisibleFn is_visible_fn, void *user) {
+void particle_update_buffs(Level *lvl, float dt) {
     if (!lvl) return;
 
     for (int i = 0; i < LEVEL_SIZE; i++) {
+        if (!lvl->fog.visible[i]) continue;
+
         Char *ch = char_find_at(i);
         if (!ch) continue;
-        if (is_visible_fn && !is_visible_fn(i, user)) continue;
 
         for (int s = 0; s < MAX_CHAR_BUFFS; s++) {
             Buff *b = &ch->buffs[s];
@@ -1238,9 +1241,8 @@ void particle_emitter_start(Level *lvl, EmitterKind kind, int cell, float durati
     }
 }
 
-void particle_update_emitters(Level *lvl, float dt, CellVisibleFn is_visible_fn, void *user) {
-    if (!lvl)
-        return;
+void particle_update_emitters(Level *lvl, float dt) {
+    if (!lvl) return;
 
     for (int i = 0; i < lvl->num_emitters; i++) {
         ParticleEmitter *e = &lvl->emitters[i];
@@ -1255,7 +1257,7 @@ void particle_update_emitters(Level *lvl, float dt, CellVisibleFn is_visible_fn,
             continue;
         }
 
-        if (is_visible_fn && !is_visible_fn(e->cell, user)) 
+        if (!in_bounds(e->cell) || !lvl->fog.visible[e->cell])
             continue;
 
         e->emit_timer -= dt;
@@ -1303,7 +1305,9 @@ void particle_update_emitters(Level *lvl, float dt, CellVisibleFn is_visible_fn,
 
 static float wind_emit_timer = 0.0f;
 
-void particle_update_ambient(Level *lvl, float dt, CellVisibleFn is_visible_fn, void *user) {
+void particle_update_ambient(Level *lvl, float dt) {
+    if (!lvl) return;
+
     wind_emit_timer -= dt;
 
     bool emit_wind = wind_emit_timer <= 0.0f;
@@ -1312,7 +1316,7 @@ void particle_update_ambient(Level *lvl, float dt, CellVisibleFn is_visible_fn, 
     }
 
     for (int cur = 0; cur < LEVEL_SIZE; cur++) {
-        if (is_visible_fn && !is_visible_fn(cur, user))
+        if (!lvl->fog.visible[cur])
             continue;
 
         int tile = lvl->map[cur];

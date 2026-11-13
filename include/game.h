@@ -32,8 +32,6 @@ typedef struct {
     Dungeon dungeon;
     Player player;
     Camera cam;
-    Fog *fog;
-    Level *lvl;
 
     InventoryUI inv;
 

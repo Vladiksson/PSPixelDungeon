@@ -2,13 +2,12 @@
 #include "level.h"
 #include "player.h"
 #include "camera.h"
-#include "fov.h"
+#include "level_fov.h"
 
 #define MAX_FLOORS 26
 
 typedef struct {
     Level floors[MAX_FLOORS];
-    Fog fog[MAX_FLOORS];
     uint8_t generated[MAX_FLOORS];
 
     LevelGenState gen_state;

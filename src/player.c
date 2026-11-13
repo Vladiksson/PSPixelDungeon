@@ -1,7 +1,7 @@
 #include "player.h"
 #include "npc.h"
 #include "item_spawn.h"
-#include "level_geometry.h"
+#include "level_fov.h"
 #include "item_wand.h"
 #include <stddef.h>
 
@@ -663,6 +663,16 @@ void player_consume_item(Player *p, Bag *bag, int slot) {
             default:
                 break;
         }
+
+        player_play_anim(p, ANIM_OPERATE);
+
+        player_end_turn(p, 1.0f);
+
+        bag_remove_item(bag, slot, 1);
+    }
+
+    if (result == ITEM_CONSUME_FOOD) {
+        char_hunger_satisfy(&p->base, ITEM_DB[stack.type].food.nutrition);
 
         player_play_anim(p, ANIM_OPERATE);
 
