@@ -437,6 +437,9 @@ ItemConsumeResult item_consume(ItemStack *stack) { //temporary bullshit variant 
     if (item.cat == ITEMCAT_FOOD)
         return ITEM_CONSUME_FOOD;
     
+    if (item.cat == ITEMCAT_SCROLL)
+        return ITEM_CONSUME_SCROLL;
+
     return ITEM_USE_CONSUMED;
 }
 

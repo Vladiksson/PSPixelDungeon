@@ -153,6 +153,7 @@ typedef enum {
     ITEM_CONSUME_POTION,
     ITEM_CONSUME_FOOD,
     ITEM_USE_CONSUMED,
+    ITEM_CONSUME_SCROLL,
 } ItemConsumeResult;
 
 ItemConsumeResult item_consume(ItemStack *stack);

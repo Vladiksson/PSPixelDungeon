@@ -306,6 +306,11 @@ static void gameplay_input(Game *game, InputState *inp, uint32_t now) {
     //TEST OF QUICK SLOT
     if (btn_pressed(inp, BTN_SQUARE)) {
         player_use_quick_slot(player, lvl);
+
+        if (player->scroll_action != SCROLL_ACTION_NONE) {
+            game->state = GAME_STATE_INVENTORY;
+            game->inv.cursor = 0; game->inv.active_bag = BAG_BACKPACK; game->inv.pending_ring = -1;
+        }
         return;
     }
 
@@ -378,6 +383,7 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
     Player *player = &game->player;
     InventoryUI *inv = &game->inv;
     Level *lvl = game_level(game);
+    Bag *bag = &player->bags[inv->active_bag];
 
     if (btn_pressed(inp, BTN_SELECT)) {
         game->state = GAME_STATE_PLAYING;
@@ -385,7 +391,6 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
     }
 
     if (inv->pending_ring >= 0) {
-        Bag *bag = &player->bags[inv->active_bag];
         int slot = inv->pending_ring;
 
         if (btn_pressed(inp, BTN_START)) {
@@ -409,9 +414,8 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
         inventory_ui_move(&game->inv, dx, dy);
     }
 
-    if (btn_pressed(inp, BTN_CROSS)) {
+    if (btn_pressed(inp, BTN_CROSS) && player->scroll_action == SCROLL_ACTION_NONE) {
         if (inv->cursor >= 0 && inv->cursor < MAX_INVENTORY) {
-            Bag *bag = &player->bags[inv->active_bag];
 
             player_set_quick_slot(player, bag, inv->cursor); //TEST OF QUICK SLOT, mb try the same holding logic as resting???
 
@@ -437,15 +441,34 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
         }
     }
 
-    if (btn_pressed(inp, BTN_TRIANGLE))
-        player_drop_from_bag(player, lvl, &player->bags[inv->active_bag], inv->cursor);
+    if (btn_pressed(inp, BTN_TRIANGLE) && player->scroll_action == SCROLL_ACTION_NONE)
+        player_drop_from_bag(player, lvl, bag, inv->cursor);
 
     if (btn_pressed(inp, BTN_SQUARE)) {
-        player_consume_item(player, &player->bags[inv->active_bag], inv->cursor);
+        if (player->scroll_action != SCROLL_ACTION_NONE) {
+            if (inv->cursor >= 0 && inv->cursor < MAX_INVENTORY) {
+                player_apply_scroll_action(player, &bag->items[inv->cursor]);
+            } else {
+                ItemStack *item = NULL;
+
+                switch (inv->cursor) {
+                    case CURSOR_WEAPON: item = &player->weapon; break;
+                    case CURSOR_ARMOR:  item = &player->armor;  break;
+                    case CURSOR_RING1:  item = &player->ring1;  break;
+                    case CURSOR_RING2:  item = &player->ring2;  break;
+                }
+                player_apply_scroll_action(player, item);
+            }
+
+            player->scroll_action = SCROLL_ACTION_NONE;
+            return;
+        }
+
+        player_consume_item(player, bag, inv->cursor);
+        return;
     }
 
-    if (btn_pressed(inp, BTN_CIRCLE)) {
-        Bag *bag = &player->bags[inv->active_bag];
+    if (btn_pressed(inp, BTN_CIRCLE) && player->scroll_action == SCROLL_ACTION_NONE) {
 
         if (inv->cursor < 0 || inv->cursor >= MAX_INVENTORY)
             return;
@@ -465,10 +488,9 @@ static void inventory_input(Game *game, InputState *inp, uint32_t now) {
     if (btn_pressed(inp, BTN_L))
         inventory_ui_prev_tab(inv, player);
 
-    if (btn_pressed(inp, BTN_START)) {
+    if (btn_pressed(inp, BTN_START) && player->scroll_action == SCROLL_ACTION_NONE) {
         if (inv->cursor >= 0 && inv->cursor < MAX_INVENTORY) {
-            Bag *bag = &player->bags[inv->active_bag];
-
+            
             if (bag->items[inv->cursor].type != ITEM_NONE)
                 game_open_popup(game, POPUP_ITEM_DESC);
         } else {

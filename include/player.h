@@ -87,6 +87,13 @@ typedef struct {
    Ballistica path;
 } ZapCast;
 
+typedef enum {
+   SCROLL_ACTION_NONE,
+   SCROLL_ACTION_UPGRADE,
+   SCROLL_ACTION_ENCHANT,
+   SCROLL_ACTION_IDENTIFY
+} ScrollOnItemAction;
+
 typedef struct {
    Char base;
    
@@ -126,6 +133,8 @@ typedef struct {
 
    int wand_charge_turns;  /* counts real player turns 0..WAND_CHARGE_TURN_INTERVAL; see player_charge_wands() in player.c */
 
+   ScrollOnItemAction scroll_action;
+
    int resting;
    int falling;
 
@@ -150,6 +159,7 @@ ItemStack *equip_slot_ptr(Player *p, EquipSlot slot);
 
 void player_sort_inventory(Player *p);
 void player_consume_item(Player *p, Bag *bag, int slot);
+void player_apply_scroll_action(Player *p, ItemStack *stack);
 
 int player_equip_item(Player *p, Bag *bag, int slot, int spend_time);
 int player_equip_ring(Player *p, Bag *bag, int slot, EquipSlot target, int spend_time);

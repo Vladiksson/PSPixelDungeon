@@ -120,7 +120,7 @@ void player_set_moving(Player *p, int moving) {
 /*═══════════════════════════════════════════════════════════════
     Wand charging
 ═══════════════════════════════════════════════════════════════*/
-static void player_charge_all_wands(Player *p) {
+static void player_charge_all_wands(Player *p, int until_max) {
     for (int t = 0; t < BAG_TYPE_COUNT; t++) {
         if (!player_has_bag(p, (BagType)t))
             continue;
@@ -132,8 +132,11 @@ static void player_charge_all_wands(Player *p) {
                 continue;
 
             int max = wand_max_charges(item->type, item->level);
-            if (item->charges < max)
+            if (until_max) {
+                item->charges = max;
+            } else if (item->charges < max) {
                 item->charges++;
+            }
         }
     }
 }
@@ -143,7 +146,7 @@ static void player_charge_wands(Player *p) {
         return;
 
     p->wand_charge_turns = 0;
-    player_charge_all_wands(p);
+    player_charge_all_wands(p, 0);
 }
 
 static void player_end_turn(Player *p, float time) {
@@ -589,6 +592,7 @@ void player_sort_inventory(Player *p) {
 void player_consume_item(Player *p, Bag *bag, int slot) {
     ItemStack stack = bag->items[slot];
     ItemConsumeResult result = item_consume(&stack);
+    Level *lvl = char_active_level();
     if (result == ITEM_USE_CONSUMED) {
         //TODO ADD USING CONSUMABLES
         //MB ADD MORE STATES + USE SWITCH
@@ -679,6 +683,75 @@ void player_consume_item(Player *p, Bag *bag, int slot) {
         player_end_turn(p, 1.0f);
 
         bag_remove_item(bag, slot, 1);
+    }
+
+    if (result == ITEM_CONSUME_SCROLL) {
+        switch (stack.type) {
+            case ITEM_SCROLL_IDENTIFY:
+                p->scroll_action = SCROLL_ACTION_IDENTIFY;
+                break;
+            case ITEM_SCROLL_UPGRADE:
+                p->scroll_action = SCROLL_ACTION_UPGRADE;
+                break;
+            case ITEM_SCROLL_ENCHANTMENT:
+                p->scroll_action = SCROLL_ACTION_ENCHANT;
+                break;
+            case ITEM_SCROLL_RECHARGING:
+                player_charge_all_wands(p, 1);
+                break;
+            case ITEM_SCROLL_REMOVE_CURSE:
+                for (int t = 0; t < BAG_TYPE_COUNT; t++) {
+                    if (!player_has_bag(p, (BagType)t))
+                        continue;
+
+                    Bag *bag = &p->bags[t];
+                    for (int i = 0; i < bag->count; i++) {
+                        ItemStack *item = &bag->items[i];
+
+                        item->cursed = 0;
+                    }
+                }
+
+                p->weapon.cursed = 0;
+                p->armor.cursed  = 0;
+                p->ring1.cursed  = 0;
+                p->ring2.cursed  = 0;
+
+                char_remove_buffs_of_type(&p->base, BUFF_WEAKNESS);
+                break;
+            case ITEM_SCROLL_MAGIC_MAPPING:
+                fog_map_all(lvl);
+            default:
+                break;
+        }
+
+        player_play_anim(p, ANIM_READ);
+
+        player_end_turn(p, 1.0f);
+
+        char_remove_buffs_of_type(&p->base, BUFF_INVISIBILITY);
+        char_remove_buffs_of_type(&p->base, BUFF_SHADOWS);
+
+        bag_remove_item(bag, slot, 1);
+    }
+}
+
+void player_apply_scroll_action(Player *p, ItemStack *stack) { //TODO test temporary bullshit
+    switch (p->scroll_action) {
+        case SCROLL_ACTION_IDENTIFY:
+            item_identify(stack);
+            break;
+        case SCROLL_ACTION_UPGRADE:
+            item_upgrade(stack);
+            break;
+        case SCROLL_ACTION_ENCHANT: //there is no enchantment yet, TEST PLACEHOLDER
+            item_upgrade(stack);
+            item_upgrade(stack);
+            item_upgrade(stack);
+            break;
+        case SCROLL_ACTION_NONE:
+        default:
+            break;
     }
 }
 
@@ -1545,6 +1618,8 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     p->resting             = 0;
     p->falling             = 0;
 
+    p->scroll_action = SCROLL_ACTION_NONE;
+
     p->cursor_pos = p->base.pos;
     p->target_pos = p->base.pos;
 
@@ -1560,9 +1635,9 @@ void player_init(Player *p, const Level *lvl, HeroClass cls){
     //player_init_item(p, ITEM_SCROLL_UPGRADE, 100);//TEST
     //player_init_item(p, ITEM_CURARE_DART, 100);//TEST
 
-    //player_init_item(p, ITEM_POTION_LIQUID_FLAME, 10);//TEST
-    //player_init_item(p, ITEM_POTION_FROST, 10);//TEST
-    //player_init_item(p, ITEM_POTION_LEVITATION, 10);//TEST
+    //player_init_item(p, ITEM_SCROLL_IDENTIFY, 10);//TEST
+    //player_init_item(p, ITEM_SCROLL_MAGIC_MAPPING, 10);//TEST
+    //player_init_item(p, ITEM_SCROLL_ENCHANTMENT, 10);//TEST
 
     //player_init_item(p, ITEM_WAND_DISINTEGRATION, 1);//TEST
     //player_init_item(p, ITEM_WAND_LIGHTNING, 1);//TEST
